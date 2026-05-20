@@ -1,0 +1,29 @@
+# Secrets / envs
+.env
+.venv/
+.pocEmail/
+
+# Gmail OAuth — never commit
+credentials.json
+token.json
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# OS
+.DS_Store
+
+# Runtime outputs
+output/
+reports/
+audits.db
+audits.db-*
+audits.db.backup-*
+voice_profiles/
+*.egg-info/
+
+# Root-level .eml samples (user mail). Test fixtures under tests/ are kept.
+/*.eml

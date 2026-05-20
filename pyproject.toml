@@ -1,0 +1,42 @@
+[project]
+name = "realestate-emil-audit"
+version = "0.0.1"
+description = "PoC: email deliverability audit tool + plaintext copy generator."
+requires-python = ">=3.11"
+
+# PoC deps. Ingest is Gmail API polling (no CloudMailin, no webhook).
+# Deferred deps (see BACKLOG.md): fastapi, aiospamc, instructor, structlog, textstat.
+dependencies = [
+  # Audit core (Day 1–2)
+  "pydantic>=2.7",
+  "beautifulsoup4>=4.12",
+  "lxml>=5.0",
+  "dnspython>=2.6",
+  "confusable-homoglyphs>=3.3",
+  # Domain-health audit (mxtoolbox parity)
+  "cryptography>=42.0",       # DKIM SPKI parsing, X.509 cert inspection on STARTTLS
+  "publicsuffixlist>=0.10",   # Accurate registrable / org-domain extraction
+  # Gmail polling (Day 3)
+  "google-auth>=2.29",
+  "google-auth-oauthlib>=1.2",
+  "google-api-python-client>=2.130",
+  # Microsoft Graph / Outlook ingest
+  "msal>=1.30",
+  "httpx>=0.27",
+  # Persistence (multi-user)
+  "sqlmodel>=0.0.22",
+  "sqlalchemy>=2.0",
+  # LLM humanization + copy gen (Day 4, 6)
+  "openai>=1.50",
+  "python-dotenv>=1.0",
+  # Web UI (MVP, Day 7)
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.9",  # FastAPI form/file upload
+  "pystray>=0.19",            # cross-platform tray icon
+  "pillow>=10.0",             # tray icon image
+]
+
+[tool.setuptools]
+packages = ["audit", "audit.checks", "audit.drift", "audit.domain_health", "audit.domain_health.checks", "copy_gen", "gmail_ingest", "memory", "utils", "webapp"]
