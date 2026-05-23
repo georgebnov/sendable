@@ -39,4 +39,4 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["audit", "audit.checks", "audit.drift", "audit.domain_health", "audit.domain_health.checks", "copy_gen", "gmail_ingest", "memory", "utils", "webapp"]
+packages = ["audit", "audit.copywriting", "audit.dmarc", "audit.domain", "audit.domain.auth", "audit.domain.dns", "audit.domain.integrity", "audit.drift", "audit.esp", "audit.industry", "audit.industry.real_estate", "audit.storytelling", "copy_gen", "gmail_ingest", "memory", "utils", "webapp"]
