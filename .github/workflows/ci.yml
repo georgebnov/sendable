@@ -1,0 +1,94 @@
+name: CI Checks
+
+# Gates the production backend on every PR + push to main. Scoped to
+# production/backend so the legacy PoC tree at repo root never triggers it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "production/backend/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "production/backend/**"
+      - ".github/workflows/ci.yml"
+
+defaults:
+  run:
+    working-directory: production/backend
+
+jobs:
+  lint:
+    name: 🐛 Linting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: production/backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+
+  format:
+    name: 🪮 Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: production/backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ruff format --check .
+
+  typecheck:
+    name: 🔎 Type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: production/backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: mypy
+
+  test:
+    name: 🪲 Unit + integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/test_db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: production/backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Generate ephemeral secrets
+        run: |
+          echo "SESSION_SECRET=$(python -c 'import secrets;print(secrets.token_hex(32))')" >> "$GITHUB_ENV"
+          echo "TOKEN_ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
+      - name: Apply migrations
+        run: alembic -c db/alembic.ini upgrade head
+      - name: Run tests
+        run: pytest -q

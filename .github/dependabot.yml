@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Python deps for the production backend.
+  - package-ecosystem: pip
+    directory: /production/backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      backend:
+        patterns: ["*"]
+
+  # Keep the GitHub Actions themselves up to date.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
