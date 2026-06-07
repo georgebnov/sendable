@@ -1,0 +1,79 @@
+name: Data migration check
+
+# Fails the PR when it edits "interpretation" code (the files that decide
+# how stored rows are read or grouped) without a paired backfill script
+# under app/scripts/backfill/. Escape hatch: label the PR `no-data-impact`.
+#
+# Rationale: a code change that flips how a row is interpreted (iteration
+# matching, audit verdict, classifier) will silently leave older rows
+# inconsistent with newer ones unless we re-run the new logic over them.
+# The rule forces a conscious decision per PR, not a forgotten one.
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect risky changes without backfill
+        env:
+          BASE: ${{ github.base_ref }}
+          LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+
+          # Files changed in this PR (added, modified, renamed; ignore deletes).
+          CHANGED=$(git diff --name-only --diff-filter=AMR "origin/${BASE}...HEAD")
+          echo "Changed files:"
+          echo "$CHANGED"
+          echo "---"
+
+          # Paths whose semantics directly affect how stored data is read.
+          # Edit this list as new interpretation modules are introduced.
+          RISKY_REGEX='^production/backend/app/(services|domain/audit|domain/ingest)/'
+
+          # Where backfill scripts live.
+          BACKFILL_REGEX='^production/backend/app/scripts/backfill/'
+
+          RISKY=$(echo "$CHANGED" | grep -E "$RISKY_REGEX" || true)
+          BACKFILL=$(echo "$CHANGED" | grep -E "$BACKFILL_REGEX" || true)
+
+          # Did the author opt out via the `no-data-impact` label?
+          HAS_OPTOUT=$(echo "$LABELS" | grep -c '"no-data-impact"' || true)
+
+          if [ -z "$RISKY" ]; then
+            echo "No changes in risky zones — passing."
+            exit 0
+          fi
+
+          if [ -n "$BACKFILL" ]; then
+            echo "Risky changes paired with backfill script — passing."
+            echo "Backfill files:"
+            echo "$BACKFILL"
+            exit 0
+          fi
+
+          if [ "$HAS_OPTOUT" -gt 0 ]; then
+            echo "Risky changes but PR labeled 'no-data-impact' — passing."
+            exit 0
+          fi
+
+          echo "::error::This PR changes files that interpret stored data, but"
+          echo "::error::adds no backfill script and isn't labeled 'no-data-impact'."
+          echo "::error::"
+          echo "::error::Either:"
+          echo "::error::  1. Add a script under production/backend/app/scripts/backfill/"
+          echo "::error::     (one-off, idempotent, --dry-run supported) that re-applies"
+          echo "::error::     the new logic to existing rows."
+          echo "::error::  2. Add the label 'no-data-impact' if existing rows are"
+          echo "::error::     genuinely unaffected by this change."
+          echo "::error::"
+          echo "::error::Risky paths touched:"
+          echo "$RISKY" | sed 's/^/::error::  /'
+          exit 1
