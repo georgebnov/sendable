@@ -27,3 +27,4 @@ voice_profiles/
 
 # Root-level .eml samples (user mail). Test fixtures under tests/ are kept.
 /*.eml
+.superpowers/
