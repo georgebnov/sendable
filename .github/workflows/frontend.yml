@@ -1,0 +1,35 @@
+name: Frontend Checks
+
+# Gates production/frontend on every PR + push to main: ESLint (next lint) and
+# TypeScript. Scoped to the frontend tree so backend-only changes skip it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "production/frontend/**"
+      - ".github/workflows/frontend.yml"
+  pull_request:
+    paths:
+      - "production/frontend/**"
+      - ".github/workflows/frontend.yml"
+
+defaults:
+  run:
+    working-directory: production/frontend
+
+jobs:
+  lint:
+    name: 🧹 Lint + types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: production/frontend/package-lock.json
+      - run: npm ci
+      - name: ESLint
+        run: npx next lint --max-warnings=0
+      - name: TypeScript
+        run: npx tsc --noEmit
