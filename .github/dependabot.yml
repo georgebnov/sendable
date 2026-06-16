@@ -9,6 +9,9 @@ updates:
     groups:
       backend:
         patterns: ["*"]
+        # Group only non-breaking bumps. Majors come as separate PRs so one
+        # incompatible upgrade can't block the whole batch.
+        update-types: ["minor", "patch"]
 
   # npm deps for the production frontend.
   - package-ecosystem: npm
@@ -19,6 +22,12 @@ updates:
     groups:
       frontend:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # TypeScript 6 breaks openapi-typescript + @typescript-eslint peers
+      # (they require ^5.x). Hold the major until the ecosystem catches up.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   # Keep the GitHub Actions themselves up to date.
   - package-ecosystem: github-actions
