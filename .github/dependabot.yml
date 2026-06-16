@@ -24,9 +24,11 @@ updates:
         patterns: ["*"]
         update-types: ["minor", "patch"]
     ignore:
-      # TypeScript 6 breaks openapi-typescript + @typescript-eslint peers
-      # (they require ^5.x). Hold the major until the ecosystem catches up.
-      - dependency-name: "typescript"
+      # Frontend majors (React 19, ESLint 10, Next 16, @types/* majors, …) need
+      # a coordinated framework upgrade, not a weekly auto-bump — they break
+      # peer resolution against Next 14 / React 18. Do majors by hand; let
+      # Dependabot handle only minor/patch here.
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
   # Keep the GitHub Actions themselves up to date.
