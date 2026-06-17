@@ -145,6 +145,7 @@ Backfill script naming: `bf_<YYYYMMDD>_<slug>.py` (the `bf_` prefix is required 
 - **Services own DB writes.** API handlers should orchestrate; if a handler is mutating rows directly, that's refactor backlog. See `production/backend/docs/CODE_HEALTH_AUDIT_2026_06_09.md` for the in-progress audit of where this rule is broken today.
 - **Tests prefer service-level calls over HTTP mocking.** There's no FastAPI TestClient in the suite — async tests call handlers / services directly with the `db_session` fixture from `tests/conftest.py`.
 - **Frontend doesn't talk to the DB.** All data goes through `production/frontend/lib/api.ts` (`api<T>(path, init)`), which handles credentials + 401-redirect.
+- **Page split is for prefetch, not for naming.** A data-heavy landing route splits into a server `page.tsx` that prefetches + dehydrates its queries (`apiServer` + `HydrationBoundary`) and a client island `<Route>Client.tsx` — so the page paints with data on first load instead of blank-then-fetch (see `app/(app)/dmarc/page.tsx` + `DmarcClient.tsx`). Routes with nothing worth prefetching (forms, uploads, settings, sign-in) stay a single `'use client'` `page.tsx`. Don't add a `Client.tsx` wrapper just for symmetry — an empty server wrapper is ceremony, not convention.
 - **No new tables / columns without a migration in the same PR.** The CI gate will catch you, but the friendlier path is to commit them together.
 
 ## How the global rules express themselves here
