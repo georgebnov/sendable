@@ -28,3 +28,8 @@ voice_profiles/
 # Root-level .eml samples (user mail). Test fixtures under tests/ are kept.
 /*.eml
 .superpowers/
+
+# Local agent / editor junk — never commit
+.claude/
+docs/superpowers/
+*.code-workspace
