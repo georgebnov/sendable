@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# The lint/type net, run at commit time. Enable once per clone with:
+#   git config core.hooksPath .githooks
+#
+# Runs only the stack(s) a commit actually touches, and mirrors exactly what
+# CI runs (ci.yml + frontend.yml). A failing layer blocks the commit. Bypass
+# in a genuine emergency with `git commit --no-verify` — but a red check is an
+# unfinished task, not a thing to skip past.
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+staged="$(git diff --cached --name-only --diff-filter=ACM)"
+
+backend_touched=false
+frontend_touched=false
+while IFS= read -r f; do
+  case "$f" in
+    production/backend/*.py | production/backend/**/*.py) backend_touched=true ;;
+    production/frontend/*) frontend_touched=true ;;
+  esac
+done <<< "$staged"
+
+fail=0
+
+if [ "$backend_touched" = true ]; then
+  cd "$repo_root/production/backend"
+  if [ -x .venv/bin/ruff ]; then
+    echo "▶ backend net (ruff · format · mypy)"
+    .venv/bin/ruff check . || fail=1
+    .venv/bin/ruff format --check . || fail=1
+    .venv/bin/mypy || fail=1
+  else
+    echo "⚠ backend changed but production/backend/.venv missing — skipping (set it up to get the check)"
+  fi
+fi
+
+if [ "$frontend_touched" = true ]; then
+  cd "$repo_root/production/frontend"
+  if [ -d node_modules ]; then
+    echo "▶ frontend net (prettier · eslint · tsc)"
+    npx prettier --check . || fail=1
+    npx next lint --max-warnings=0 || fail=1
+    npx tsc --noEmit || fail=1
+  else
+    echo "⚠ frontend changed but node_modules missing — run npm install to get the check"
+  fi
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo "✖ pre-commit net failed — fix the errors above (do not suppress them). Emergency bypass: git commit --no-verify"
+  exit 1
+fi

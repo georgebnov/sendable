@@ -1,7 +1,8 @@
 name: Frontend Checks
 
-# Gates production/frontend on every PR + push to main: ESLint (next lint) and
-# TypeScript. Scoped to the frontend tree so backend-only changes skip it.
+# Gates production/frontend on every PR + push to main: Prettier (format),
+# ESLint (next lint), and TypeScript. Scoped to the frontend tree so
+# backend-only changes skip it.
 on:
   push:
     branches: [main]
@@ -29,6 +30,8 @@ jobs:
           cache: npm
           cache-dependency-path: production/frontend/package-lock.json
       - run: npm ci
+      - name: Prettier
+        run: npx prettier --check .
       - name: ESLint
         run: npx next lint --max-warnings=0
       - name: TypeScript

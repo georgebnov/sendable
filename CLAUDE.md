@@ -53,6 +53,25 @@ npx next dev              # local dev server on :3000
 npx next build --no-lint  # production build (Vercel runs this too)
 ```
 
+## Run the net before finishing
+
+There are three layers — formatter, linter, type checker — wired into CI on both
+stacks. **After changing code, run the layers for the stack you touched and fix
+every error before you call the task done.** Never suppress (no blanket `# type: ignore`,
+`eslint-disable`, or `# noqa`) to silence a check — fix the cause, or surface it if
+you can't. A red check is an unfinished task, not a known issue to file.
+
+```bash
+# Backend — from production/backend/ (the same checks CI runs, in order):
+.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy
+
+# Frontend — from production/frontend/:
+npx next lint --max-warnings=0 && npx tsc --noEmit
+```
+
+The `.githooks/pre-commit` hook runs these automatically for whichever stack a
+commit touches (enable once per clone with `git config core.hooksPath .githooks`).
+
 ## Deploy
 
 The frontend deploys automatically on every push to `main` (Vercel hook). The backend does not. From `production/backend/`:
