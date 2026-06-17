@@ -4,12 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Where to work
 
-There are TWO trees in this repo. Only one is alive.
+All work happens in **`production/backend/` + `production/frontend/`** — the live system, deployed at `api.sndbl.com` + `app.sndbl.com`.
 
-- **`production/backend/` + `production/frontend/`** — the live system. Deployed at `api.sndbl.com` + `app.sndbl.com`. All real work happens here.
-- **Repo-root Python (`app.py`, `audit/`, `briefs/`, `copy_gen/`, etc.) + `AGENTS.md` + `TODO.md`** — the original single-user PoC. Stale. **Do NOT edit unless explicitly asked.** Logic gets ported INTO production from here, never the other way around.
+(The original single-user PoC that used to live at the repo root has been removed — it was fully ported into `production/` and is preserved at the git tag `poc-archive` if ever needed.)
 
-Inside `production/backend/`, `app/domain/*` is "ported PoC code" — also frozen. It's deliberately excluded from ruff, mypy, and the CI gates (see `pyproject.toml`). Touch it only when asked, and don't try to refactor it for style.
+Inside `production/backend/`, `app/domain/*` is the ported PoC logic — **frozen**. It's deliberately excluded from ruff, mypy, and the CI gates (see `pyproject.toml`). Touch it only when asked, and don't try to refactor it for style.
 
 ## Stack
 
@@ -169,7 +168,6 @@ Backfill script naming: `bf_<YYYYMMDD>_<slug>.py` (the `bf_` prefix is required 
 
 ## Watch out
 
-- The legacy PoC code at repo root has its own venv, its own `.env`, its own DB. Do NOT confuse it with the production tree. The production stack ignores it entirely.
 - `app/domain/*` looks like normal Python but is held to no style or type rules. Lint will pass even on obviously-broken code there. Don't assume the linter will catch your mistake.
 - The `inboxhealth-report` SQS queue still exists on AWS but is unused — the `+report@gmail.com` polling path was retired (see the `polling_service.py` docstring). Don't rewire workers to consume it.
 - Running pytest without sourcing `.env` first will fail with `KeyError: 'DATABASE_URL'` from `tests/conftest.py`. The Postgres service must also be running.
