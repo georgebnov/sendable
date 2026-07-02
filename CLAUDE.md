@@ -1,6 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+**Read [`AGENTS.md`](./AGENTS.md) first — it is the operational contract** (toolchain,
+the net to run before finishing, and the numbered rules). It applies to every agent,
+Claude Code included. This file is the long-form reference AGENTS.md points back to:
+architecture, schema notes, the deploy runbook, CI gates, and the docs worth reading.
+When the two overlap, AGENTS.md wins — keep behavioral rules there, detail here.
 
 ## Where to work
 
