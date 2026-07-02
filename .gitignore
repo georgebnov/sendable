@@ -30,6 +30,8 @@ voice_profiles/
 .superpowers/
 
 # Local agent / editor junk — never commit
-.claude/
+# .claude/: share skills, agents + shared settings; keep personal bits local
+.claude/settings.local.json
+.claude/worktrees/
 docs/superpowers/
 *.code-workspace
