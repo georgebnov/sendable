@@ -1,34 +1,18 @@
-# Project subagents
+# .claude/agents — the agents' workspace
 
-Subagents are specialized agents Claude Code can dispatch for a scoped task
-(exploring, reviewing, migrating). These are **shared** — committed to git so
-everyone gets the same ones.
+The unclean side of the work: one-off scripts, experiment runners, plans, scratchpads, drafts.
+Committed so it transfers across worktrees and chats — that is the only guarantee.
 
-## Layout
+Contract:
+- **Outside the gate.** The nets in AGENTS.md rule 1 (`ruff`/`mypy`/`pytest` for the backend,
+  `next lint`/`tsc` for the frontend, `npm run build` for the website) run against
+  `production/`, not here. Nothing in this folder is held to production standards or reviewed as
+  shipping code.
+- **Nothing may depend on it.** `production/{backend,frontend,website}/` must never import from
+  or link to anything here as if it were permanent.
+- **Pruned periodically.** Anything here may be deleted at any time. When work matures, promote
+  the product out — writeups → `docs/`, reusable backend code → `production/backend/app/`,
+  runnable ops scripts → `ops/`, backfills → `production/backend/app/scripts/backfill/` — and
+  let the scraps die here.
 
-One Markdown file per agent:
-
-```
-.claude/agents/<agent-name>.md
-```
-
-Frontmatter defines it, followed by the agent's system prompt:
-
-```markdown
----
-name: migration-reviewer
-description: Reviews an alembic migration for autogenerate noise and destructive ops. Use before committing a migration.
-tools: Read, Grep, Glob, Bash
----
-
-You review alembic migrations. Flag any op not related to the intended change
-(index renames, AutoString<->TEXT churn), and any destructive DDL...
-```
-
-- **`name`** — the agent type you dispatch.
-- **`description`** — states *when* to use it; the dispatcher matches on this.
-- **`tools`** — optional comma-separated allowlist; omit to inherit all tools.
-
-Keep agents narrow and read-mostly unless they genuinely need to write. See
-`AGENTS.md` for repo conventions the agent should respect.
-```
+Layout is free-form; `scripts/` for runnable one-offs is the only suggested convention.
