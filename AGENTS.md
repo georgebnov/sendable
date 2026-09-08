@@ -1,3 +1,5 @@
+READ ~/Projects/agent-scripts/AGENTS.md BEFORE ANYTHING (skip if missing).
+
 # Agent guide — Sendable
 
 An email-deliverability SaaS. The FastAPI backend (`api.sndbl.com`) runs the audit
