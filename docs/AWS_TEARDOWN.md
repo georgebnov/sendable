@@ -1,4 +1,4 @@
-# AWS teardown — 2026-10-06
+# AWS teardown, 2026-10-06
 
 The Sendable AWS account `560151615499` (ca-central-1) is empty. The backend no
 longer runs on Fargate. `docs/PIPELINE.md` and the `copilot/` manifests describe
@@ -7,7 +7,7 @@ infrastructure that does not exist any more.
 ## What the teardown deleted
 
 The compute was already gone before this teardown. ECS, the public load balancer,
-and the RDS instance stopped billing at the end of August 2026.
+and the RDS instance stopped billing around 2026-09-01, the snapshot date.
 
 This teardown deleted the rest:
 
@@ -38,5 +38,5 @@ This teardown deleted the rest:
 2. Porkbun still serves DNS for `sndbl.com`. Two records point at deleted AWS
    resources: `api.sndbl.com` (CNAME to the removed load balancer) and the MX
    record on `ag.sndbl.com` (AWS inbound mail). Remove both.
-3. The OpenAI API key and the Google OAuth client secret existed only as SSM
-   parameters here. Rotate them in their own consoles if they are still live.
+3. The OpenAI API key and the Google OAuth client secret had a copy in SSM.
+   That copy is deleted. Rotate the keys in their own consoles if they are still live.
