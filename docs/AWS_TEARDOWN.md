@@ -1,0 +1,42 @@
+# AWS teardown — 2026-10-06
+
+The Sendable AWS account `560151615499` (ca-central-1) is empty. The backend no
+longer runs on Fargate. `docs/PIPELINE.md` and the `copilot/` manifests describe
+infrastructure that does not exist any more.
+
+## What the teardown deleted
+
+The compute was already gone before this teardown. ECS, the public load balancer,
+and the RDS instance stopped billing at the end of August 2026.
+
+This teardown deleted the rest:
+
+- SES receipt rule set `inboxhealth-rules` and the rule `dmarc-to-s3`.
+- SES identities `sndbl.com`, `ag.sndbl.com`, `te2017r@gmail.com`.
+- Security group `inboxhealth-db-sg`, which blocked the stack delete.
+- CloudFormation stack `inboxhealth-prod`.
+- The Copilot application `inboxhealth`: StackSet, roles stack, pipeline bucket.
+- ECR repositories `inboxhealth-api` and `inboxhealth/api`, 23 images.
+- RDS manual snapshot `sndbl-final-20260813`, 20 GB. **The only copy of the
+  production database. It is unrecoverable.**
+- S3 bucket `inboxhealth-dmarc-reports-prod`, 140 raw DMARC reports.
+- SQS queues `inboxhealth-audit`, `inboxhealth-dmarc-ingest`, `inboxhealth-report`.
+- 6 SSM secret parameters, 10 Lambda log groups, the `api.sndbl.com` ACM
+  certificate, the `rds-monitoring-role` IAM role, and one EventBridge rule.
+
+## What is left
+
+- KMS customer key `6cd056fb-22b9-42d9-b545-e525ff2072c5`. AWS deletes it on
+  2026-10-13. KMS enforces a 7-day minimum wait.
+- IAM user `inboxhealth-admin` and its access key. The account closure removes it.
+- The default VPC and its default security group. These cost nothing.
+
+## Open items
+
+1. George must close the account as root in the AWS console. An IAM user cannot
+   close a standalone account.
+2. Porkbun still serves DNS for `sndbl.com`. Two records point at deleted AWS
+   resources: `api.sndbl.com` (CNAME to the removed load balancer) and the MX
+   record on `ag.sndbl.com` (AWS inbound mail). Remove both.
+3. The OpenAI API key and the Google OAuth client secret existed only as SSM
+   parameters here. Rotate them in their own consoles if they are still live.
