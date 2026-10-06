@@ -35,8 +35,25 @@ This teardown deleted the rest:
 
 1. George must close the account as root in the AWS console. An IAM user cannot
    close a standalone account.
-2. Porkbun still serves DNS for `sndbl.com`. Two records point at deleted AWS
-   resources: `api.sndbl.com` (CNAME to the removed load balancer) and the MX
-   record on `ag.sndbl.com` (AWS inbound mail). Remove both.
-3. The OpenAI API key and the Google OAuth client secret had a copy in SSM.
-   That copy is deleted. Rotate the keys in their own consoles if they are still live.
+
+## Done after the teardown
+
+- Porkbun DNS is clean. George deleted the 6 SES DKIM CNAMEs, the ACM validation
+  CNAME, the `_amazonses.ag.sndbl.com` verification TXT, the dead `api.sndbl.com`
+  record, and the `ag.sndbl.com` MX record. A check of `sndbl.com`,
+  `ag.sndbl.com`, and every subdomain finds no AWS reference.
+- The OpenAI API key is deleted.
+- A sweep of all 17 enabled regions found no EC2, EBS, EIP, NAT gateway, RDS
+  instance, RDS snapshot, load balancer, ECS cluster, Lambda, ECR repository,
+  ElastiCache cluster, or CloudFormation stack.
+- The account holds no Savings Plan, no Reserved Instance, no Route 53 domain, no
+  Marketplace subscription, and no paid Support plan. It belongs to no AWS
+  Organization.
+
+## Known dead pointer, not AWS
+
+`_dmarc.sndbl.com` still reads
+`v=DMARC1; p=reject; rua=mailto:749f285f2d0aa1f4@ag.sndbl.com; ...`. The `rua=`
+mailbox was the SES ingestion address and no longer exists. The `p=reject`
+policy still works. Only the report delivery fails. Remove the `rua=` part to
+stop the failed deliveries.
