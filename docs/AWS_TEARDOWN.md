@@ -31,10 +31,16 @@ This teardown deleted the rest:
 - IAM user `inboxhealth-admin` and its access key. The account closure removes it.
 - The default VPC and its default security group. These cost nothing.
 
-## Open items
+## The account is closed
 
-1. George must close the account as root in the AWS console. An IAM user cannot
-   close a standalone account.
+George closed the account as root on 2026-10-06. The AWS console shows "The
+account is closed". The `inboxhealth-admin` access key now fails with
+`InvalidClientTokenId`, which proves the closure took effect.
+
+AWS keeps the account recoverable through AWS Support until **2027-01-04**, 90
+days after closure. After that date AWS deletes it permanently. The account email
+address cannot start a new AWS account before that date. A final bill for October
+usage, about $0.30 plus tax, arrives in early November.
 
 ## Done after the teardown
 
@@ -43,6 +49,10 @@ This teardown deleted the rest:
   record, and the `ag.sndbl.com` MX record. A check of `sndbl.com`,
   `ag.sndbl.com`, and every subdomain finds no AWS reference.
 - The OpenAI API key is deleted.
+- The local AWS credentials are gone. `~/.aws/credentials` and `~/.aws/config`
+  are in the Trash. The 6 AWS lines in `production/backend/.env` are removed:
+  `AWS_REGION`, `AWS_SQS_AUDIT_URL`, `AWS_SQS_REPORT_URL`, `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY`, and their comment.
 - A sweep of all 17 enabled regions found no EC2, EBS, EIP, NAT gateway, RDS
   instance, RDS snapshot, load balancer, ECS cluster, Lambda, ECR repository,
   ElastiCache cluster, or CloudFormation stack.
