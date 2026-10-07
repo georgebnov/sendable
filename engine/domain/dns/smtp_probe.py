@@ -34,6 +34,8 @@ import re
 import smtplib
 import ssl
 
+from engine.net import is_public_address
+
 from ...report import Finding
 from ...severity import Severity
 from ..dns_client import query
@@ -44,6 +46,22 @@ _OPEN_RELAY_PROBE_TO = "audit-probe@example.com"
 
 
 def _open_relay_probe_blocking(host: str) -> dict:
+    """Connect to `host` on 25 and see whether it relays for a stranger.
+
+    The host comes from the audited domain's MX records, which whoever controls
+    that domain chooses. An MX of 169.254.169.254 made this connect to the cloud
+    metadata address, so the address is checked before any socket is opened. Same
+    guard as the unsubscribe probe and the MTA-STS fetch; this was the third place
+    the class appeared.
+    """
+    if not is_public_address(host):
+        # Same shape as an inconclusive probe: open_relay is None because nothing
+        # was established, and the error says why no connection was made.
+        return {"open_relay": None, "error": "blocked_non_public_host"}
+    return _open_relay_probe_unguarded(host)
+
+
+def _open_relay_probe_unguarded(host: str) -> dict:
     """Single open-relay test against `host:25`. Returns dict with:
       - open_relay: True (accepted), False (rejected), or None (inconclusive)
       - error: connection/protocol error string, or None
@@ -81,6 +99,18 @@ async def _open_relay_probe(host: str) -> dict:
     return await asyncio.to_thread(_open_relay_probe_blocking, host)
 
 
+def _is_null_mx(record: str) -> bool:
+    """True when this MX record is RFC 7505's "accepts no mail" declaration.
+
+    Accepts both the form dns_client produces, "0 " with the trailing dot already
+    stripped, and the raw "0 ." in case a caller passes an unprocessed record.
+    """
+    preference, _, exchange = record.strip().partition(" ")
+    if preference != "0":
+        return False
+    return exchange.strip().rstrip(".") == ""
+
+
 async def run(domain: str) -> list[Finding]:
     findings: list[Finding] = []
     mx_ans = await query(domain, "MX")
@@ -106,8 +136,17 @@ async def run(domain: str) -> list[Finding]:
         )
     )
 
-    # Null MX (RFC 7505): single MX target "." — domain accepts no mail.
-    if len(mx_ans.records) == 1 and mx_ans.records[0].rstrip().endswith(" ."):
+    # Null MX (RFC 7505): a single MX of preference 0 whose target is the root,
+    # which declares that this domain accepts no mail. That is a deliberate and
+    # correct configuration, not a fault.
+    #
+    # The test used to look for a literal " ." and never fired. dns_client formats
+    # an MX as "<preference> <exchange>" and strips the trailing dot, so a null MX
+    # arrives as "0 " with an empty exchange. The domain was therefore audited as
+    # if it had a mail server: the per-host findings read ": not a bare IP
+    # literal." with nothing before the colon, and the open-relay probe opened a
+    # connection to the empty hostname.
+    if len(mx_ans.records) == 1 and _is_null_mx(mx_ans.records[0]):
         findings.append(
             Finding(
                 check="smtp.null_mx",

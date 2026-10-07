@@ -211,3 +211,32 @@ def test_the_opener_carries_a_supplied_ssl_context() -> None:
         if isinstance(h, urllib.request.HTTPSHandler)
     ]
     assert https, "an https handler must be installed when a context is given"
+
+
+# ── literal addresses, resolved for real ───────────────────────────────────
+#
+# Every test above stubs the resolver, which is right for a hostname but means
+# none of them exercises the real `getaddrinfo` path. A numeric host resolves
+# locally with no network, so these run it for real and keep that path covered.
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://169.254.169.254/latest/meta-data/",
+        "http://127.0.0.1/",
+        "http://10.0.0.5/internal",
+        "http://[::1]/",
+        "http://192.168.1.1/admin",
+        "ftp://example.com/",
+        "http://8.8.8.8:22/",
+        "not-a-url",
+    ],
+)
+def test_an_unsafe_url_is_refused_without_stubbing_the_resolver(url: str) -> None:
+    assert is_public_http_url(url) is False
+
+
+@pytest.mark.parametrize("url", ["http://8.8.8.8/", "https://8.8.8.8/path"])
+def test_a_public_literal_address_is_allowed_without_stubbing(url: str) -> None:
+    assert is_public_http_url(url) is True
