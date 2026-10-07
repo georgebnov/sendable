@@ -1,0 +1,94 @@
+# The gate for the Sendable skill. Exactly what `just check` runs locally, so a
+# green local run means a green run here.
+#
+# The matrix covers the Python versions the project claims to support. The skill
+# is distributed as a script that resolves its own dependencies, so the version a
+# user happens to have is the version that matters.
+
+name: Skill
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "production/**"
+      - "docs/**"
+      - "**.md"
+  pull_request:
+    paths-ignore:
+      - "production/**"
+      - "docs/**"
+      - "**.md"
+
+concurrency:
+  group: skill-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: lint, types, tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is the floor the project declares. 3.14 is the newest release, and
+        # it is what a user with a current uv will get.
+        python: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Pin the interpreter
+        run: uv python install ${{ matrix.python }}
+
+      - name: Sync the environment
+        run: uv sync --python ${{ matrix.python }}
+
+      - name: Lint
+        run: uv run --python ${{ matrix.python }} ruff check .
+
+      - name: Format
+        run: uv run --python ${{ matrix.python }} ruff format --check .
+
+      - name: Types
+        run: uv run --python ${{ matrix.python }} mypy
+
+      # No network and no model: the suite must be deterministic. OPENAI_API_KEY
+      # is deliberately absent, which is also what the conftest enforces.
+      - name: Tests
+        run: uv run --python ${{ matrix.python }} pytest -q --cov --cov-report=term --cov-fail-under=61
+
+  packaged-script:
+    name: the script a user actually runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # This job never runs `uv sync`. It proves the published entry point works
+      # from a bare checkout with no project environment, which is how someone
+      # who downloads the skill will invoke it.
+      - name: Audit an email with no project environment
+        run: |
+          mkdir -p /tmp/bare && cp tests/fixtures/clean_bulk.eml /tmp/bare/mail.eml
+          cd /tmp/bare
+          uv run --quiet "$GITHUB_WORKSPACE/scripts/audit.py" mail.eml --offline > report.json
+          python - <<'PY'
+          import json
+          r = json.load(open("report.json"))
+          assert 0 <= r["score"] <= 100, r["score"]
+          assert r["verdict"] in {"GO", "REVIEW", "NO_GO"}, r["verdict"]
+          assert r["findings"], "no findings means the fan-out did not run"
+          print(f'ok: score={r["score"]} verdict={r["verdict"]} findings={len(r["findings"])}')
+          PY
+
+      - name: Confirm it wrote a report to the store
+        run: test -d /tmp/bare/.sendable/audits && ls -1 /tmp/bare/.sendable/audits
