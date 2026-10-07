@@ -13,6 +13,7 @@ code did not cause.
 from __future__ import annotations
 
 import pathlib
+from collections.abc import Callable
 
 import pytest
 
@@ -95,3 +96,43 @@ def dns(monkeypatch: pytest.MonkeyPatch) -> FakeDns:
     fake = FakeDns()
     monkeypatch.setattr(dns_client, "_query_sync", fake.answer)
     return fake
+
+
+@pytest.fixture(autouse=True)
+def no_reverse_dns(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Block the blocking PTR lookup the ESP fingerprint makes.
+
+    `engine.dmarc.esp_fingerprint.classify` calls `socket.gethostbyaddr`, which is
+    a real network call, inside what reads like pure classification code. Without
+    this fixture the suite would reach the network, take as long as the slowest
+    lookup, and give a different answer depending on who owns an IP today.
+
+    Autouse, because a single test that forgot it would reintroduce all three
+    problems. A test that needs a PTR answer registers one with `ptr`.
+    """
+    import socket as socket_module
+
+    from engine.dmarc import esp_fingerprint
+
+    esp_fingerprint._PTR_CACHE.clear()
+
+    def _refuse(ip: str) -> tuple[str, list[str], list[str]]:
+        raise OSError(f"reverse DNS is blocked in tests (asked for {ip})")
+
+    monkeypatch.setattr(socket_module, "gethostbyaddr", _refuse)
+
+
+@pytest.fixture
+def ptr() -> Callable[[str, str], None]:
+    """Register a PTR answer for one IP, for a test that needs the name resolved.
+
+    Writes straight into the fingerprint's cache, which `no_reverse_dns` cleared,
+    so the blocked lookup is never reached.
+    """
+
+    def register(ip: str, hostname: str) -> None:
+        from engine.dmarc import esp_fingerprint
+
+        esp_fingerprint._PTR_CACHE[ip] = hostname.lower()
+
+    return register
