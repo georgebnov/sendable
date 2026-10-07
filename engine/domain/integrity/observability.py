@@ -29,9 +29,7 @@ def _is_bulk(email: ParsedEmail) -> bool:
         if email.headers.get(h):
             return True
     precedence = email.headers.get("precedence", [])
-    if any(v.strip().lower() == "bulk" for v in precedence):
-        return True
-    return False
+    return bool(any(v.strip().lower() == "bulk" for v in precedence))
 
 
 async def run(email: ParsedEmail) -> list[Finding]:
@@ -42,7 +40,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="headers.feedback_id",
                 severity=Severity.INFO,
                 passed=True,
-                message=f"Feedback-ID present (Postmaster Tools visibility).",
+                message="Feedback-ID present (Postmaster Tools visibility).",
                 details={"value": fb[0][:120]},
             )
         ]

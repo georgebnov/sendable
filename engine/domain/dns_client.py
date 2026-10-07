@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 import dns.exception
 import dns.resolver
@@ -25,6 +25,7 @@ _CACHE_TTL = 3600.0
 @dataclass(frozen=True)
 class DnsAnswer:
     """Outcome of a DNS lookup: either records or a category of failure."""
+
     rdtype: str
     name: str
     records: tuple[str, ...]

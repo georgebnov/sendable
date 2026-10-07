@@ -22,7 +22,7 @@ from __future__ import annotations
 import dataclasses
 import re
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from .parse import ParsedEmail
 from .report import Finding
@@ -32,9 +32,7 @@ _FWD_SUBJECT_RX = re.compile(r"^\s*(?:(?:fwd?|fw)\s*:\s*)+", re.IGNORECASE)
 _FWD_BODY_MARKER_RX = re.compile(r"-{2,}\s*forwarded message\s*-{2,}", re.IGNORECASE)
 # Mailbox providers that re-sign mail when it's forwarded.
 _FORWARD_SIGNERS = ("gappssmtp.com",)
-_HEADER_LINE_RX = re.compile(
-    r"^\s*(from|date|sent|subject|to|cc|reply-to)\s*:", re.IGNORECASE
-)
+_HEADER_LINE_RX = re.compile(r"^\s*(from|date|sent|subject|to|cc|reply-to)\s*:", re.IGNORECASE)
 
 # Checks whose signal a forward destroys — muted, never scored on a forward.
 # DKIM alignment on a forward is special: for an inline forward the person
@@ -57,8 +55,7 @@ _QUIET_MUTE_PREFIXES = (
 
 ADVISORY_CHECK = "delivery.forwarded"
 _MUTE_NOTE = (
-    "  (Muted: this is a forwarded copy, so this signal was rewritten in "
-    "transit and isn't graded.)"
+    "  (Muted: this is a forwarded copy, so this signal was rewritten in transit and isn't graded.)"
 )
 
 
@@ -104,10 +101,10 @@ def _strip_html(html: str | None) -> str | None:
         return html
     soup = BeautifulSoup(html, "lxml")
     quote = soup.find("div", class_="gmail_quote")
-    if quote is None:
+    if not isinstance(quote, Tag):
         return html
     attr = quote.find("div", class_="gmail_attr")
-    if attr is not None:
+    if isinstance(attr, Tag):
         attr.decompose()
     inner = quote.decode_contents().strip()
     return inner or html

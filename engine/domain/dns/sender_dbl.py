@@ -29,7 +29,10 @@ from .url_reputation import _DBL_SENTINELS, _DBLS
 
 
 async def _check_one(
-    domain: str, label: str, dbl_host: str, blurb: str,
+    domain: str,
+    label: str,
+    dbl_host: str,
+    blurb: str,
 ) -> Finding | None:
     qname = f"{domain}.{dbl_host}"
     ans = await query(qname, "A")
@@ -68,28 +71,29 @@ async def _check_one(
 
 
 async def run(domain: str) -> list[Finding]:
-    tasks = [
-        _check_one(domain, label, host, blurb)
-        for (label, host, _sev, blurb) in _DBLS
-    ]
+    tasks = [_check_one(domain, label, host, blurb) for (label, host, _sev, blurb) in _DBLS]
     results = await asyncio.gather(*tasks)
     hits = [f for f in results if f is not None]
 
-    findings: list[Finding] = [Finding(
-        check="sender_dbl.scanned",
-        severity=Severity.INFO,
-        passed=True,
-        message=f"Scanned sender apex '{domain}' against {len(_DBLS)} URL blacklist(s).",
-        details={"domain": domain, "dbls": [h for _, h, _, _ in _DBLS]},
-        source="domain_config",
-    )]
-    findings.extend(hits)
-    if not hits:
-        findings.append(Finding(
-            check="sender_dbl.no_listings",
+    findings: list[Finding] = [
+        Finding(
+            check="sender_dbl.scanned",
             severity=Severity.INFO,
             passed=True,
-            message=f"Sender apex '{domain}' is not listed on any scanned URL blacklist.",
+            message=f"Scanned sender apex '{domain}' against {len(_DBLS)} URL blacklist(s).",
+            details={"domain": domain, "dbls": [h for _, h, _, _ in _DBLS]},
             source="domain_config",
-        ))
+        )
+    ]
+    findings.extend(hits)
+    if not hits:
+        findings.append(
+            Finding(
+                check="sender_dbl.no_listings",
+                severity=Severity.INFO,
+                passed=True,
+                message=f"Sender apex '{domain}' is not listed on any scanned URL blacklist.",
+                source="domain_config",
+            )
+        )
     return findings

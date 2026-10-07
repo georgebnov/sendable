@@ -30,22 +30,26 @@ async def run(domain: str) -> list[Finding]:
 
     ns_ans = await query(domain, "NS")
     if not ns_ans.ok or not ns_ans.records:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.ns_records_published",
-            severity=Severity.HIGH,
-            passed=False,
-            message=f"No NS records for {domain}.",
-            details={"dns_error": ns_ans.error},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.ns_records_published",
+                severity=Severity.HIGH,
+                passed=False,
+                message=f"No NS records for {domain}.",
+                details={"dns_error": ns_ans.error},
+            )
+        )
         return findings
 
     nameservers = [r.rstrip(".") for r in ns_ans.records]
-    findings.append(Finding(
-        check=f"{CHECK_PREFIX}.ns_records_published",
-        severity=Severity.INFO,
-        passed=True,
-        message=f"{len(nameservers)} NS record(s) for {domain}.",
-        details={"nameservers": nameservers},
-    ))
+    findings.append(
+        Finding(
+            check=f"{CHECK_PREFIX}.ns_records_published",
+            severity=Severity.INFO,
+            passed=True,
+            message=f"{len(nameservers)} NS record(s) for {domain}.",
+            details={"nameservers": nameservers},
+        )
+    )
 
     return findings

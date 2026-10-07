@@ -56,21 +56,42 @@ _SFV_MEANINGS = {
 
 _COMPAUTH_SEVERITIES = {
     "pass": (Severity.INFO, True, "Composite authentication passed."),
-    "softpass": (Severity.LOW, False, "Composite authentication soft-pass (not all signals clean)."),
+    "softpass": (
+        Severity.LOW,
+        False,
+        "Composite authentication soft-pass (not all signals clean).",
+    ),
     "none": (Severity.LOW, False, "No composite authentication available."),
-    "fail": (Severity.HIGH, False, "Composite authentication FAILED — Microsoft does not trust the sender's auth combo."),
+    "fail": (
+        Severity.HIGH,
+        False,
+        "Composite authentication FAILED — Microsoft does not trust the sender's auth combo.",
+    ),
 }
 
 
 def _scl_severity(scl: int) -> tuple[Severity, bool, str]:
     if scl < 0:
-        return (Severity.INFO, True, f"SCL={scl} (filtering bypassed; Safe Sender / mail-flow rule).")
+        return (
+            Severity.INFO,
+            True,
+            f"SCL={scl} (filtering bypassed; Safe Sender / mail-flow rule).",
+        )
     if scl in (0, 1):
         return (Severity.INFO, True, f"SCL={scl} (Microsoft classified: not spam).")
     if scl in (5, 6):
-        return (Severity.MEDIUM, False, f"SCL={scl} (Microsoft classified: spam → Junk by default).")
+        return (
+            Severity.MEDIUM,
+            False,
+            f"SCL={scl} (Microsoft classified: spam → Junk by default).",
+        )
     if scl in (7, 8, 9):
-        return (Severity.HIGH, False, f"SCL={scl} (Microsoft classified: high-confidence spam → Quarantine on Standard/Strict).")
+        return (
+            Severity.HIGH,
+            False,
+            f"SCL={scl} (Microsoft classified: high-confidence spam → Quarantine on "
+            f"Standard/Strict).",
+        )
     return (Severity.LOW, False, f"SCL={scl} (unrecognized value).")
 
 
@@ -78,7 +99,11 @@ def _bcl_severity(bcl: int) -> tuple[Severity, bool, str]:
     if bcl <= 3:
         return (Severity.INFO, True, f"BCL={bcl} (not bulk, or low-complaint bulk).")
     if bcl <= 7:
-        return (Severity.LOW, False, f"BCL={bcl} (medium-complaint bulk; default policy threshold = 7).")
+        return (
+            Severity.LOW,
+            False,
+            f"BCL={bcl} (medium-complaint bulk; default policy threshold = 7).",
+        )
     return (Severity.MEDIUM, False, f"BCL={bcl} (high-complaint bulk — essentially spam).")
 
 
@@ -90,21 +115,27 @@ async def run(email: ParsedEmail) -> list[Finding]:
     antispam = headers.get("x-microsoft-antispam", [])
     auth_results = headers.get("authentication-results", [])
 
-    saw_microsoft = bool(forefront or antispam or any("microsoft.com" in ar.lower() for ar in auth_results))
+    saw_microsoft = bool(
+        forefront or antispam or any("microsoft.com" in ar.lower() for ar in auth_results)
+    )
     if not saw_microsoft:
-        return [Finding(
+        return [
+            Finding(
+                check=f"{CHECK_PREFIX}.transit",
+                severity=Severity.INFO,
+                passed=True,
+                message="No Microsoft EOP headers — message did not transit M365/Outlook.",
+            )
+        ]
+
+    findings.append(
+        Finding(
             check=f"{CHECK_PREFIX}.transit",
             severity=Severity.INFO,
             passed=True,
-            message="No Microsoft EOP headers — message did not transit M365/Outlook.",
-        )]
-
-    findings.append(Finding(
-        check=f"{CHECK_PREFIX}.transit",
-        severity=Severity.INFO,
-        passed=True,
-        message="Microsoft EOP transit detected; parsing verdict headers.",
-    ))
+            message="Microsoft EOP transit detected; parsing verdict headers.",
+        )
+    )
 
     # ─── SCL ─────────────────────────────────────────────────────────
     if forefront:
@@ -114,13 +145,15 @@ async def run(email: ParsedEmail) -> list[Finding]:
             try:
                 scl = int(m.group(1))
                 sev, passed, msg = _scl_severity(scl)
-                findings.append(Finding(
-                    check=f"{CHECK_PREFIX}.scl",
-                    severity=sev,
-                    passed=passed,
-                    message=msg,
-                    details={"scl": scl},
-                ))
+                findings.append(
+                    Finding(
+                        check=f"{CHECK_PREFIX}.scl",
+                        severity=sev,
+                        passed=passed,
+                        message=msg,
+                        details={"scl": scl},
+                    )
+                )
             except ValueError:
                 pass
 
@@ -128,14 +161,18 @@ async def run(email: ParsedEmail) -> list[Finding]:
         sfv = _SFV_RX.search(joined)
         if sfv:
             code = sfv.group(1).upper()
-            meaning, sev, passed = _SFV_MEANINGS.get(code, (f"unknown SFV code '{code}'", Severity.LOW, False))
-            findings.append(Finding(
-                check=f"{CHECK_PREFIX}.sfv",
-                severity=sev,
-                passed=passed,
-                message=f"Microsoft SFV={code} — {meaning}.",
-                details={"sfv": code, "meaning": meaning},
-            ))
+            meaning, sev, passed = _SFV_MEANINGS.get(
+                code, (f"unknown SFV code '{code}'", Severity.LOW, False)
+            )
+            findings.append(
+                Finding(
+                    check=f"{CHECK_PREFIX}.sfv",
+                    severity=sev,
+                    passed=passed,
+                    message=f"Microsoft SFV={code} — {meaning}.",
+                    details={"sfv": code, "meaning": meaning},
+                )
+            )
 
     # ─── BCL ─────────────────────────────────────────────────────────
     if antispam:
@@ -145,13 +182,15 @@ async def run(email: ParsedEmail) -> list[Finding]:
             try:
                 bcl = int(m.group(1))
                 sev, passed, msg = _bcl_severity(bcl)
-                findings.append(Finding(
-                    check=f"{CHECK_PREFIX}.bcl",
-                    severity=sev,
-                    passed=passed,
-                    message=msg,
-                    details={"bcl": bcl},
-                ))
+                findings.append(
+                    Finding(
+                        check=f"{CHECK_PREFIX}.bcl",
+                        severity=sev,
+                        passed=passed,
+                        message=msg,
+                        details={"bcl": bcl},
+                    )
+                )
             except ValueError:
                 pass
 
@@ -166,13 +205,15 @@ async def run(email: ParsedEmail) -> list[Finding]:
             verdict,
             (Severity.LOW, False, f"compauth={verdict} (unrecognized verdict)."),
         )
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.compauth",
-            severity=sev,
-            passed=passed,
-            message=f"{base_msg}{f' Reason code: {reason}.' if reason else ''}",
-            details={"compauth": verdict, "reason": reason},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.compauth",
+                severity=sev,
+                passed=passed,
+                message=f"{base_msg}{f' Reason code: {reason}.' if reason else ''}",
+                details={"compauth": verdict, "reason": reason},
+            )
+        )
         break  # one verdict per message — first wins
 
     return findings

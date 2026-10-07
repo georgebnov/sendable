@@ -46,9 +46,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="copywriting.preheader_repeats_subject",
                 severity=Severity.INFO,
                 passed=True,
-                message=(
-                    "Skipped — need both subject and preheader to compare."
-                ),
+                message=("Skipped — need both subject and preheader to compare."),
                 details={
                     "subject_present": bool(subject),
                     "preheader_present": bool(preheader),

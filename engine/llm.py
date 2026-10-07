@@ -22,6 +22,7 @@ audit run.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import contextvars
 import os
 import sys
@@ -42,7 +43,8 @@ _PRICE_PER_OUTPUT_TOKEN = 0.600 / 1_000_000
 # reads it at the end to emit a total. Per-call logging still happens
 # regardless.
 _cost_accumulator: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
-    "audit_llm_cost", default=None,
+    "audit_llm_cost",
+    default=None,
 )
 
 
@@ -58,10 +60,8 @@ def get_accumulator() -> dict | None:
 async def _safe_close(client) -> None:
     """Best-effort close of an AsyncOpenAI client. Swallows any error
     so a cleanup hiccup never masks the actual result."""
-    try:
+    with contextlib.suppress(Exception):
         await client.close()
-    except Exception:
-        pass
 
 
 def _add(in_tok: int, out_tok: int, usd: float) -> None:
@@ -138,8 +138,7 @@ async def call_structured(
     cost = in_tok * _PRICE_PER_INPUT_TOKEN + out_tok * _PRICE_PER_OUTPUT_TOKEN
     _add(in_tok, out_tok, cost)
     print(
-        f"[llm] {check} in={in_tok} out={out_tok} "
-        f"cost=${cost:.6f} {elapsed:.2f}s",
+        f"[llm] {check} in={in_tok} out={out_tok} cost=${cost:.6f} {elapsed:.2f}s",
         file=sys.stderr,
     )
     return completion.choices[0].message.parsed

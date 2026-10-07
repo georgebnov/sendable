@@ -43,7 +43,9 @@ async def run(email: ParsedEmail) -> list[Finding]:
             hits.append({"where": where, "char": char, "alias": alias, "source": source})
 
     if hits:
-        severity = Severity.CRITICAL if any(h["where"] == "link_href" for h in hits) else Severity.HIGH
+        severity = (
+            Severity.CRITICAL if any(h["where"] == "link_href" for h in hits) else Severity.HIGH
+        )
         return [
             Finding(
                 check="content.homoglyphs",

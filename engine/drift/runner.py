@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 
+from engine.derived import extract_all
 from engine.drift import (
     d01_dmarc_regression,
     d03_auth_flip,
@@ -17,9 +18,9 @@ from engine.drift import (
     d10_display_name_rotation,
     d11_reply_to_divergence,
 )
+from engine.history import EmailFacts
 from engine.parse import ParsedEmail
 from engine.report import Finding
-from engine.derived import extract_all
 
 DRIFT_CHECKS = [
     d01_dmarc_regression.run,
@@ -31,7 +32,7 @@ DRIFT_CHECKS = [
 ]
 
 
-async def run_drift(email: ParsedEmail, history: list[dict]) -> list[Finding]:
+async def run_drift(email: ParsedEmail, history: list[EmailFacts]) -> list[Finding]:
     current = extract_all(email)
     results = await asyncio.gather(*(c(email, current, history) for c in DRIFT_CHECKS))
     return [f for sublist in results for f in sublist]

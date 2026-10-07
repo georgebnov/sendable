@@ -195,7 +195,7 @@ def format_location(finding: Finding) -> str:
             if preview:
                 truncated = preview[:120] + ("…" if len(preview) > 120 else "")
                 return f'hidden content in your email reading "{truncated}"{extra}'
-            return f'a hidden piece of content in your email with no readable text{extra}'
+            return f"a hidden piece of content in your email with no readable text{extra}"
 
     # Invisible chars — strip the "body (html) @ char N:" prefix and the
     # «U+XXXX» developer marker. Leave the surrounding text so the user can
@@ -228,15 +228,23 @@ def format_location(finding: Finding) -> str:
             extra = f" (+{n_more} more)" if n_more > 0 else ""
             if where_field == "link_href":
                 if source:
-                    return f"the link pointing to `{source}` — contains a {alias} character '{char}' that looks like a Latin letter{extra}"
-                return f"in a link URL — a {alias} character '{char}' that looks like a Latin letter{extra}"
+                    return (
+                        f"the link pointing to `{source}` contains a {alias} character "
+                        f"'{char}' that looks like a Latin letter{extra}"
+                    )
+                return (
+                    f"in a link URL, a {alias} character '{char}' that looks like a "
+                    f"Latin letter{extra}"
+                )
             if where_field == "subject":
                 if source:
                     return f"in the subject line \"{source}\" — a {alias} character '{char}'{extra}"
                 return f"in the subject line — a {alias} character '{char}'{extra}"
             if where_field == "body" and source:
                 snippet = source[:120] + ("…" if len(source) > 120 else "")
-                return f"in the body text starting \"{snippet}\" — a {alias} character '{char}'{extra}"
+                return (
+                    f"in the body text starting \"{snippet}\" — a {alias} character '{char}'{extra}"
+                )
             return f"in the {where_field} — a {alias} character '{char}'{extra}"
 
     # URL shorteners
@@ -284,10 +292,7 @@ def format_location(finding: Finding) -> str:
     # Drift — D10 display-name rotation
     if check == "drift.d10_display_name_rotation":
         if d.get("new_name"):
-            return (
-                f"new display name '{d['new_name']}' not seen in last "
-                f"{d.get('rows')} sends"
-            )
+            return f"new display name '{d['new_name']}' not seen in last {d.get('rows')} sends"
         if d.get("churn_ratio") is not None:
             return (
                 f"{d.get('distinct_count')} distinct display names across "
@@ -295,31 +300,32 @@ def format_location(finding: Finding) -> str:
             )
 
     # Drift — D11 Reply-To
-    if check == "drift.d11_reply_to_divergence":
-        if d.get("current"):
-            return f"Reply-To changed to '{d['current']}' (not seen before)"
+    if check == "drift.d11_reply_to_divergence" and d.get("current"):
+        return f"Reply-To changed to '{d['current']}' (not seen before)"
 
     # Drift — auth regressions, all share (current, prior_results, last10, etc.)
-    if check.startswith("drift.") and "dmarc" in check:
-        if d.get("current"):
-            return f"current DMARC result: {d['current']}"
+    if check.startswith("drift.") and "dmarc" in check and d.get("current"):
+        return f"current DMARC result: {d['current']}"
 
     # Copywriting checks — cite the specific subject, phrase, or field
     if check == "copywriting.subject_heuristics":
         subj = d.get("subject") or ""
         if subj:
             snippet = subj[:80] + ("…" if len(subj) > 80 else "")
-            return f"in the subject line \"{snippet}\""
+            return f'in the subject line "{snippet}"'
         return "in the subject line"
     if check == "copywriting.spam_trigger":
         phrase = d.get("phrase")
         field = d.get("field")
         if phrase and field:
-            return f"the phrase \"{phrase}\" in the {field}"
+            return f'the phrase "{phrase}" in the {field}'
     if check == "copywriting.compound_signal":
         cats = d.get("categories") or []
         if cats:
-            return f"across the email — {len(cats)} promotional signal categories stacking ({', '.join(cats)})"
+            return (
+                f"across the email, {len(cats)} promotional signal categories "
+                f"stacking ({', '.join(cats)})"
+            )
     if check == "copywriting.body_length":
         wc = d.get("word_count")
         if wc:
@@ -350,16 +356,21 @@ def format_location(finding: Finding) -> str:
         if lines:
             first = lines[0]
             more = f" (and {len(lines) - 1} more)" if len(lines) > 1 else ""
-            return f"in the body line \"{first}\"{more}"
+            return f'in the body line "{first}"{more}'
         n = d.get("count")
         if n:
             return f"{n} exclamation marks in the body"
 
     # Header-level / tool-configuration checks — nothing in the body to cite.
     if check in {
-        "auth.spf", "auth.dkim", "auth.dmarc", "auth.authentication_results",
-        "auth.arc", "auth.bimi",
-        "content.list_unsubscribe_header", "content.list_unsubscribe_post",
+        "auth.spf",
+        "auth.dkim",
+        "auth.dmarc",
+        "auth.authentication_results",
+        "auth.arc",
+        "auth.bimi",
+        "content.list_unsubscribe_header",
+        "content.list_unsubscribe_post",
         "content.plain_text_alternative",
         "content.unsubscribe_link_body",
         "headers.feedback_id",
@@ -486,9 +497,10 @@ def humanize(
             ],
             response_format=HumanizedReport,
         )
-        parsed = completion.choices[0].message.parsed
-        return parsed
+        return completion.choices[0].message.parsed
     except Exception as e:
-        print(f"humanize: LLM call failed ({type(e).__name__}: {e}); skipping summary.",
-              file=sys.stderr)
+        print(
+            f"humanize: LLM call failed ({type(e).__name__}: {e}); skipping summary.",
+            file=sys.stderr,
+        )
         return None

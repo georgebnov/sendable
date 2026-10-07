@@ -38,10 +38,15 @@ from .dns_client import query as dns_query
 # customer has identical "mismatches" by design.
 _MAIL_OPERATORS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Microsoft 365", ("protection.outlook.com", "olc.protection.outlook.com")),
-    ("Google Workspace", (
-        "google.com", "googlemail.com", "aspmx.l.google.com",
-        "googleusercontent.com",
-    )),
+    (
+        "Google Workspace",
+        (
+            "google.com",
+            "googlemail.com",
+            "aspmx.l.google.com",
+            "googleusercontent.com",
+        ),
+    ),
     ("Mimecast", ("mimecast.com", "mimecast-offshore.com")),
     ("Proofpoint", ("ppe-hosted.com", "pphosted.com")),
     ("Fastmail", ("messagingengine.com",)),
@@ -75,15 +80,19 @@ def _demote_to_info(findings: list[Finding], operator: str) -> list[Finding]:
         if f.passed:
             out.append(f)
             continue
-        out.append(f.model_copy(update={
-            "severity": Severity.INFO,
-            "message": (
-                f"[managed by {operator}] {f.message} "
-                f"This is your mail-operator's infrastructure, not your "
-                f"domain — there is nothing to fix here."
-            ),
-            "source": "domain_config",
-        }))
+        out.append(
+            f.model_copy(
+                update={
+                    "severity": Severity.INFO,
+                    "message": (
+                        f"[managed by {operator}] {f.message} "
+                        f"This is your mail-operator's infrastructure, not your "
+                        f"domain — there is nothing to fix here."
+                    ),
+                    "source": "domain_config",
+                }
+            )
+        )
     return out
 
 
@@ -109,12 +118,14 @@ def _registrable_from(parsed: ParsedEmail) -> str | None:
 async def run_domain_health(parsed: ParsedEmail) -> list[Finding]:
     domain = _registrable_from(parsed)
     if not domain:
-        return [Finding(
-            check="domain_health.sender_extraction",
-            severity=Severity.INFO,
-            passed=False,
-            message="Could not extract sender domain from From: header.",
-        )]
+        return [
+            Finding(
+                check="domain_health.sender_extraction",
+                severity=Severity.INFO,
+                passed=False,
+                message="Could not extract sender domain from From: header.",
+            )
+        ]
 
     # Detect ESP up front. When the sender routes through a major ESP
     # (Kit, Mailchimp, Klaviyo, SendGrid, etc.), the outbound IP belongs
@@ -123,23 +134,27 @@ async def run_domain_health(parsed: ParsedEmail) -> list[Finding]:
     # IP is listed" against ESP infra is misleading and not actionable.
     # Skip the IP-RBL fan-out when a high-confidence ESP profile fires;
     # emit a single INFO finding so the report explains why.
-    profile = esp_detect.detect(parsed)
-    skip_ip_blacklist = profile is not None and profile.is_high_confidence()
+    detected = esp_detect.detect(parsed)
+    # Hold the narrowed profile, not a bool: the branches below read esp.name,
+    # and `esp is not None` is what proves that access is safe.
+    esp = detected if (detected is not None and detected.is_high_confidence()) else None
 
     async def _blacklist_or_skip() -> list[Finding]:
-        if skip_ip_blacklist:
-            return [Finding(
-                check="blacklist.skipped_esp",
-                severity=Severity.INFO,
-                passed=True,
-                message=(
-                    f"Sending-IP blacklist scan skipped — outbound IP belongs to "
-                    f"{profile.name}, not to your domain. Major ESPs always have "
-                    f"some IPs on RBLs (shared pool churn); flagging them as "
-                    f"your problem would be misleading."
-                ),
-                details={"esp": profile.name, "confidence": profile.confidence},
-            )]
+        if esp is not None:
+            return [
+                Finding(
+                    check="blacklist.skipped_esp",
+                    severity=Severity.INFO,
+                    passed=True,
+                    message=(
+                        f"Sending-IP blacklist scan skipped — outbound IP belongs to "
+                        f"{esp.name}, not to your domain. Major ESPs always have "
+                        f"some IPs on RBLs (shared pool churn); flagging them as "
+                        f"your problem would be misleading."
+                    ),
+                    details={"esp": esp.name, "confidence": esp.confidence},
+                )
+            ]
         return await blacklist.run(parsed.headers)
 
     # Detect managed mail operator (M365 / Google Workspace / etc.) so
@@ -149,8 +164,16 @@ async def run_domain_health(parsed: ParsedEmail) -> list[Finding]:
     mail_operator = await _detect_mail_operator(domain)
 
     (
-        spf_f, dmarc_f, dkim_f, modern_f, blacklist_f, smtp_f, url_f,
-        dns_infra_f, sender_dbl_f, sending_ip_f,
+        spf_f,
+        dmarc_f,
+        dkim_f,
+        modern_f,
+        blacklist_f,
+        smtp_f,
+        url_f,
+        dns_infra_f,
+        sender_dbl_f,
+        sending_ip_f,
     ) = await asyncio.gather(
         spf.run(domain),
         dmarc.run(domain),
@@ -168,26 +191,27 @@ async def run_domain_health(parsed: ParsedEmail) -> list[Finding]:
     # PTR/FCrDNS demotion: when sending IP belongs to a known ESP, the
     # marketer cannot fix the published reverse DNS — demote to INFO so
     # the report still surfaces it but the scorer doesn't deduct.
-    if skip_ip_blacklist:
-        sending_ip_f = sending_ip_dns.demote_to_info_when_esp(
-            sending_ip_f, profile.name
-        )
+    if esp is not None:
+        sending_ip_f = sending_ip_dns.demote_to_info_when_esp(sending_ip_f, esp.name)
 
     if mail_operator:
         # Mail-server-side: pure operator infra → no marketer action.
         smtp_f = _demote_to_info(smtp_f, mail_operator)
-        smtp_f.insert(0, Finding(
-            check="smtp.managed_operator",
-            severity=Severity.INFO,
-            passed=True,
-            message=(
-                f"Mail-server infrastructure managed by {mail_operator}. "
-                f"SMTP-side checks (MX shape, open relay) demoted — the "
-                f"operator owns every one of them; nothing for the "
-                f"marketer to fix."
+        smtp_f.insert(
+            0,
+            Finding(
+                check="smtp.managed_operator",
+                severity=Severity.INFO,
+                passed=True,
+                message=(
+                    f"Mail-server infrastructure managed by {mail_operator}. "
+                    f"SMTP-side checks (MX shape, open relay) demoted — the "
+                    f"operator owns every one of them; nothing for the "
+                    f"marketer to fix."
+                ),
+                details={"operator": mail_operator},
             ),
-            details={"operator": mail_operator},
-        ))
+        )
 
     return [
         *spf_f,

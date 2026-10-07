@@ -15,6 +15,7 @@ from bs4 import BeautifulSoup
 from engine.copywriting.link_quality import _registrable
 from engine.domain.auth.results import _METHOD_RE
 from engine.domain.integrity.unsubscribe import _ONE_CLICK_RX
+from engine.history import EmailFacts
 from engine.parse import ParsedEmail
 
 _DMARC_POLICY_RE = re.compile(
@@ -99,19 +100,25 @@ def _count_images(html: str | None) -> int:
     return len(soup.find_all("img"))
 
 
-def extract_all(parsed: ParsedEmail) -> dict:
+def extract_all(parsed: ParsedEmail) -> EmailFacts:
     from_host = _domain_of(parsed.from_addr)
     reply_to = parsed.headers.get("reply-to", [])
     reply_to_raw = reply_to[0] if reply_to else None
     reply_to_host = _domain_of(reply_to_raw)
 
-    out: dict = {
-        "from_domain": _registrable(from_host) if from_host else None,
-        "from_local": _local_of(parsed.from_addr),
-        "display_name": _display_name_of(parsed.from_addr),
-        "reply_to_domain": _registrable(reply_to_host) if reply_to_host else None,
-        "num_images": _count_images(parsed.html),
-    }
-    out.update(_auth_results(parsed))
-    out.update(_unsub_flags(parsed))
-    return out
+    auth = _auth_results(parsed)
+    unsub = _unsub_flags(parsed)
+    return EmailFacts(
+        from_domain=_registrable(from_host) if from_host else None,
+        from_local=_local_of(parsed.from_addr),
+        display_name=_display_name_of(parsed.from_addr),
+        reply_to_domain=_registrable(reply_to_host) if reply_to_host else None,
+        num_images=_count_images(parsed.html),
+        spf_result=auth["spf_result"],
+        dkim_result=auth["dkim_result"],
+        dmarc_result=auth["dmarc_result"],
+        dmarc_policy=auth["dmarc_policy"],
+        list_unsub_has_mailto=unsub["list_unsub_has_mailto"],
+        list_unsub_has_https=unsub["list_unsub_has_https"],
+        list_unsub_has_oneclick_post=unsub["list_unsub_has_oneclick_post"],
+    )

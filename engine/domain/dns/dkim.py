@@ -44,6 +44,7 @@ def _in_scope_for(signing_domain: str, target_domain: str) -> bool:
     """
     return _registrable(signing_domain.lower()) == _registrable(target_domain.lower())
 
+
 CHECK_PREFIX = "dkim_record"
 
 _DKIM_SIG_TAG_RX = re.compile(r"\b([a-zA-Z])\s*=\s*([^;]+?)\s*(?:;|$)")
@@ -53,12 +54,36 @@ _VALID_TAGS = {"v", "k", "t", "s", "g", "h", "n", "p", "q"}
 # (e.g. domain-only audits). Covers ~95% of corporate domains: the
 # 25-selector "first pass" from doc §4 plus a few provider-specific ones.
 _COMMON_SELECTORS = (
-    "default", "dkim", "google", "selector1", "selector2",
-    "s1", "s2", "k1", "k2", "mail", "email",
-    "mxvault", "smtp", "mandrill", "mailchimp",
-    "mta", "mta1", "mta2", "dkim1", "dkim2",
-    "key1", "key2", "zoho", "protonmail", "everlytickey1",
-    "brevo1", "brevo2", "sendgrid", "sendgrid1", "sendgrid2",
+    "default",
+    "dkim",
+    "google",
+    "selector1",
+    "selector2",
+    "s1",
+    "s2",
+    "k1",
+    "k2",
+    "mail",
+    "email",
+    "mxvault",
+    "smtp",
+    "mandrill",
+    "mailchimp",
+    "mta",
+    "mta1",
+    "mta2",
+    "dkim1",
+    "dkim2",
+    "key1",
+    "key2",
+    "zoho",
+    "protonmail",
+    "everlytickey1",
+    "brevo1",
+    "brevo2",
+    "sendgrid",
+    "sendgrid1",
+    "sendgrid2",
     "amazonses",
 )
 
@@ -77,6 +102,7 @@ def _key_bits(p_value: str, k_alg: str = "rsa") -> int | None:
     Returns the bit count, or None if the key is unparseable.
     """
     import base64
+
     cleaned = "".join(p_value.split())
     if not cleaned:
         return None
@@ -91,6 +117,7 @@ def _key_bits(p_value: str, k_alg: str = "rsa") -> int | None:
     # Try SubjectPublicKeyInfo first (most common in the wild).
     try:
         from cryptography.hazmat.primitives.serialization import load_der_public_key
+
         key = load_der_public_key(der)
         bits = getattr(key, "key_size", None)
         if bits:
@@ -101,6 +128,7 @@ def _key_bits(p_value: str, k_alg: str = "rsa") -> int | None:
     # Fallback: strict RFC 6376 — bare RSAPublicKey ASN.1 sequence of (n, e).
     try:
         from pyasn1.codec.der.decoder import decode as der_decode
+
         decoded, _ = der_decode(der)
         modulus = int(decoded[0])
         return modulus.bit_length()
@@ -139,19 +167,21 @@ def _signatures(headers: dict[str, list[str]]) -> list[dict]:
     a (header_canon, body_canon) tuple resolved from the `c=` tag."""
     out: list[dict] = []
     for raw in headers.get("dkim-signature", []):
-        tags = dict((m.group(1).lower(), m.group(2).strip()) for m in _DKIM_SIG_TAG_RX.finditer(raw))
+        tags = {m.group(1).lower(): m.group(2).strip() for m in _DKIM_SIG_TAG_RX.finditer(raw)}
         s = tags.get("s")
         d = tags.get("d")
         h = tags.get("h", "")
         if not (s and d):
             continue
         h_signed = {p.strip().lower() for p in h.split(":") if p.strip()}
-        out.append({
-            "selector": s,
-            "signing_domain": d.lower(),
-            "h_signed": h_signed,
-            "canon": _canonicalization(tags.get("c")),
-        })
+        out.append(
+            {
+                "selector": s,
+                "signing_domain": d.lower(),
+                "h_signed": h_signed,
+                "canon": _canonicalization(tags.get("c")),
+            }
+        )
     return out
 
 
@@ -161,10 +191,7 @@ def _selectors_from_signatures(headers: dict[str, list[str]]) -> list[tuple[str,
 
 
 def _parse_record(text: str) -> dict:
-    return {
-        m.group(1).lower(): m.group(2).strip()
-        for m in _DKIM_SIG_TAG_RX.finditer(text)
-    }
+    return {m.group(1).lower(): m.group(2).strip() for m in _DKIM_SIG_TAG_RX.finditer(text)}
 
 
 async def _bruteforce_selectors(domain: str) -> list[dict]:
@@ -172,6 +199,7 @@ async def _bruteforce_selectors(domain: str) -> list[dict]:
     against `domain`. Returns the same shape as `_signatures()` so the
     caller can audit each found record. Concurrent fan-out, NXDOMAIN-fast."""
     import asyncio as _asyncio
+
     async def _try(sel: str) -> dict | None:
         ans = await query(f"{sel}._domainkey.{domain}", "TXT")
         if not (ans.ok and ans.records):
@@ -184,8 +212,9 @@ async def _bruteforce_selectors(domain: str) -> list[dict]:
             "selector": sel,
             "signing_domain": domain,
             "h_signed": set(),  # unknown — no signature to read h= from
-            "canon": None,      # unknown — no c= tag to read
+            "canon": None,  # unknown — no c= tag to read
         }
+
     found = await _asyncio.gather(*[_try(s) for s in _COMMON_SELECTORS])
     return [f for f in found if f is not None]
 
@@ -207,17 +236,19 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
         sigs = await _bruteforce_selectors(domain)
         bruteforced = True
         if not sigs:
-            return [Finding(
-                check=f"{CHECK_PREFIX}.published",
-                severity=Severity.HIGH,
-                passed=False,
-                message=(
-                    f"No DKIM record found for {domain} via brute-force scan "
-                    f"of {len(_COMMON_SELECTORS)} common selectors. Either "
-                    "DKIM is not configured or your selector is non-standard."
-                ),
-                details={"selectors_tried": list(_COMMON_SELECTORS)},
-            )]
+            return [
+                Finding(
+                    check=f"{CHECK_PREFIX}.published",
+                    severity=Severity.HIGH,
+                    passed=False,
+                    message=(
+                        f"No DKIM record found for {domain} via brute-force scan "
+                        f"of {len(_COMMON_SELECTORS)} common selectors. Either "
+                        "DKIM is not configured or your selector is non-standard."
+                    ),
+                    details={"selectors_tried": list(_COMMON_SELECTORS)},
+                )
+            ]
 
     has_lu = bool(headers.get("list-unsubscribe"))
     findings: list[Finding] = []
@@ -229,22 +260,24 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
         oos_names = ", ".join(
             f"{s['selector']}._domainkey.{s['signing_domain']}" for s in out_of_scope
         )
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.third_party_signatures",
-            severity=Severity.INFO,
-            passed=True,
-            message=(
-                f"Saw {len(out_of_scope)} DKIM signature(s) from ESP / shared "
-                f"infrastructure ({oos_names}). Those keys aren't under your "
-                f"control, so they don't affect this domain's score."
-            ),
-            details={
-                "out_of_scope": [
-                    {"selector": s["selector"], "signing_domain": s["signing_domain"]}
-                    for s in out_of_scope
-                ]
-            },
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.third_party_signatures",
+                severity=Severity.INFO,
+                passed=True,
+                message=(
+                    f"Saw {len(out_of_scope)} DKIM signature(s) from ESP / shared "
+                    f"infrastructure ({oos_names}). Those keys aren't under your "
+                    f"control, so they don't affect this domain's score."
+                ),
+                details={
+                    "out_of_scope": [
+                        {"selector": s["selector"], "signing_domain": s["signing_domain"]}
+                        for s in out_of_scope
+                    ]
+                },
+            )
+        )
 
     for sig in sigs:
         selector = sig["selector"]
@@ -254,41 +287,53 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
         ans = await query(qname, "TXT")
         records = list(ans.records) if ans.ok else []
         if not records:
-            findings.append(Finding(
-                check=f"{CHECK_PREFIX}.published",
-                severity=Severity.HIGH,
-                passed=False,
-                message=f"No DKIM record at {qname}.",
-                details={"dns_error": ans.error, "selector": selector, "signing_domain": signing_domain},
-            ))
+            findings.append(
+                Finding(
+                    check=f"{CHECK_PREFIX}.published",
+                    severity=Severity.HIGH,
+                    passed=False,
+                    message=f"No DKIM record at {qname}.",
+                    details={
+                        "dns_error": ans.error,
+                        "selector": selector,
+                        "signing_domain": signing_domain,
+                    },
+                )
+            )
             continue
 
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.published",
-            severity=Severity.INFO,
-            passed=True,
-            message=f"DKIM record published at {qname}.",
-            details={"selector": selector, "signing_domain": signing_domain},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.published",
+                severity=Severity.INFO,
+                passed=True,
+                message=f"DKIM record published at {qname}.",
+                details={"selector": selector, "signing_domain": signing_domain},
+            )
+        )
 
         parsed = _parse_record(records[0])
         public_key = parsed.get("p", "")
         if not public_key.strip():
-            findings.append(Finding(
-                check=f"{CHECK_PREFIX}.public_key",
-                severity=Severity.HIGH,
-                passed=False,
-                message=f"DKIM record at {qname} has empty p= (key revoked).",
-                details={"selector": selector},
-            ))
+            findings.append(
+                Finding(
+                    check=f"{CHECK_PREFIX}.public_key",
+                    severity=Severity.HIGH,
+                    passed=False,
+                    message=f"DKIM record at {qname} has empty p= (key revoked).",
+                    details={"selector": selector},
+                )
+            )
         else:
-            findings.append(Finding(
-                check=f"{CHECK_PREFIX}.public_key",
-                severity=Severity.INFO,
-                passed=True,
-                message=f"DKIM public key present at {qname} ({len(public_key)} chars).",
-                details={"selector": selector, "key_chars": len(public_key)},
-            ))
+            findings.append(
+                Finding(
+                    check=f"{CHECK_PREFIX}.public_key",
+                    severity=Severity.INFO,
+                    passed=True,
+                    message=f"DKIM public key present at {qname} ({len(public_key)} chars).",
+                    details={"selector": selector, "key_chars": len(public_key)},
+                )
+            )
 
             # Key bit-length sanity. cryptography.hazmat parses both SPKI
             # and bare-RSAPublicKey forms; Ed25519 reports 256.
@@ -296,36 +341,48 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
             bits = _key_bits(public_key, k_alg)
             if bits is not None:
                 if bits < _DKIM_KEY_BITS_FLOOR:
-                    findings.append(Finding(
-                        check=f"{CHECK_PREFIX}.key_bits",
-                        severity=Severity.HIGH,
-                        passed=False,
-                        message=(
-                            f"DKIM key at {qname} is ~{bits}-bit; "
-                            f"Gmail/Yahoo bulk-sender requirement is "
-                            f"≥{_DKIM_KEY_BITS_FLOOR}-bit. Modern recommendation is 2048."
-                        ),
-                        details={"selector": selector, "bits": bits, "floor": _DKIM_KEY_BITS_FLOOR},
-                    ))
+                    findings.append(
+                        Finding(
+                            check=f"{CHECK_PREFIX}.key_bits",
+                            severity=Severity.HIGH,
+                            passed=False,
+                            message=(
+                                f"DKIM key at {qname} is ~{bits}-bit; "
+                                f"Gmail/Yahoo bulk-sender requirement is "
+                                f"≥{_DKIM_KEY_BITS_FLOOR}-bit. Modern recommendation is 2048."
+                            ),
+                            details={
+                                "selector": selector,
+                                "bits": bits,
+                                "floor": _DKIM_KEY_BITS_FLOOR,
+                            },
+                        )
+                    )
                 elif bits == _DKIM_KEY_BITS_FLOOR:
-                    findings.append(Finding(
-                        check=f"{CHECK_PREFIX}.key_bits",
-                        severity=Severity.LOW,
-                        passed=False,
-                        message=(
-                            f"DKIM key at {qname} is ~{bits}-bit (the floor). "
-                            "Recommended target is 2048-bit."
-                        ),
-                        details={"selector": selector, "bits": bits},
-                    ))
+                    findings.append(
+                        Finding(
+                            check=f"{CHECK_PREFIX}.key_bits",
+                            severity=Severity.LOW,
+                            passed=False,
+                            message=(
+                                f"DKIM key at {qname} is ~{bits}-bit (the floor). "
+                                "Recommended target is 2048-bit."
+                            ),
+                            details={"selector": selector, "bits": bits},
+                        )
+                    )
                 else:
-                    findings.append(Finding(
-                        check=f"{CHECK_PREFIX}.key_bits",
-                        severity=Severity.INFO,
-                        passed=True,
-                        message=f"DKIM key at {qname} is ~{bits}-bit (≥{_DKIM_KEY_BITS_FLOOR}).",
-                        details={"selector": selector, "bits": bits},
-                    ))
+                    findings.append(
+                        Finding(
+                            check=f"{CHECK_PREFIX}.key_bits",
+                            severity=Severity.INFO,
+                            passed=True,
+                            message=(
+                                f"DKIM key at {qname} is ~{bits}-bit (≥{_DKIM_KEY_BITS_FLOOR})."
+                            ),
+                            details={"selector": selector, "bits": bits},
+                        )
+                    )
 
         syntax_issues: list[str] = []
         for tag in parsed:
@@ -344,21 +401,25 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
                 syntax_issues.append("t=y flag set — testing mode (receivers may downgrade)")
 
         if syntax_issues:
-            findings.append(Finding(
-                check=f"{CHECK_PREFIX}.syntax",
-                severity=Severity.MEDIUM,
-                passed=False,
-                message=f"DKIM record syntax issues: {'; '.join(syntax_issues[:5])}",
-                details={"selector": selector, "issues": syntax_issues},
-            ))
+            findings.append(
+                Finding(
+                    check=f"{CHECK_PREFIX}.syntax",
+                    severity=Severity.MEDIUM,
+                    passed=False,
+                    message=f"DKIM record syntax issues: {'; '.join(syntax_issues[:5])}",
+                    details={"selector": selector, "issues": syntax_issues},
+                )
+            )
         else:
-            findings.append(Finding(
-                check=f"{CHECK_PREFIX}.syntax",
-                severity=Severity.INFO,
-                passed=True,
-                message=f"DKIM record syntax OK at {qname}.",
-                details={"selector": selector},
-            ))
+            findings.append(
+                Finding(
+                    check=f"{CHECK_PREFIX}.syntax",
+                    severity=Severity.INFO,
+                    passed=True,
+                    message=f"DKIM record syntax OK at {qname}.",
+                    details={"selector": selector},
+                )
+            )
 
         # h= coverage of List-Unsubscribe (RFC 8058 / Gmail+Yahoo bulk req).
         # Skip when we brute-forced — no signature header means no h= to read.
@@ -366,32 +427,42 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
             covered_lu = "list-unsubscribe" in h_signed
             covered_lup = "list-unsubscribe-post" in h_signed
             missing = [
-                hdr for hdr, ok in (
+                hdr
+                for hdr, ok in (
                     ("list-unsubscribe", covered_lu),
                     ("list-unsubscribe-post", covered_lup),
-                ) if not ok
+                )
+                if not ok
             ]
             if missing:
-                findings.append(Finding(
-                    check=f"{CHECK_PREFIX}.h_coverage_unsubscribe",
-                    severity=Severity.HIGH,
-                    passed=False,
-                    message=(
-                        f"DKIM signature ({selector}._domainkey.{signing_domain}) "
-                        f"does not cover {missing}. RFC 8058 + Gmail/Yahoo "
-                        "bulk-sender rules require these headers to be DKIM-signed; "
-                        "without coverage the one-click endpoint is tamperable."
-                    ),
-                    details={"selector": selector, "missing": missing, "h_signed": sorted(h_signed)},
-                ))
+                findings.append(
+                    Finding(
+                        check=f"{CHECK_PREFIX}.h_coverage_unsubscribe",
+                        severity=Severity.HIGH,
+                        passed=False,
+                        message=(
+                            f"DKIM signature ({selector}._domainkey.{signing_domain}) "
+                            f"does not cover {missing}. RFC 8058 + Gmail/Yahoo "
+                            "bulk-sender rules require these headers to be DKIM-signed; "
+                            "without coverage the one-click endpoint is tamperable."
+                        ),
+                        details={
+                            "selector": selector,
+                            "missing": missing,
+                            "h_signed": sorted(h_signed),
+                        },
+                    )
+                )
             else:
-                findings.append(Finding(
-                    check=f"{CHECK_PREFIX}.h_coverage_unsubscribe",
-                    severity=Severity.INFO,
-                    passed=True,
-                    message="DKIM signature covers List-Unsubscribe + List-Unsubscribe-Post.",
-                    details={"selector": selector},
-                ))
+                findings.append(
+                    Finding(
+                        check=f"{CHECK_PREFIX}.h_coverage_unsubscribe",
+                        severity=Severity.INFO,
+                        passed=True,
+                        message="DKIM signature covers List-Unsubscribe + List-Unsubscribe-Post.",
+                        details={"selector": selector},
+                    )
+                )
 
         # c= canonicalization advisory (RFC 6376 §3.5). Two distinct risk
         # tiers conflated under one finding ID, both LOW severity:
@@ -425,31 +496,39 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
                         "will break the signature."
                     )
                     risk_tiers.append("header=simple (LOW risk)")
-                findings.append(Finding(
-                    check=f"{CHECK_PREFIX}.canonicalization",
-                    severity=Severity.LOW,
-                    passed=False,
-                    message=(
-                        f"DKIM signature ({selector}._domainkey.{signing_domain}) "
-                        f"uses c={header_canon}/{body_canon}. Recommended: "
-                        f"c=relaxed/relaxed. " + " ".join(parts)
-                    ),
-                    details={
-                        "selector": selector,
-                        "header_canon": header_canon,
-                        "body_canon": body_canon,
-                        "risk_tiers": risk_tiers,
-                        "primary_risk": "body=simple" if body_simple else "header=simple",
-                        "recommended": "relaxed/relaxed",
-                    },
-                ))
+                findings.append(
+                    Finding(
+                        check=f"{CHECK_PREFIX}.canonicalization",
+                        severity=Severity.LOW,
+                        passed=False,
+                        message=(
+                            f"DKIM signature ({selector}._domainkey.{signing_domain}) "
+                            f"uses c={header_canon}/{body_canon}. Recommended: "
+                            f"c=relaxed/relaxed. " + " ".join(parts)
+                        ),
+                        details={
+                            "selector": selector,
+                            "header_canon": header_canon,
+                            "body_canon": body_canon,
+                            "risk_tiers": risk_tiers,
+                            "primary_risk": "body=simple" if body_simple else "header=simple",
+                            "recommended": "relaxed/relaxed",
+                        },
+                    )
+                )
             else:
-                findings.append(Finding(
-                    check=f"{CHECK_PREFIX}.canonicalization",
-                    severity=Severity.INFO,
-                    passed=True,
-                    message=f"DKIM canonicalization c=relaxed/relaxed at {qname}.",
-                    details={"selector": selector, "header_canon": header_canon, "body_canon": body_canon},
-                ))
+                findings.append(
+                    Finding(
+                        check=f"{CHECK_PREFIX}.canonicalization",
+                        severity=Severity.INFO,
+                        passed=True,
+                        message=f"DKIM canonicalization c=relaxed/relaxed at {qname}.",
+                        details={
+                            "selector": selector,
+                            "header_canon": header_canon,
+                            "body_canon": body_canon,
+                        },
+                    )
+                )
 
     return findings

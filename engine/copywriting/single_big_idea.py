@@ -124,10 +124,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
                     f"Pick one and let it breathe; demote or cut the other."
                 ),
                 details={
-                "idea_count": "2",
-                "reason": verdict.reason,
-                "suggestions": verdict.suggestions,
-            },
+                    "idea_count": "2",
+                    "reason": verdict.reason,
+                    "suggestions": verdict.suggestions,
+                },
             )
         ]
 

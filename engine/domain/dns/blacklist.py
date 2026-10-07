@@ -44,70 +44,150 @@ from ..dns_client import query
 # Severity tier mirrors mxtoolbox's "industry standard" weighting.
 _RBLS = [
     # ─── Tier 1: industry-standard, drives delivery decisions ────────
-    ("spamhaus_zen", "zen.spamhaus.org", Severity.HIGH,
-     "Spamhaus ZEN — combined SBL/CSS/XBL/PBL query. Most-consulted reputation list; directly hurts inbox placement at Gmail and Outlook."),
-    ("spamcop", "bl.spamcop.net", Severity.HIGH,
-     "Spamcop — fed by recipient spam reports. Listings often clear within 24h once the report flow stops."),
-    ("barracuda", "b.barracudacentral.org", Severity.HIGH,
-     "Barracuda Reputation Block List — used by many corporate filters."),
-    ("abuseat_cbl", "cbl.abuseat.org", Severity.HIGH,
-     "CBL (Composite Blocking List) — botnet/proxy detection; folded into Spamhaus XBL but still consulted independently."),
+    (
+        "spamhaus_zen",
+        "zen.spamhaus.org",
+        Severity.HIGH,
+        "Spamhaus ZEN: combined SBL/CSS/XBL/PBL query. Most-consulted reputation list. It directly "
+        "hurts inbox placement at Gmail and Outlook.",
+    ),
+    (
+        "spamcop",
+        "bl.spamcop.net",
+        Severity.HIGH,
+        "Spamcop: fed by recipient spam reports. Listings often clear within 24h once the report "
+        "flow stops.",
+    ),
+    (
+        "barracuda",
+        "b.barracudacentral.org",
+        Severity.HIGH,
+        "Barracuda Reputation Block List — used by many corporate filters.",
+    ),
+    (
+        "abuseat_cbl",
+        "cbl.abuseat.org",
+        Severity.HIGH,
+        "CBL (Composite Blocking List): botnet and proxy detection, folded into Spamhaus XBL but "
+        "still consulted independently.",
+    ),
     # ─── Tier 2: medium-impact ───────────────────────────────────────
-    ("uceprotect_l1", "dnsbl-1.uceprotect.net", Severity.MEDIUM,
-     "UCEPROTECT Level 1 — your specific outbound IP is listed."),
-    ("mailspike_bl", "bl.mailspike.net", Severity.MEDIUM,
-     "Mailspike Block List."),
-    ("mailspike_z", "z.mailspike.net", Severity.MEDIUM,
-     "Mailspike Z List — combined reputation."),
-    ("psbl", "psbl.surriel.com", Severity.MEDIUM,
-     "PSBL — Passive Spam Block List."),
-    ("truncate_gbudb", "truncate.gbudb.net", Severity.MEDIUM,
-     "GBUdb Truncate — confirmed senders of substantially-only spam."),
-    ("ivmsip", "dnsbl.ivmsip.org", Severity.MEDIUM,
-     "Invaluement IPv4 SIP — paid subscription list; some mid-size receivers consult it."),
-    ("backscatterer", "ips.backscatterer.org", Severity.MEDIUM,
-     "Backscatterer — IPs that send mis-directed bounces (backscatter)."),
-    ("dronebl", "dnsbl.dronebl.org", Severity.MEDIUM,
-     "DroneBL — known compromised drones / bots / proxies."),
-    ("blocklistde", "bl.blocklist.de", Severity.MEDIUM,
-     "Blocklist.de — fed by fail2ban / mod_security reports."),
-    ("0spam", "bl.0spam.org", Severity.MEDIUM,
-     "0spam — community reputation list."),
-    ("kempt_bl", "spamrbl.imp.ch", Severity.MEDIUM,
-     "imp.ch / KEMPT — Swiss anti-spam project."),
-    ("sem_black", "bl.spameatingmonkey.net", Severity.MEDIUM,
-     "Spam Eating Monkey Black — automated spam-trap fed list."),
-    ("nordspam_bl", "bl.nordspam.com", Severity.MEDIUM,
-     "Nordspam BL — Nordic spam-trap list."),
-    ("rats_dyna", "dyna.spamrats.com", Severity.MEDIUM,
-     "SpamRATS Dyna — dynamic IP space being used to send mail."),
-    ("rats_noptr", "noptr.spamrats.com", Severity.MEDIUM,
-     "SpamRATS NoPtr — IPs missing PTR records."),
-    ("rats_spam", "spam.spamrats.com", Severity.MEDIUM,
-     "SpamRATS Spam — specific spam-source IPs."),
-    ("anonmails_dnsbl", "spam.dnsbl.anonmails.de", Severity.MEDIUM,
-     "Anonmails DNSBL — German anti-spam project."),
-    ("hostkarma_black", "hostkarma.junkemailfilter.com", Severity.MEDIUM,
-     "Hostkarma — community reputation (note: returns 127.0.0.1 = white, .2 = black, .3 = yellow)."),
+    (
+        "uceprotect_l1",
+        "dnsbl-1.uceprotect.net",
+        Severity.MEDIUM,
+        "UCEPROTECT Level 1 — your specific outbound IP is listed.",
+    ),
+    ("mailspike_bl", "bl.mailspike.net", Severity.MEDIUM, "Mailspike Block List."),
+    ("mailspike_z", "z.mailspike.net", Severity.MEDIUM, "Mailspike Z List — combined reputation."),
+    ("psbl", "psbl.surriel.com", Severity.MEDIUM, "PSBL — Passive Spam Block List."),
+    (
+        "truncate_gbudb",
+        "truncate.gbudb.net",
+        Severity.MEDIUM,
+        "GBUdb Truncate — confirmed senders of substantially-only spam.",
+    ),
+    (
+        "ivmsip",
+        "dnsbl.ivmsip.org",
+        Severity.MEDIUM,
+        "Invaluement IPv4 SIP — paid subscription list; some mid-size receivers consult it.",
+    ),
+    (
+        "backscatterer",
+        "ips.backscatterer.org",
+        Severity.MEDIUM,
+        "Backscatterer — IPs that send mis-directed bounces (backscatter).",
+    ),
+    (
+        "dronebl",
+        "dnsbl.dronebl.org",
+        Severity.MEDIUM,
+        "DroneBL — known compromised drones / bots / proxies.",
+    ),
+    (
+        "blocklistde",
+        "bl.blocklist.de",
+        Severity.MEDIUM,
+        "Blocklist.de — fed by fail2ban / mod_security reports.",
+    ),
+    ("0spam", "bl.0spam.org", Severity.MEDIUM, "0spam — community reputation list."),
+    ("kempt_bl", "spamrbl.imp.ch", Severity.MEDIUM, "imp.ch / KEMPT — Swiss anti-spam project."),
+    (
+        "sem_black",
+        "bl.spameatingmonkey.net",
+        Severity.MEDIUM,
+        "Spam Eating Monkey Black — automated spam-trap fed list.",
+    ),
+    ("nordspam_bl", "bl.nordspam.com", Severity.MEDIUM, "Nordspam BL — Nordic spam-trap list."),
+    (
+        "rats_dyna",
+        "dyna.spamrats.com",
+        Severity.MEDIUM,
+        "SpamRATS Dyna — dynamic IP space being used to send mail.",
+    ),
+    (
+        "rats_noptr",
+        "noptr.spamrats.com",
+        Severity.MEDIUM,
+        "SpamRATS NoPtr — IPs missing PTR records.",
+    ),
+    (
+        "rats_spam",
+        "spam.spamrats.com",
+        Severity.MEDIUM,
+        "SpamRATS Spam — specific spam-source IPs.",
+    ),
+    (
+        "anonmails_dnsbl",
+        "spam.dnsbl.anonmails.de",
+        Severity.MEDIUM,
+        "Anonmails DNSBL — German anti-spam project.",
+    ),
+    (
+        "hostkarma_black",
+        "hostkarma.junkemailfilter.com",
+        Severity.MEDIUM,
+        "Hostkarma: community reputation (note: returns 127.0.0.1 = white, .2 = black, .3 = "
+        "yellow).",
+    ),
     # ─── Tier 3: noisy / aspirational lists (LOW) ────────────────────
-    ("uceprotect_l2", "dnsbl-2.uceprotect.net", Severity.LOW,
-     "UCEPROTECT Level 2 — the /24 subnet your IP sits in is listed (a noisy neighbour, not necessarily you)."),
-    ("uceprotect_l3", "dnsbl-3.uceprotect.net", Severity.LOW,
-     "UCEPROTECT Level 3 — your hosting provider's whole network is listed; rarely actioned by major receivers."),
-    ("woodys", "blacklist.woody.ch", Severity.LOW,
-     "Woody's SMTP Blacklist."),
-    ("dan_torexit", "torexit.dan.me.uk", Severity.LOW,
-     "DAN TorExit — Tor network exit nodes."),
-    ("schulte", "rbl.schulte.org", Severity.LOW,
-     "Schulte — small private list."),
-    ("triumf", "rbl2.triumf.ca", Severity.LOW,
-     "TRIUMF — Canadian particle-physics network anti-spam."),
-    ("interserver", "rbl.interserver.net", Severity.LOW,
-     "Interserver RBL — hosting-provider anti-spam list."),
-    ("calivent", "dnsbl.calivent.com.pe", Severity.LOW,
-     "Calivent — South American spam-trap list."),
-    ("netherrelays", "relays.nether.net", Severity.LOW,
-     "Nether Relays — open-relay tracking."),
+    (
+        "uceprotect_l2",
+        "dnsbl-2.uceprotect.net",
+        Severity.LOW,
+        "UCEPROTECT Level 2: the /24 subnet your IP sits in is listed (a noisy neighbour, not "
+        "necessarily you).",
+    ),
+    (
+        "uceprotect_l3",
+        "dnsbl-3.uceprotect.net",
+        Severity.LOW,
+        "UCEPROTECT Level 3: your hosting provider's whole network is listed. Rarely actioned by "
+        "major receivers.",
+    ),
+    ("woodys", "blacklist.woody.ch", Severity.LOW, "Woody's SMTP Blacklist."),
+    ("dan_torexit", "torexit.dan.me.uk", Severity.LOW, "DAN TorExit — Tor network exit nodes."),
+    ("schulte", "rbl.schulte.org", Severity.LOW, "Schulte — small private list."),
+    (
+        "triumf",
+        "rbl2.triumf.ca",
+        Severity.LOW,
+        "TRIUMF — Canadian particle-physics network anti-spam.",
+    ),
+    (
+        "interserver",
+        "rbl.interserver.net",
+        Severity.LOW,
+        "Interserver RBL — hosting-provider anti-spam list.",
+    ),
+    (
+        "calivent",
+        "dnsbl.calivent.com.pe",
+        Severity.LOW,
+        "Calivent — South American spam-trap list.",
+    ),
+    ("netherrelays", "relays.nether.net", Severity.LOW, "Nether Relays — open-relay tracking."),
 ]
 
 # Administrative-error sentinels — NOT real listings. Doc §1 (Spamhaus/
@@ -120,19 +200,25 @@ _RBLS = [
 #   .255 — rate-limited / blocked
 # `127.0.0.1` is URIBL/SURBL "Query Refused" sentinel (also Hostkarma's
 # whitelist code, which we don't query). Filtered for safety.
-_RBL_SENTINELS = frozenset({
-    "127.255.255.252",
-    "127.255.255.254",
-    "127.255.255.255",
-    "127.0.0.1",
-})
+_RBL_SENTINELS = frozenset(
+    {
+        "127.255.255.252",
+        "127.255.255.254",
+        "127.255.255.255",
+        "127.0.0.1",
+    }
+)
 
 # Per RFC 5782, NXDOMAIN definitively = clean. Anything else (timeout,
 # SERVFAIL, no-nameservers) is *unknown* — surface as inconclusive
 # rather than wrongly clean.
-_INCONCLUSIVE_DNS_ERRORS = frozenset({
-    "timeout", "no_nameservers", "no_answer",
-})
+_INCONCLUSIVE_DNS_ERRORS = frozenset(
+    {
+        "timeout",
+        "no_nameservers",
+        "no_answer",
+    }
+)
 
 _IPV4_RX = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _RECEIVED_FROM_RX = re.compile(
@@ -160,9 +246,7 @@ def _is_public_ipv4(ip: str) -> bool:
         return False
     if a == 169 and b == 254:
         return False
-    if a >= 224:
-        return False
-    return True
+    return not a >= 224
 
 
 def extract_sender_ip(headers: dict[str, list[str]]) -> str | None:
@@ -216,7 +300,8 @@ async def _check_one(
                 "response": list(ans.records),
                 "blurb": blurb,
                 "owned_by": "email service provider (ESP outbound IP)",
-                "marketer_action": "Forward this finding to your ESP support — they own the IP, not you.",
+                "marketer_action": "Forward this finding to your ESP support. They own the IP, not "
+                "you.",
             },
         )
 
@@ -265,12 +350,14 @@ async def _check_one(
 async def run(headers: dict[str, list[str]]) -> list[Finding]:
     sender_ip = extract_sender_ip(headers)
     if not sender_ip:
-        return [Finding(
-            check="blacklist.sender_ip_extraction",
-            severity=Severity.INFO,
-            passed=False,
-            message="No sender IP recoverable from Received chain; RBL checks skipped.",
-        )]
+        return [
+            Finding(
+                check="blacklist.sender_ip_extraction",
+                severity=Severity.INFO,
+                passed=False,
+                message="No sender IP recoverable from Received chain; RBL checks skipped.",
+            )
+        ]
 
     reversed_ip = ".".join(reversed(sender_ip.split(".")))
     findings = await asyncio.gather(
@@ -279,11 +366,14 @@ async def run(headers: dict[str, list[str]]) -> list[Finding]:
             for label, host, sev, blurb in _RBLS
         ]
     )
-    findings.insert(0, Finding(
-        check="blacklist.sender_ip_extraction",
-        severity=Severity.INFO,
-        passed=True,
-        message=f"Sender IP for RBL fan-out: {sender_ip}.",
-        details={"ip": sender_ip},
-    ))
+    findings.insert(
+        0,
+        Finding(
+            check="blacklist.sender_ip_extraction",
+            severity=Severity.INFO,
+            passed=True,
+            message=f"Sender IP for RBL fan-out: {sender_ip}.",
+            details={"ip": sender_ip},
+        ),
+    )
     return list(findings)

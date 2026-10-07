@@ -46,17 +46,19 @@ _DKIM_D_RX = re.compile(r"\bd\s*=\s*([^;\s]+)", re.IGNORECASE)
 # Mailboxes that explicitly cannot receive replies. Lowercase, exact-match
 # on local-part. Microsoft guidance: From / Reply-To should be a valid,
 # monitored address.
-_UNMONITORED_LOCALPARTS = frozenset({
-    "noreply",
-    "no-reply",
-    "no_reply",
-    "donotreply",
-    "do-not-reply",
-    "do_not_reply",
-    "donot-reply",
-    "no.reply",
-    "do.not.reply",
-})
+_UNMONITORED_LOCALPARTS = frozenset(
+    {
+        "noreply",
+        "no-reply",
+        "no_reply",
+        "donotreply",
+        "do-not-reply",
+        "do_not_reply",
+        "donot-reply",
+        "no.reply",
+        "do.not.reply",
+    }
+)
 
 
 def _from_org_domain(parsed: ParsedEmail) -> str | None:
@@ -134,12 +136,14 @@ async def run(email: ParsedEmail) -> list[Finding]:
     from_org = _from_org_domain(email)
 
     if not from_org:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.dmarc_alignment_overall",
-            severity=Severity.INFO,
-            passed=False,
-            message="No From: address — alignment cannot be evaluated.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.dmarc_alignment_overall",
+                severity=Severity.INFO,
+                passed=False,
+                message="No From: address — alignment cannot be evaluated.",
+            )
+        )
         return findings
 
     # ─── DKIM alignment (relaxed) ────────────────────────────────────
@@ -147,143 +151,165 @@ async def run(email: ParsedEmail) -> list[Finding]:
     dkim_aligned = from_org in dkim_domains if dkim_domains else False
 
     if not dkim_domains:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.dmarc_alignment_dkim",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=(
-                "No DKIM-Signature header on the message. DKIM cannot align "
-                f"with From organizational domain ({from_org})."
-            ),
-            details={"from_org": from_org},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.dmarc_alignment_dkim",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=(
+                    "No DKIM-Signature header on the message. DKIM cannot align "
+                    f"with From organizational domain ({from_org})."
+                ),
+                details={"from_org": from_org},
+            )
+        )
     elif dkim_aligned:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.dmarc_alignment_dkim",
-            severity=Severity.INFO,
-            passed=True,
-            message=(
-                f"DKIM aligned: signing domain {from_org} matches From "
-                "organizational domain (relaxed)."
-            ),
-            details={"from_org": from_org, "dkim_d": dkim_domains},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.dmarc_alignment_dkim",
+                severity=Severity.INFO,
+                passed=True,
+                message=(
+                    f"DKIM aligned: signing domain {from_org} matches From "
+                    "organizational domain (relaxed)."
+                ),
+                details={"from_org": from_org, "dkim_d": dkim_domains},
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.dmarc_alignment_dkim",
-            severity=Severity.HIGH,
-            passed=False,
-            message=(
-                f"DKIM not aligned: signed by {dkim_domains} but From "
-                f"organizational domain is {from_org}. Receivers will not "
-                "credit DKIM toward DMARC alignment."
-            ),
-            details={"from_org": from_org, "dkim_d": dkim_domains},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.dmarc_alignment_dkim",
+                severity=Severity.HIGH,
+                passed=False,
+                message=(
+                    f"DKIM not aligned: signed by {dkim_domains} but From "
+                    f"organizational domain is {from_org}. Receivers will not "
+                    "credit DKIM toward DMARC alignment."
+                ),
+                details={"from_org": from_org, "dkim_d": dkim_domains},
+            )
+        )
 
     # ─── SPF alignment (relaxed, via Return-Path) ────────────────────
     return_path_org = _return_path_domain(email)
     if return_path_org is None:
         spf_aligned = False
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.dmarc_alignment_spf",
-            severity=Severity.LOW,
-            passed=False,
-            message=(
-                "No Return-Path header — SPF alignment cannot be evaluated. "
-                "(May be stripped by forwarding; not necessarily an issue.)"
-            ),
-            details={"from_org": from_org},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.dmarc_alignment_spf",
+                severity=Severity.LOW,
+                passed=False,
+                message=(
+                    "No Return-Path header — SPF alignment cannot be evaluated. "
+                    "(May be stripped by forwarding; not necessarily an issue.)"
+                ),
+                details={"from_org": from_org},
+            )
+        )
     elif return_path_org == from_org:
         spf_aligned = True
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.dmarc_alignment_spf",
-            severity=Severity.INFO,
-            passed=True,
-            message=(
-                f"SPF aligned: Return-Path domain {return_path_org} matches "
-                "From organizational domain (relaxed)."
-            ),
-            details={"from_org": from_org, "return_path_org": return_path_org},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.dmarc_alignment_spf",
+                severity=Severity.INFO,
+                passed=True,
+                message=(
+                    f"SPF aligned: Return-Path domain {return_path_org} matches "
+                    "From organizational domain (relaxed)."
+                ),
+                details={"from_org": from_org, "return_path_org": return_path_org},
+            )
+        )
     else:
         spf_aligned = False
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.dmarc_alignment_spf",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=(
-                f"SPF not aligned: Return-Path domain {return_path_org} differs "
-                f"from From organizational domain {from_org}. Configure your "
-                "ESP's bounce domain on a subdomain of your apex to fix."
-            ),
-            details={"from_org": from_org, "return_path_org": return_path_org},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.dmarc_alignment_spf",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=(
+                    f"SPF not aligned: Return-Path domain {return_path_org} differs "
+                    f"from From organizational domain {from_org}. Configure your "
+                    "ESP's bounce domain on a subdomain of your apex to fix."
+                ),
+                details={"from_org": from_org, "return_path_org": return_path_org},
+            )
+        )
 
     # ─── Overall DMARC alignment ─────────────────────────────────────
     if dkim_aligned or spf_aligned:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.dmarc_alignment_overall",
-            severity=Severity.INFO,
-            passed=True,
-            message=(
-                f"DMARC alignment OK ({'DKIM' if dkim_aligned else ''}"
-                f"{' + ' if dkim_aligned and spf_aligned else ''}"
-                f"{'SPF' if spf_aligned else ''})."
-            ),
-            details={
-                "dkim_aligned": dkim_aligned,
-                "spf_aligned": spf_aligned,
-                "from_org": from_org,
-            },
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.dmarc_alignment_overall",
+                severity=Severity.INFO,
+                passed=True,
+                message=(
+                    f"DMARC alignment OK ({'DKIM' if dkim_aligned else ''}"
+                    f"{' + ' if dkim_aligned and spf_aligned else ''}"
+                    f"{'SPF' if spf_aligned else ''})."
+                ),
+                details={
+                    "dkim_aligned": dkim_aligned,
+                    "spf_aligned": spf_aligned,
+                    "from_org": from_org,
+                },
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.dmarc_alignment_overall",
-            severity=Severity.CRITICAL,
-            passed=False,
-            message=(
-                f"Neither DKIM nor SPF aligns with From organizational domain "
-                f"({from_org}). DMARC will fail alignment regardless of "
-                "individual SPF/DKIM pass results — Gmail returns 5.7.26, "
-                "Microsoft 5.7.509."
-            ),
-            details={
-                "from_org": from_org,
-                "dkim_d": dkim_domains,
-                "return_path_org": return_path_org,
-            },
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.dmarc_alignment_overall",
+                severity=Severity.CRITICAL,
+                passed=False,
+                message=(
+                    f"Neither DKIM nor SPF aligns with From organizational domain "
+                    f"({from_org}). DMARC will fail alignment regardless of "
+                    "individual SPF/DKIM pass results — Gmail returns 5.7.26, "
+                    "Microsoft 5.7.509."
+                ),
+                details={
+                    "from_org": from_org,
+                    "dkim_d": dkim_domains,
+                    "return_path_org": return_path_org,
+                },
+            )
+        )
 
     # ─── Reply-To divergence ─────────────────────────────────────────
     reply_to_domains = _reply_to_domains(email)
     if not reply_to_domains:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.reply_to_alignment",
-            severity=Severity.INFO,
-            passed=True,
-            message="No Reply-To header — replies go to From: (default behaviour).",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.reply_to_alignment",
+                severity=Severity.INFO,
+                passed=True,
+                message="No Reply-To header — replies go to From: (default behaviour).",
+            )
+        )
     elif from_org in reply_to_domains:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.reply_to_alignment",
-            severity=Severity.INFO,
-            passed=True,
-            message=f"Reply-To organizational domain matches From ({from_org}).",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.reply_to_alignment",
+                severity=Severity.INFO,
+                passed=True,
+                message=f"Reply-To organizational domain matches From ({from_org}).",
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.reply_to_alignment",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=(
-                f"Reply-To domain(s) {reply_to_domains} differ from From "
-                f"organizational domain ({from_org}). Anti-phishing systems "
-                "treat divergence as suspicious; weights toward Promotions."
-            ),
-            details={"from_org": from_org, "reply_to_orgs": reply_to_domains},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.reply_to_alignment",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=(
+                    f"Reply-To domain(s) {reply_to_domains} differ from From "
+                    f"organizational domain ({from_org}). Anti-phishing systems "
+                    "treat divergence as suspicious; weights toward Promotions."
+                ),
+                details={"from_org": from_org, "reply_to_orgs": reply_to_domains},
+            )
+        )
 
     # ─── Reply-To monitored (noreply@ advisory) ──────────────────────
     # Microsoft sender guidance: From or Reply-To should be a valid,
@@ -293,28 +319,29 @@ async def run(email: ParsedEmail) -> list[Finding]:
     source, reply_locals = _effective_reply_localparts(email)
     unmonitored_hits = [loc for loc in reply_locals if loc in _UNMONITORED_LOCALPARTS]
     if reply_locals and unmonitored_hits:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.reply_to_monitored",
-            severity=Severity.LOW,
-            passed=False,
-            message=(
-                f"Effective reply address (via {source}) is an unmonitored "
-                f"mailbox: {unmonitored_hits}. Microsoft sender guidance: "
-                "From / Reply-To should be valid, reflect the true sending "
-                "domain, and be able to receive replies. Replying drives "
-                "engagement signals that improve inbox placement."
-            ),
-            details={"source": source, "unmonitored": unmonitored_hits},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.reply_to_monitored",
+                severity=Severity.LOW,
+                passed=False,
+                message=(
+                    f"Effective reply address (via {source}) is an unmonitored "
+                    f"mailbox: {unmonitored_hits}. Microsoft sender guidance: "
+                    "From / Reply-To should be valid, reflect the true sending "
+                    "domain, and be able to receive replies. Replying drives "
+                    "engagement signals that improve inbox placement."
+                ),
+                details={"source": source, "unmonitored": unmonitored_hits},
+            )
+        )
     elif reply_locals:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.reply_to_monitored",
-            severity=Severity.INFO,
-            passed=True,
-            message=(
-                f"Effective reply address (via {source}) is not a noreply "
-                "mailbox."
-            ),
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.reply_to_monitored",
+                severity=Severity.INFO,
+                passed=True,
+                message=(f"Effective reply address (via {source}) is not a noreply mailbox."),
+            )
+        )
 
     return findings

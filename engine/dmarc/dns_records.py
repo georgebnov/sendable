@@ -93,9 +93,6 @@ def read_dmarc(domain: str) -> DmarcRecord:
         return cached[1]
 
     records = [r for r in _query_txt(f"_dmarc.{domain}") if _DMARC_PREFIX_RX.match(r)]
-    if not records:
-        result = DmarcRecord(exists=False)
-    else:
-        result = _parse_dmarc_txt(records[0])
+    result = DmarcRecord(exists=False) if not records else _parse_dmarc_txt(records[0])
     _dmarc_cache[domain] = (_now(), result)
     return result

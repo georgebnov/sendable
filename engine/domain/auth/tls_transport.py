@@ -64,70 +64,81 @@ def _last_external_hop(received_chain: list[str]) -> str | None:
 async def run(email: ParsedEmail) -> list[Finding]:
     chain = list(email.headers.get("received", []))
     if not chain:
-        return [Finding(
-            check="auth.tls_transport",
-            severity=Severity.INFO,
-            passed=False,
-            message=(
-                "No Received headers — cannot evaluate transport TLS. "
-                "Likely a forwarded or ARC-rewritten message."
-            ),
-        )]
+        return [
+            Finding(
+                check="auth.tls_transport",
+                severity=Severity.INFO,
+                passed=False,
+                message=(
+                    "No Received headers — cannot evaluate transport TLS. "
+                    "Likely a forwarded or ARC-rewritten message."
+                ),
+            )
+        ]
 
     hop = _last_external_hop(chain)
     if hop is None:
-        return [Finding(
-            check="auth.tls_transport",
-            severity=Severity.INFO,
-            passed=False,
-            message=(
-                "Could not locate the last external SMTP hop in Received "
-                "chain (no public IPv4 found). TLS transport check skipped."
-            ),
-        )]
+        return [
+            Finding(
+                check="auth.tls_transport",
+                severity=Severity.INFO,
+                passed=False,
+                message=(
+                    "Could not locate the last external SMTP hop in Received "
+                    "chain (no public IPv4 found). TLS transport check skipped."
+                ),
+            )
+        ]
 
     has_tls = bool(_TLS_MARKERS_RX.search(hop))
-    profile = esp_detect.detect(email)
-    is_esp = profile is not None and profile.is_high_confidence()
+    detected = esp_detect.detect(email)
+    # Narrowed profile rather than a bool, so esp.name below type-checks.
+    esp = detected if (detected is not None and detected.is_high_confidence()) else None
 
     if has_tls:
-        return [Finding(
-            check="auth.tls_transport",
-            severity=Severity.INFO,
-            passed=True,
-            message=(
-                "Last external SMTP hop used TLS (ESMTPS / STARTTLS / "
-                "TLS marker present in Received header)."
-            ),
-            details={"hop": hop[:240]},
-        )]
+        return [
+            Finding(
+                check="auth.tls_transport",
+                severity=Severity.INFO,
+                passed=True,
+                message=(
+                    "Last external SMTP hop used TLS (ESMTPS / STARTTLS / "
+                    "TLS marker present in Received header)."
+                ),
+                details={"hop": hop[:240]},
+            )
+        ]
 
-    if is_esp:
-        return [Finding(
+    if esp is not None:
+        return [
+            Finding(
+                check="auth.tls_transport",
+                severity=Severity.INFO,
+                passed=False,
+                message=(
+                    f"[ESP outbound — {esp.name}] Last external hop has "
+                    "no TLS marker in its Received header. Major ESPs submit "
+                    "over TLS as hard policy; missing marker is a header-"
+                    "sanitization artifact at the relay, not an actual "
+                    "plain-text send."
+                ),
+                details={"hop": hop[:240], "esp": esp.name},
+                source="esp_owned",
+            )
+        ]
+
+    return [
+        Finding(
             check="auth.tls_transport",
-            severity=Severity.INFO,
+            severity=Severity.HIGH,
             passed=False,
             message=(
-                f"[ESP outbound — {profile.name}] Last external hop has "
-                "no TLS marker in its Received header. Major ESPs submit "
-                "over TLS as hard policy; missing marker is a header-"
-                "sanitization artifact at the relay, not an actual "
-                "plain-text send."
+                "Last external SMTP hop appears to be plain SMTP — no "
+                "ESMTPS / STARTTLS / TLS marker found in the Received "
+                "header. Gmail (2024+) and Microsoft (May 2025+) both "
+                "require outbound mail to land over TLS; plain-text "
+                "submission is bulk-rejected."
             ),
-            details={"hop": hop[:240], "esp": profile.name},
-            source="esp_owned",
-        )]
-
-    return [Finding(
-        check="auth.tls_transport",
-        severity=Severity.HIGH,
-        passed=False,
-        message=(
-            "Last external SMTP hop appears to be plain SMTP — no "
-            "ESMTPS / STARTTLS / TLS marker found in the Received "
-            "header. Gmail (2024+) and Microsoft (May 2025+) both "
-            "require outbound mail to land over TLS; plain-text "
-            "submission is bulk-rejected."
-        ),
-        details={"hop": hop[:240]},
-    )]
+            details={"hop": hop[:240]},
+        )
+    ]

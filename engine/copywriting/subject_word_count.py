@@ -71,8 +71,8 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.LOW,
                 passed=False,
                 message=(
-                    f"Subject is {n} word(s) — too vague to drive opens. "
-                    f"Aim for 6–10 words that name the specific topic or "
+                    f"Subject is {n} word(s), too vague to drive opens. "
+                    f"Aim for 6 to 10 words that name the specific topic or "
                     f"outcome."
                 ),
                 details=details,
@@ -85,7 +85,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="copywriting.subject_word_count",
                 severity=Severity.INFO,
                 passed=True,
-                message=f"Subject word count {n} — within the 4–10 word target.",
+                message=f"Subject word count {n}, within the 4 to 10 word target.",
                 details=details,
             )
         ]
@@ -97,8 +97,8 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f"Subject is {n} words — wordy and risks mobile "
-                    f"truncation. Trim to 6–10 words; lead with the most "
+                    f"Subject is {n} words, wordy and risks mobile "
+                    f"truncation. Trim to 6 to 10 words. Lead with the most "
                     f"specific noun."
                 ),
                 details=details,
@@ -111,8 +111,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             severity=Severity.MEDIUM,
             passed=False,
             message=(
-                f"Subject is {n} words — truncated on every mobile client. "
-                f"Cut to 6–10 words."
+                f"Subject is {n} words, truncated on every mobile client. Cut to 6 to 10 words."
             ),
             details=details,
         )

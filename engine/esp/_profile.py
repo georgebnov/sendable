@@ -66,6 +66,7 @@ class ESPProfile:
     severity of findings caused by template chrome (preview-text span,
     footer zero-width characters, merge-tag artefacts).
     """
+
     name: str
     confidence: float
     signing_domains: list[str] = field(default_factory=list)
@@ -87,7 +88,7 @@ class ESPProfile:
         return any(p.search(text) for p in self._compiled_preview)
 
     @classmethod
-    def from_spec(cls, spec: ProfileSpec, confidence: float) -> "ESPProfile":
+    def from_spec(cls, spec: ProfileSpec, confidence: float) -> ESPProfile:
         return cls(
             name=spec.name,
             confidence=confidence,

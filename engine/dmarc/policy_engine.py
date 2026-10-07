@@ -26,7 +26,7 @@ status pill + title + detail + suggested_action (+ new_record when relevant).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from engine.dmarc.spf_merge import merge_spf
 
@@ -55,14 +55,14 @@ LADDER: list[tuple[str, int]] = [
 ]
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     INFO = "info"
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
 
 
-class Tier(str, Enum):
+class Tier(StrEnum):
     """Maps to the UI status pill."""
 
     GOOD = "good"  # green
@@ -211,8 +211,7 @@ def spf_findings(spf: SpfRecord, senders: list[Sender]) -> list[Action]:
                 "No SPF record",
                 "Receivers have no list of servers allowed to send as you. SPF "
                 "authentication fails for every source.",
-                "Publish one SPF record listing your senders, e.g. "
-                "v=spf1 include:<your-esp> -all",
+                "Publish one SPF record listing your senders, e.g. v=spf1 include:<your-esp> -all",
             )
         )
     elif spf.record_count > 1:
@@ -237,8 +236,7 @@ def spf_findings(spf: SpfRecord, senders: list[Sender]) -> list[Action]:
                     f"SPF exceeds {SPF_LOOKUP_LIMIT} DNS lookups ({spf.lookups})",
                     "Past the limit SPF returns PermError and fails for every "
                     "sender, even authorized ones.",
-                    "Reduce or flatten includes to get back under "
-                    f"{SPF_LOOKUP_LIMIT} lookups.",
+                    f"Reduce or flatten includes to get back under {SPF_LOOKUP_LIMIT} lookups.",
                 )
             )
         q = spf.all_qualifier
@@ -352,8 +350,7 @@ def spf_findings(spf: SpfRecord, senders: list[Sender]) -> list[Action]:
                     "A legitimate-looking sender isn't authorized by SPF and has "
                     "no aligned DKIM — it fails DMARC and will be blocked at "
                     "enforcement.",
-                    f"Add this provider's include to your SPF record{inc}, "
-                    "then set up its DKIM.",
+                    f"Add this provider's include to your SPF record{inc}, then set up its DKIM.",
                 )
                 out.append(act)
                 if s.esp_include:
@@ -415,9 +412,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
         # "authenticate X" instruction (you cannot authenticate Avanan). Fall
         # back to the full list only when EVERY bleeding source is
         # uncontrollable — that's the reassurance case below.
-        controllable = [
-            s for s in bleeding if s.classification not in _UNCONTROLLABLE_TAGS
-        ]
+        controllable = [s for s in bleeding if s.classification not in _UNCONTROLLABLE_TAGS]
         primary = controllable or bleeding
         names = ", ".join(s.name for s in primary)
         bleeding_volume = sum(s.volume for s in primary)
@@ -450,8 +445,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
             # (b) your own sender, fixable — fix the source, not the policy.
             fixable = next((s for s in bleeding if s.esp_include), None)
             how = (
-                f"add {fixable.esp_include} to your SPF record and turn on "
-                "aligned DKIM"
+                f"add {fixable.esp_include} to your SPF record and turn on aligned DKIM"
                 if fixable
                 else f"authenticate {names} (SPF include + aligned DKIM)"
             )
@@ -462,8 +456,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
                 "Your mail is being blocked — fix the sender",
                 f"{names} is legitimate but isn't authenticated for your domain, "
                 f"so the receiver is quarantining/rejecting it ({bleeding_volume} "
-                f"message(s) lost). The fix is on that sender, not your policy."
-                + spoof_note,
+                f"message(s) lost). The fix is on that sender, not your policy." + spoof_note,
                 f"To stop the loss, {how}. Leave your DMARC policy as it is.",
             )
 
@@ -485,9 +478,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
                 f"Authenticate {names} (SPF include + aligned DKIM).",
             )
         step_p, step_pct = LADDER[target_idx]
-        step_label = step_p + (
-            f" at {step_pct}%" if step_p != "none" and step_pct < 100 else ""
-        )
+        step_label = step_p + (f" at {step_pct}%" if step_p != "none" and step_pct < 100 else "")
         cur_label = f"p={rec.p}" + (f", pct={rec.pct}" if rec.pct < 100 else "")
         return Action(
             "ROLLBACK",
@@ -497,8 +488,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
             f"{names} is legitimate but unaligned, and your current policy "
             f"({cur_label}) is quarantining/rejecting real mail across your "
             "domain.",
-            f"Temporarily ease to {step_label} while you authenticate {names}, "
-            "then climb back up.",
+            f"Temporarily ease to {step_label} while you authenticate {names}, then climb back up.",
             new_record=_build_record(step_p, step_pct, rua),
         )
 
@@ -538,8 +528,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
             "Too little traffic to advance safely",
             f"Only {window.total_volume} messages over {window.days_with_data} "
             "days. That's not enough to be sure nothing breaks at the next rung.",
-            "Keep collecting reports. We'll prompt you once there's enough clean "
-            "volume.",
+            "Keep collecting reports. We'll prompt you once there's enough clean volume.",
         )
 
     # 5. Clean, but not long enough yet.
@@ -567,8 +556,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
         Tier.GOOD,
         Severity.LOW,
         f"Ready to advance to {label}",
-        f"{window.clean_streak_days} clean days, all senders aligned. Safe to "
-        "tighten one step.",
+        f"{window.clean_streak_days} clean days, all senders aligned. Safe to tighten one step.",
         f"Update your DMARC record to {label}.",
         new_record=_build_record(nxt_p, nxt_pct, rua),
     )

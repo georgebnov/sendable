@@ -20,20 +20,54 @@ from ..parse import ParsedEmail
 from ..report import Finding
 from ..severity import Severity
 
-_SHORTENERS = frozenset({
-    "bit.ly", "t.co", "tinyurl.com", "goo.gl", "ow.ly", "is.gd", "buff.ly",
-    "bitly.com", "rb.gy", "cutt.ly", "shorturl.at", "rebrand.ly", "trib.al",
-    "tiny.cc", "soo.gd", "s.id", "lnkd.in",
-})
+_SHORTENERS = frozenset(
+    {
+        "bit.ly",
+        "t.co",
+        "tinyurl.com",
+        "goo.gl",
+        "ow.ly",
+        "is.gd",
+        "buff.ly",
+        "bitly.com",
+        "rb.gy",
+        "cutt.ly",
+        "shorturl.at",
+        "rebrand.ly",
+        "trib.al",
+        "tiny.cc",
+        "soo.gd",
+        "s.id",
+        "lnkd.in",
+    }
+)
 
 # Known multi-label public suffixes. Not exhaustive — covers most
 # encountered by single-user PoC traffic. BACKLOG notes an upgrade to
 # tldextract when false-positives surface.
-_MULTI_LABEL_TLDS = frozenset({
-    "co.uk", "co.jp", "co.nz", "co.za", "co.in", "co.il", "co.kr",
-    "com.au", "com.br", "com.mx", "com.cn", "com.sg", "com.tw", "com.hk",
-    "org.uk", "net.au", "gov.uk", "ac.uk", "ac.jp",
-})
+_MULTI_LABEL_TLDS = frozenset(
+    {
+        "co.uk",
+        "co.jp",
+        "co.nz",
+        "co.za",
+        "co.in",
+        "co.il",
+        "co.kr",
+        "com.au",
+        "com.br",
+        "com.mx",
+        "com.cn",
+        "com.sg",
+        "com.tw",
+        "com.hk",
+        "org.uk",
+        "net.au",
+        "gov.uk",
+        "ac.uk",
+        "ac.jp",
+    }
+)
 
 # Extracts something that looks like a domain out of anchor-visible text.
 _DOMAIN_IN_TEXT_RX = re.compile(

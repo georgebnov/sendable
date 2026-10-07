@@ -31,7 +31,7 @@ isn't present (typical for one-off audits).
 from __future__ import annotations
 
 import math
-from typing import Callable
+from collections.abc import Callable
 
 from .report import Finding
 from .severity import SCORE_GO_MIN, SCORE_REVIEW_MIN, Severity
@@ -93,20 +93,20 @@ CATEGORY_BUDGETS: dict[str, int] = {
 }
 
 SEVERITY_PENALTY: dict[Severity, int] = {
-    Severity.CRITICAL: 0,   # hard-gate handled separately; no continuous deduct
-    Severity.HIGH:     15,
-    Severity.MEDIUM:    5,
-    Severity.LOW:       2,
-    Severity.INFO:      0,
+    Severity.CRITICAL: 0,  # hard-gate handled separately; no continuous deduct
+    Severity.HIGH: 15,
+    Severity.MEDIUM: 5,
+    Severity.LOW: 2,
+    Severity.INFO: 0,
 }
 
 # Severity ordering for `family` dedup (highest wins).
 _SEVERITY_RANK: dict[Severity, int] = {
     Severity.CRITICAL: 4,
-    Severity.HIGH:     3,
-    Severity.MEDIUM:   2,
-    Severity.LOW:      1,
-    Severity.INFO:     0,
+    Severity.HIGH: 3,
+    Severity.MEDIUM: 2,
+    Severity.LOW: 1,
+    Severity.INFO: 0,
 }
 
 HARD_GATE_FLOOR = 30
@@ -119,9 +119,7 @@ def _categorize(finding: Finding) -> str:
     if finding.category:
         return finding.category
     matches = [
-        (prefix, cat)
-        for prefix, cat in _CATEGORY_BY_PREFIX
-        if finding.check.startswith(prefix)
+        (prefix, cat) for prefix, cat in _CATEGORY_BY_PREFIX if finding.check.startswith(prefix)
     ]
     if not matches:
         return "infrastructure"
@@ -141,6 +139,7 @@ def _is_hard_gate(finding: Finding) -> bool:
 # Each entry: (label, predicate over findings → bool, factor).
 # Applied after composite is computed. Compounds multiplicatively.
 
+
 def _has_check(findings: list[Finding], check_id: str, *, failing_only: bool = True) -> bool:
     for f in findings:
         if f.check != check_id:
@@ -154,8 +153,10 @@ def _has_check(findings: list[Finding], check_id: str, *, failing_only: bool = T
 SOFT_MULTIPLIERS: list[tuple[str, Callable[[list[Finding]], bool], float]] = [
     (
         "dmarc_p_none",
-        lambda fs: _has_check(fs, "auth.dmarc_policy_strength")
-                   or _has_check(fs, "dmarc_record.policy_enabled"),
+        lambda fs: (
+            _has_check(fs, "auth.dmarc_policy_strength")
+            or _has_check(fs, "dmarc_record.policy_enabled")
+        ),
         0.92,
     ),
     (
@@ -178,6 +179,7 @@ SOFT_MULTIPLIERS: list[tuple[str, Callable[[list[Finding]], bool], float]] = [
 
 # ─── Family dedup ───────────────────────────────────────────────────────
 
+
 def _dedup_families(findings: list[Finding]) -> list[Finding]:
     """Collapse failing findings sharing a `family` into the highest-
     severity representative. Findings without a family pass through
@@ -196,6 +198,7 @@ def _dedup_families(findings: list[Finding]) -> list[Finding]:
 
 
 # ─── Continuous score ───────────────────────────────────────────────────
+
 
 def _category_subscore(category: str, penalty_sum: int) -> int:
     """Map a category's summed penalty to a 0-100 sub-score.
@@ -243,13 +246,14 @@ def _composite_geometric(sub_scores: dict[str, int], present: set[str]) -> int:
 
 # ─── Public API ─────────────────────────────────────────────────────────
 
+
 def score_findings(
     findings: list[Finding],
     *,
     in_spam: bool = False,
 ) -> dict:
     """Run the full 2-stage pipeline. Returns dict:
-        score, verdict, sub_scores, hard_gates_failed, soft_multipliers_applied
+    score, verdict, sub_scores, hard_gates_failed, soft_multipliers_applied
     """
     deduped = _dedup_families(findings)
 
@@ -300,8 +304,10 @@ def score_findings(
         verdict = "NO_GO"
     else:
         verdict = (
-            "GO" if composite >= SCORE_GO_MIN
-            else "REVIEW" if composite >= SCORE_REVIEW_MIN
+            "GO"
+            if composite >= SCORE_GO_MIN
+            else "REVIEW"
+            if composite >= SCORE_REVIEW_MIN
             else "NO_GO"
         )
 

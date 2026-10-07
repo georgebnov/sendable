@@ -28,7 +28,6 @@ from pathlib import Path
 from engine.report import Finding
 from engine.severity import Severity
 
-
 _SPAM_TRIGGERS_PATH = Path(__file__).resolve().parent / "context" / "spam_triggers.md"
 
 _LENGTH_HINT_CAPS = {
@@ -42,11 +41,11 @@ _URL_RX = re.compile(r"https?://[^\s<>\"')]+", re.IGNORECASE)
 _DRIVE_HOST_RX = re.compile(r"(drive|docs)\.google\.com", re.IGNORECASE)
 _EMOJI_RX = re.compile(
     "["
-    "\U0001F300-\U0001FAFF"  # symbols + emoji blocks
-    "\U00002600-\U000027BF"  # misc symbols + dingbats
-    "\U0001F000-\U0001F9FF"  # mahjong through symbols & pictographs
-    "\U0001FA70-\U0001FAFF"  # more symbols
-    "\U00002700-\U000027BF"  # dingbats
+    "\U0001f300-\U0001faff"  # symbols + emoji blocks
+    "\U00002600-\U000027bf"  # misc symbols + dingbats
+    "\U0001f000-\U0001f9ff"  # mahjong through symbols & pictographs
+    "\U0001fa70-\U0001faff"  # more symbols
+    "\U00002700-\U000027bf"  # dingbats
     "]",
     re.UNICODE,
 )
@@ -120,24 +119,30 @@ def _check_subjects(subjects: list[str]) -> list[Finding]:
                 issues.append((Severity.MEDIUM, f"subject contains {count} emoji (>1)"))
 
         leading = subj.lstrip()
-        if leading.startswith("$") or re.match(r"^\$?\s*\d+[\d,]*\s*(off|save|\$|%)", leading, re.IGNORECASE):
+        if leading.startswith("$") or re.match(
+            r"^\$?\s*\d+[\d,]*\s*(off|save|\$|%)", leading, re.IGNORECASE
+        ):
             issues.append((Severity.MEDIUM, "subject opens with a dollar/price figure"))
 
         for sev, msg in issues:
-            findings.append(Finding(
-                check="copygen.subject_heuristics",
-                severity=sev,
-                passed=False,
-                message=f"subject variant {i}: {msg}",
-                details={"variant_index": i, "subject": subj},
-            ))
+            findings.append(
+                Finding(
+                    check="copygen.subject_heuristics",
+                    severity=sev,
+                    passed=False,
+                    message=f"subject variant {i}: {msg}",
+                    details={"variant_index": i, "subject": subj},
+                )
+            )
     if not findings:
-        findings.append(Finding(
-            check="copygen.subject_heuristics",
-            severity=Severity.INFO,
-            passed=True,
-            message=f"Subject heuristics passed ({len(subjects)} variant(s)).",
-        ))
+        findings.append(
+            Finding(
+                check="copygen.subject_heuristics",
+                severity=Severity.INFO,
+                passed=True,
+                message=f"Subject heuristics passed ({len(subjects)} variant(s)).",
+            )
+        )
     return findings
 
 
@@ -154,24 +159,28 @@ def _check_spam_triggers(
                 if phrase in (text or "").lower():
                     fired_categories.add(category)
                     sev = Severity.HIGH if category != "newsletter-word" else Severity.LOW
-                    findings.append(Finding(
-                        check="copygen.spam_trigger",
-                        severity=sev,
-                        passed=False,
-                        message=f"banned phrase '{phrase}' in {field_name}",
-                        details={
-                            "phrase": phrase,
-                            "category": category,
-                            "field": field_name,
-                        },
-                    ))
+                    findings.append(
+                        Finding(
+                            check="copygen.spam_trigger",
+                            severity=sev,
+                            passed=False,
+                            message=f"banned phrase '{phrase}' in {field_name}",
+                            details={
+                                "phrase": phrase,
+                                "category": category,
+                                "field": field_name,
+                            },
+                        )
+                    )
     if not findings:
-        findings.append(Finding(
-            check="copygen.spam_trigger",
-            severity=Severity.INFO,
-            passed=True,
-            message="No spam-trigger phrases detected.",
-        ))
+        findings.append(
+            Finding(
+                check="copygen.spam_trigger",
+                severity=Severity.INFO,
+                passed=True,
+                message="No spam-trigger phrases detected.",
+            )
+        )
     return findings, fired_categories
 
 
@@ -179,31 +188,34 @@ def _check_compound_signal(fired_categories: set[str]) -> list[Finding]:
     # Formatting / newsletter-word are too noisy to count toward the
     # compound-promotional score on their own.
     promotional = {
-        c for c in fired_categories
-        if c not in ("formatting", "newsletter-word", "uncategorised")
+        c for c in fired_categories if c not in ("formatting", "newsletter-word", "uncategorised")
     }
     n = len(promotional)
     if n <= 2:
-        return [Finding(
-            check="copygen.compound_signal",
-            severity=Severity.INFO,
-            passed=True,
-            message=f"{n} promotional category(ies) — below the compound-signal threshold.",
-            details={"categories": sorted(promotional), "count": n},
-        )]
+        return [
+            Finding(
+                check="copygen.compound_signal",
+                severity=Severity.INFO,
+                passed=True,
+                message=f"{n} promotional category(ies) — below the compound-signal threshold.",
+                details={"categories": sorted(promotional), "count": n},
+            )
+        ]
     if n == 3:
         sev = Severity.MEDIUM
     elif n == 4:
         sev = Severity.HIGH
     else:
         sev = Severity.CRITICAL
-    return [Finding(
-        check="copygen.compound_signal",
-        severity=sev,
-        passed=False,
-        message=f"{n} promotional categories fired simultaneously: {sorted(promotional)}",
-        details={"categories": sorted(promotional), "count": n},
-    )]
+    return [
+        Finding(
+            check="copygen.compound_signal",
+            severity=sev,
+            passed=False,
+            message=f"{n} promotional categories fired simultaneously: {sorted(promotional)}",
+            details={"categories": sorted(promotional), "count": n},
+        )
+    ]
 
 
 def _check_body_length(body: str, length_hint: str) -> list[Finding]:
@@ -211,29 +223,35 @@ def _check_body_length(body: str, length_hint: str) -> list[Finding]:
     cap = _LENGTH_HINT_CAPS.get(length_hint, 200)
     findings: list[Finding] = []
     if word_count > cap + (cap // 2):
-        findings.append(Finding(
-            check="copygen.body_length",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=f"body is {word_count} words (hint '{length_hint}' cap {cap})",
-            details={"word_count": word_count, "cap": cap, "length_hint": length_hint},
-        ))
+        findings.append(
+            Finding(
+                check="copygen.body_length",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=f"body is {word_count} words (hint '{length_hint}' cap {cap})",
+                details={"word_count": word_count, "cap": cap, "length_hint": length_hint},
+            )
+        )
     if length_hint == "short" and word_count > _ABSOLUTE_BODY_CEILING:
-        findings.append(Finding(
-            check="copygen.body_length",
-            severity=Severity.HIGH,
-            passed=False,
-            message=f"body is {word_count} words (>300 absolute ceiling for short length)",
-            details={"word_count": word_count},
-        ))
+        findings.append(
+            Finding(
+                check="copygen.body_length",
+                severity=Severity.HIGH,
+                passed=False,
+                message=f"body is {word_count} words (>300 absolute ceiling for short length)",
+                details={"word_count": word_count},
+            )
+        )
     if not findings:
-        findings.append(Finding(
-            check="copygen.body_length",
-            severity=Severity.INFO,
-            passed=True,
-            message=f"Body length OK ({word_count} words, hint '{length_hint}' cap {cap}).",
-            details={"word_count": word_count, "cap": cap, "length_hint": length_hint},
-        ))
+        findings.append(
+            Finding(
+                check="copygen.body_length",
+                severity=Severity.INFO,
+                passed=True,
+                message=f"Body length OK ({word_count} words, hint '{length_hint}' cap {cap}).",
+                details={"word_count": word_count, "cap": cap, "length_hint": length_hint},
+            )
+        )
     return findings
 
 
@@ -247,54 +265,62 @@ def _check_links(body: str) -> list[Finding]:
     # not an absolute cap.
     link_budget = max(2, word_count // 125)
     if len(urls) > link_budget:
-        findings.append(Finding(
-            check="copygen.link_count",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=(
-                f"body contains {len(urls)} URLs across {word_count} words "
-                f"(budget {link_budget} = max(2, words/125))"
-            ),
-            details={
-                "count": len(urls),
-                "urls": urls[:5],
-                "word_count": word_count,
-                "link_budget": link_budget,
-            },
-        ))
+        findings.append(
+            Finding(
+                check="copygen.link_count",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=(
+                    f"body contains {len(urls)} URLs across {word_count} words "
+                    f"(budget {link_budget} = max(2, words/125))"
+                ),
+                details={
+                    "count": len(urls),
+                    "urls": urls[:5],
+                    "word_count": word_count,
+                    "link_budget": link_budget,
+                },
+            )
+        )
     has_drive = False
     for url in urls:
         if _DRIVE_HOST_RX.search(url):
             has_drive = True
-            findings.append(Finding(
-                check="copygen.drive_link",
-                severity=Severity.HIGH,
-                passed=False,
-                message=f"body contains a Google Drive/Docs link: {url}",
-                details={"url": url},
-            ))
+            findings.append(
+                Finding(
+                    check="copygen.drive_link",
+                    severity=Severity.HIGH,
+                    passed=False,
+                    message=f"body contains a Google Drive/Docs link: {url}",
+                    details={"url": url},
+                )
+            )
     if not any(f.check == "copygen.link_count" for f in findings):
-        findings.append(Finding(
-            check="copygen.link_count",
-            severity=Severity.INFO,
-            passed=True,
-            message=(
-                f"Link count OK ({len(urls)} URL(s) across {word_count} words, "
-                f"budget {link_budget})."
-            ),
-            details={
-                "count": len(urls),
-                "word_count": word_count,
-                "link_budget": link_budget,
-            },
-        ))
+        findings.append(
+            Finding(
+                check="copygen.link_count",
+                severity=Severity.INFO,
+                passed=True,
+                message=(
+                    f"Link count OK ({len(urls)} URL(s) across {word_count} words, "
+                    f"budget {link_budget})."
+                ),
+                details={
+                    "count": len(urls),
+                    "word_count": word_count,
+                    "link_budget": link_budget,
+                },
+            )
+        )
     if not has_drive:
-        findings.append(Finding(
-            check="copygen.drive_link",
-            severity=Severity.INFO,
-            passed=True,
-            message="No Google Drive / Docs links.",
-        ))
+        findings.append(
+            Finding(
+                check="copygen.drive_link",
+                severity=Severity.INFO,
+                passed=True,
+                message="No Google Drive / Docs links.",
+            )
+        )
     return findings
 
 
@@ -339,10 +365,13 @@ def _check_body_shouting(body: str) -> list[Finding]:
         # of acronyms doesn't count toward shouting at all.
         non_acronym_alpha = [w for w in alpha_words if not _is_acronym(w)]
         shouting_words = [w for w in non_acronym_alpha if _is_shouting_word(w)]
-        if len(non_acronym_alpha) >= 3 and shouting_words:
-            if len(shouting_words) / len(non_acronym_alpha) >= 0.5:
-                shouting_lines.append(line[:80])
-                continue
+        if (
+            len(non_acronym_alpha) >= 3
+            and shouting_words
+            and len(shouting_words) / len(non_acronym_alpha) >= 0.5
+        ):
+            shouting_lines.append(line[:80])
+            continue
         # Detect inline run of 3+ consecutive ALL-CAPS NON-ACRONYM words.
         run = 0
         for w in words:
@@ -355,70 +384,86 @@ def _check_body_shouting(body: str) -> list[Finding]:
                 run = 0
 
     if shouting_lines:
-        findings.append(Finding(
-            check="copygen.body_shouting",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=f"body contains ALL-CAPS shouting ({len(shouting_lines)} line(s))",
-            details={"lines": shouting_lines[:5], "count": len(shouting_lines)},
-        ))
+        findings.append(
+            Finding(
+                check="copygen.body_shouting",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=f"body contains ALL-CAPS shouting ({len(shouting_lines)} line(s))",
+                details={"lines": shouting_lines[:5], "count": len(shouting_lines)},
+            )
+        )
     if multi_bang_lines:
-        findings.append(Finding(
-            check="copygen.body_shouting",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=f"body contains lines with '!!' or more ({len(multi_bang_lines)} line(s))",
-            details={"lines": multi_bang_lines[:5], "count": len(multi_bang_lines)},
-        ))
+        findings.append(
+            Finding(
+                check="copygen.body_shouting",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=f"body contains lines with '!!' or more ({len(multi_bang_lines)} line(s))",
+                details={"lines": multi_bang_lines[:5], "count": len(multi_bang_lines)},
+            )
+        )
     total_bangs = body.count("!")
     if total_bangs > 3:
-        findings.append(Finding(
-            check="copygen.body_shouting",
-            severity=Severity.LOW,
-            passed=False,
-            message=f"body contains {total_bangs} exclamation marks (>3)",
-            details={"count": total_bangs},
-        ))
+        findings.append(
+            Finding(
+                check="copygen.body_shouting",
+                severity=Severity.LOW,
+                passed=False,
+                message=f"body contains {total_bangs} exclamation marks (>3)",
+                details={"count": total_bangs},
+            )
+        )
     if not findings:
-        findings.append(Finding(
-            check="copygen.body_shouting",
-            severity=Severity.INFO,
-            passed=True,
-            message="No ALL-CAPS shouting or exclamation stacking in body.",
-        ))
+        findings.append(
+            Finding(
+                check="copygen.body_shouting",
+                severity=Severity.INFO,
+                passed=True,
+                message="No ALL-CAPS shouting or exclamation stacking in body.",
+            )
+        )
     return findings
 
 
 def _check_body_newsletter_word(body: str) -> list[Finding]:
     if _NEWSLETTER_RX.search(body or ""):
-        return [Finding(
+        return [
+            Finding(
+                check="copygen.body_newsletter_word",
+                severity=Severity.LOW,
+                passed=False,
+                message="body contains 'newsletter' (Zippia -18.7% open-rate signal)",
+            )
+        ]
+    return [
+        Finding(
             check="copygen.body_newsletter_word",
-            severity=Severity.LOW,
-            passed=False,
-            message="body contains 'newsletter' (Zippia -18.7% open-rate signal)",
-        )]
-    return [Finding(
-        check="copygen.body_newsletter_word",
-        severity=Severity.INFO,
-        passed=True,
-        message="Body does not contain the word 'newsletter'.",
-    )]
+            severity=Severity.INFO,
+            passed=True,
+            message="Body does not contain the word 'newsletter'.",
+        )
+    ]
 
 
 def _check_body_emoji(subject: str, body: str) -> list[Finding]:
     total = len(_EMOJI_RX.findall(subject or "")) + len(_EMOJI_RX.findall(body or ""))
     if total > 1:
-        return [Finding(
+        return [
+            Finding(
+                check="copygen.emoji_count",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=f"subject + body contain {total} emoji (>1 total)",
+                details={"count": total},
+            )
+        ]
+    return [
+        Finding(
             check="copygen.emoji_count",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=f"subject + body contain {total} emoji (>1 total)",
+            severity=Severity.INFO,
+            passed=True,
+            message=f"Emoji count OK ({total} total across subject + body).",
             details={"count": total},
-        )]
-    return [Finding(
-        check="copygen.emoji_count",
-        severity=Severity.INFO,
-        passed=True,
-        message=f"Emoji count OK ({total} total across subject + body).",
-        details={"count": total},
-    )]
+        )
+    ]

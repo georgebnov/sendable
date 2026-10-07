@@ -28,8 +28,8 @@ from __future__ import annotations
 
 import asyncio
 
-from .cleanup import cleanup
 from . import llm as _llm
+from .cleanup import cleanup
 from .copywriting import (
     ai_writing_pattern,
     benefit_over_feature,
@@ -57,7 +57,8 @@ from .copywriting import (
     urgency_position,
     voice_consistency,
 )
-from .domain.auth import alignment, results as auth_results, tls_transport
+from .domain.auth import alignment, tls_transport
+from .domain.auth import results as auth_results
 from .domain.integrity import (
     attachments,
     headers,
@@ -72,6 +73,7 @@ from .domain.integrity import (
 )
 from .forward import calibrate_for_forward, extract_original, is_forwarded
 from .free_mailbox import calibrate_for_free_mailbox
+from .history import EmailFacts
 from .mode import detect as detect_mode
 from .parse import ParsedEmail
 from .report import Finding, ModeInfo, Report
@@ -130,7 +132,7 @@ SPAM_SCORE_CAP = 50
 
 async def audit(
     email: ParsedEmail,
-    history: list[dict] | None = None,
+    history: list[EmailFacts] | None = None,
     *,
     in_spam: bool = False,
     domain_health: bool = True,
@@ -159,9 +161,7 @@ async def audit(
         cleanup_subject_prefix_stripped=(
             cleanup_report.subject_prefix_stripped if cleanup_report else None
         ),
-        cleanup_headers_stripped=(
-            cleanup_report.headers_stripped if cleanup_report else []
-        ),
+        cleanup_headers_stripped=(cleanup_report.headers_stripped if cleanup_report else []),
         cleanup_placeholders_substituted=(
             cleanup_report.placeholders_substituted if cleanup_report else []
         ),
@@ -182,27 +182,34 @@ async def audit(
         if history is None:
             return []
         from engine.drift.runner import run_drift
+
         return await run_drift(email, history)
 
     async def _dh_bucket() -> list[Finding]:
         if not domain_health:
             return []
         from engine.domain.runner import run_domain_health
+
         return await run_domain_health(cleaned_email)
 
     async def _unsub_bucket() -> list[Finding]:
         if not probe_unsub:
             return []
         from .domain.integrity import unsubscribe_live
+
         return await unsubscribe_live.run(cleaned_email)
 
     all_results = await asyncio.gather(
-        *content_tasks, _drift_bucket(), _dh_bucket(), _unsub_bucket(),
+        *content_tasks,
+        _drift_bucket(),
+        _dh_bucket(),
+        _unsub_bucket(),
     )
 
     _acc = _llm.get_accumulator()
     if _acc and _acc["calls"]:
         import sys as _sys
+
         print(
             f"[llm] AUDIT TOTAL calls={_acc['calls']} "
             f"in={_acc['in']} out={_acc['out']} "

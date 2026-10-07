@@ -44,15 +44,23 @@ _FLAG_PHRASES = ("real estate",)
 # pattern — match `co.` followed by end-of-string or whitespace.
 _CO_DOT_RX = re.compile(r"\bco\.(?=\s|$)", re.IGNORECASE)
 
-_HANDLE_WORDS = frozenset({
-    "info", "hello", "contact", "support", "admin", "noreply", "no-reply",
-})
+_HANDLE_WORDS = frozenset(
+    {
+        "info",
+        "hello",
+        "contact",
+        "support",
+        "admin",
+        "noreply",
+        "no-reply",
+    }
+)
 
 _PLACEHOLDER_RX = re.compile(
-    r"\{\{[^}]+\}\}"      # {{first_name}}, Jinja / Handlebars
-    r"|\{[^}]+\}"         # {first_name}
-    r"|\[[^\]]+\]"        # [FIRST NAME GOES HERE], Campaign Monitor / Kit
-    r"|%[A-Za-z_]+%"      # %FIRSTNAME%
+    r"\{\{[^}]+\}\}"  # {{first_name}}, Jinja / Handlebars
+    r"|\{[^}]+\}"  # {first_name}
+    r"|\[[^\]]+\]"  # [FIRST NAME GOES HERE], Campaign Monitor / Kit
+    r"|%[A-Za-z_]+%"  # %FIRSTNAME%
     r"|\*\|[A-Za-z_]+\|\*",  # *|FNAME|*  Mailchimp
 )
 
@@ -84,8 +92,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                         severity=Severity.INFO,
                         passed=True,
                         message=(
-                            "From display name is a first-name merge tag — "
-                            "personal-name slot."
+                            "From display name is a first-name merge tag — personal-name slot."
                         ),
                         details={**details, "placeholders": ph_matches},
                     )
@@ -99,7 +106,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                         f"From display name is a placeholder but not a "
                         f"first-name field: {ph_matches[0]}. Personal-"
                         f"name From: lines outperform brand/team names by "
-                        f"15–35% on open rate (Experian)."
+                        f"15% to 35% on open rate (Experian)."
                     ),
                     details={**details, "placeholders": ph_matches},
                 )
@@ -128,7 +135,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 message=(
                     f"From display name reads as brand/team, not a person "
                     f"(matched: {', '.join(hits)}). Personal-name From: "
-                    f"lines outperform brand/team From: lines by 15–35% on "
+                    f"lines outperform brand/team From: lines by 15% to 35% on "
                     f"open rate (Experian)."
                 ),
                 details={**details, "matches": hits},

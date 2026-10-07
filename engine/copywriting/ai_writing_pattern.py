@@ -36,19 +36,36 @@ _PHRASE_PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         re.compile(r"\bit'?s\s+worth\s+noting\b|\bit\s+is\s+worth\s+noting\b", re.IGNORECASE),
     ),
     ("feel free to reach out", re.compile(r"\bfeel\s+free\s+to\s+reach\s+out\b", re.IGNORECASE)),
-    ("don't hesitate to contact", re.compile(r"\bdon'?t\s+hesitate\s+to\s+contact\b|\bdo\s+not\s+hesitate\s+to\s+contact\b", re.IGNORECASE)),
+    (
+        "don't hesitate to contact",
+        re.compile(
+            r"\bdon'?t\s+hesitate\s+to\s+contact\b|\bdo\s+not\s+hesitate\s+to\s+contact\b",
+            re.IGNORECASE,
+        ),
+    ),
     ("delve into", re.compile(r"\bdelve\s+into\b", re.IGNORECASE)),
-    ("leverage (verb)", re.compile(r"\bleverage\s+(?:the|your|our|my|a|an|this|that|these|those)\b", re.IGNORECASE)),
+    (
+        "leverage (verb)",
+        re.compile(r"\bleverage\s+(?:the|your|our|my|a|an|this|that|these|those)\b", re.IGNORECASE),
+    ),
     ("in today's market", re.compile(r"\bin\s+today'?s\s+\w+", re.IGNORECASE)),
     (
         "as a [profession] i understand",
         re.compile(r"\bas\s+an?\s+(?:\w+\s+){0,3}\w+\s*,?\s+i\s+understand\b", re.IGNORECASE),
     ),
-    ("i wanted to take a moment", re.compile(r"\bi\s+wanted\s+to\s+take\s+a\s+moment\b", re.IGNORECASE)),
+    (
+        "i wanted to take a moment",
+        re.compile(r"\bi\s+wanted\s+to\s+take\s+a\s+moment\b", re.IGNORECASE),
+    ),
     ("navigate the", re.compile(r"\bnavigate\s+the\b", re.IGNORECASE)),
     ("elevate your", re.compile(r"\belevate\s+your\b", re.IGNORECASE)),
     ("at the end of the day", re.compile(r"\bat\s+the\s+end\s+of\s+the\s+day\b", re.IGNORECASE)),
-    ("it is important to note", re.compile(r"\bit\s+is\s+important\s+to\s+note\b|\bit'?s\s+important\s+to\s+note\b", re.IGNORECASE)),
+    (
+        "it is important to note",
+        re.compile(
+            r"\bit\s+is\s+important\s+to\s+note\b|\bit'?s\s+important\s+to\s+note\b", re.IGNORECASE
+        ),
+    ),
     ("in summary", re.compile(r"\bin\s+summary\b", re.IGNORECASE)),
     ("to summarize", re.compile(r"\bto\s+summari[sz]e\b", re.IGNORECASE)),
 )
@@ -113,8 +130,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             reasons.append(f"{phrase_count} AI-pattern phrases")
         if phrase_signal and low_variance:
             reasons.append(
-                f"low sentence-length SD ({sd} < {_SD_THRESHOLD}) paired with "
-                f"phrase fingerprint"
+                f"low sentence-length SD ({sd} < {_SD_THRESHOLD}) paired with phrase fingerprint"
             )
         return [
             Finding(

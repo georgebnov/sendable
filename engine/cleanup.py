@@ -51,7 +51,9 @@ _HEADER_VALUE_TESTS = {
 
 _FAKE_FIRST_NAMES = ("Sarah", "Marcus", "Priya", "Ahmed", "Emma", "Noah", "Léa", "Kai")
 _FAKE_LAST_NAMES = ("Chen", "Patel", "Garcia", "Kowalski", "Okafor", "Müller")
-_FAKE_FULL_NAMES = tuple(f"{f} {l}" for f in _FAKE_FIRST_NAMES[:4] for l in _FAKE_LAST_NAMES[:2])
+_FAKE_FULL_NAMES = tuple(
+    f"{first} {last}" for first in _FAKE_FIRST_NAMES[:4] for last in _FAKE_LAST_NAMES[:2]
+)
 _FAKE_EMAIL = "sarah.chen@example-recipient.com"
 _FAKE_COMPANY = "Northwind Realty"
 _FAKE_CITY = "Toronto"
@@ -65,7 +67,7 @@ def _pick_fake(field_name: str) -> str:
     # because link_quality / url_reputation checks parse them as hrefs.
     if "unsub" in n or "unsubscribe" in n:
         return _FAKE_UNSUB_URL
-    if n in ("url", "link", "href") or n.endswith("url") or n.endswith("link") or "viewinbrowser" in n:
+    if n in ("url", "link", "href") or n.endswith(("url", "link")) or "viewinbrowser" in n:
         return _FAKE_LINK_URL
     if "firstname" in n or n in ("fname", "first"):
         return random.choice(_FAKE_FIRST_NAMES)
@@ -87,9 +89,25 @@ def _pick_fake(field_name: str) -> str:
 # `[endif]`) and CSS-bracket selectors must not be substituted, so we
 # only replace brackets whose interior has at least one of these tokens.
 _PLACEHOLDER_KEYWORDS = (
-    "name", "first", "last", "full", "email", "company", "city",
-    "country", "phone", "url", "link", "unsub", "merge", "tag",
-    "field", "goes here", "fallback", "recipient", "subscriber",
+    "name",
+    "first",
+    "last",
+    "full",
+    "email",
+    "company",
+    "city",
+    "country",
+    "phone",
+    "url",
+    "link",
+    "unsub",
+    "merge",
+    "tag",
+    "field",
+    "goes here",
+    "fallback",
+    "recipient",
+    "subscriber",
 )
 _PLACEHOLDER_SKIP = ("if mso", "endif", "mso ", "outlook", "endif]")
 
@@ -131,9 +149,7 @@ class CleanupReport:
     @property
     def changed(self) -> bool:
         return bool(
-            self.subject_prefix_stripped
-            or self.headers_stripped
-            or self.placeholders_substituted
+            self.subject_prefix_stripped or self.headers_stripped or self.placeholders_substituted
         )
 
 
@@ -144,7 +160,7 @@ def _strip_subject_prefix(subject: str | None, report: CleanupReport) -> str | N
     if not m:
         return subject
     report.subject_prefix_stripped = m.group(0).rstrip()
-    cleaned = subject[m.end():].lstrip()
+    cleaned = subject[m.end() :].lstrip()
     return cleaned or subject
 
 
@@ -197,6 +213,7 @@ def _substitute_placeholders(text: str | None, report: CleanupReport) -> str | N
         return text
     out = text
     for pattern_name, rx in _PATTERNS:
+
         def _sub(m: re.Match[str], pn: str = pattern_name) -> str:
             field_name = m.group(1) if m.lastindex else ""
             # Generic bracket sniffer is keyword-gated to avoid eating
@@ -208,6 +225,7 @@ def _substitute_placeholders(text: str | None, report: CleanupReport) -> str | N
                 {"pattern": pn, "field": field_name.strip(), "substituted": fake}
             )
             return fake
+
         out = rx.sub(_sub, out)
     return out
 
@@ -236,16 +254,13 @@ def cleanup(email: ParsedEmail) -> tuple[ParsedEmail, CleanupReport]:
     cleaned_from = _substitute_address_header(email.from_addr, report)
     if cleaned_from and cleaned_from != email.from_addr:
         cleaned_headers["from"] = [cleaned_from]
-    cleaned_to = [
-        _substitute_address_header(addr, report) or addr for addr in email.to_addrs
-    ]
+    cleaned_to = [_substitute_address_header(addr, report) or addr for addr in email.to_addrs]
     if cleaned_to != email.to_addrs:
         cleaned_headers["to"] = [v for v in cleaned_to if v]
     for hdr in ("reply-to", "sender"):
         if hdr in cleaned_headers:
             cleaned_headers[hdr] = [
-                _substitute_address_header(v, report) or v
-                for v in cleaned_headers[hdr]
+                _substitute_address_header(v, report) or v for v in cleaned_headers[hdr]
             ]
 
     cleaned_html = _substitute_placeholders(email.html, report)

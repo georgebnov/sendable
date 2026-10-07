@@ -55,16 +55,14 @@ def _is_bulk(email: ParsedEmail) -> bool:
         if email.headers.get(h):
             return True
     precedence = email.headers.get("precedence", [])
-    if any(v.strip().lower() == "bulk" for v in precedence):
-        return True
-    return False
+    return bool(any(v.strip().lower() == "bulk" for v in precedence))
 
 
 def _find_unsub_anchor(soup: BeautifulSoup):
     """Return the first <a> element whose visible text or href looks like an
     unsubscribe link. Returns None if none found."""
     for a in soup.find_all("a"):
-        href = (a.get("href") or "")
+        href = a.get("href") or ""
         text = a.get_text(separator=" ", strip=True)
         if _UNSUB_TEXT_RX.search(text) or _UNSUB_HREF_RX.search(href):
             return a
@@ -97,24 +95,28 @@ async def run(email: ParsedEmail) -> list[Finding]:
     bulk_via_other_signal = any(email.headers.get(h) for h in _BULK_HEADERS)
     if bulk_via_other_signal:
         if has_precedence_bulk:
-            findings.append(Finding(
-                check="headers.precedence_bulk",
-                severity=Severity.INFO,
-                passed=True,
-                message="Precedence: bulk header present.",
-            ))
+            findings.append(
+                Finding(
+                    check="headers.precedence_bulk",
+                    severity=Severity.INFO,
+                    passed=True,
+                    message="Precedence: bulk header present.",
+                )
+            )
         else:
-            findings.append(Finding(
-                check="headers.precedence_bulk",
-                severity=Severity.LOW,
-                passed=False,
-                message=(
-                    "Bulk-shaped mail missing 'Precedence: bulk' header. "
-                    "SpamAssassin and several legacy filters give a small "
-                    "negative weight for bulk mail that doesn't declare "
-                    "itself. Easy fix at the ESP / sending tool."
-                ),
-            ))
+            findings.append(
+                Finding(
+                    check="headers.precedence_bulk",
+                    severity=Severity.LOW,
+                    passed=False,
+                    message=(
+                        "Bulk-shaped mail missing 'Precedence: bulk' header. "
+                        "SpamAssassin and several legacy filters give a small "
+                        "negative weight for bulk mail that doesn't declare "
+                        "itself. Easy fix at the ESP / sending tool."
+                    ),
+                )
+            )
 
     lu = email.headers.get("list-unsubscribe", [])
     lu_post = email.headers.get("list-unsubscribe-post", [])
