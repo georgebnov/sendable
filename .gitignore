@@ -54,3 +54,4 @@ VERSIONING.md
 .coverage.*
 coverage.xml
 htmlcov/
+.mypy_cache/
