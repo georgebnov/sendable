@@ -299,18 +299,49 @@ def _peel_greeting(paragraphs: list[str]) -> tuple[str | None, list[str]]:
     return None, paragraphs
 
 
+# How many consecutive paragraphs without a footer hint may sit inside a footer
+# before the scan decides it has walked back into the body. An ESP footer
+# interleaves lines carrying no hint of their own, such as a company name or a
+# logo caption, between the address block and the unsubscribe line.
+_FOOTER_GAP_TOLERANCE = 1
+
+
 def _peel_footer(paragraphs: list[str]) -> tuple[str | None, list[str]]:
-    """Walk from the end; the first paragraph (going backward) that
-    contains a footer hint becomes the footer. Anything below it gets
-    swept into the footer too, since ESP footers are multi-block."""
+    """Peel the trailing run of footer paragraphs, if there is one.
+
+    A footer sits at the end. This walks back from the last paragraph and keeps
+    going while it is still inside that trailing run, allowing a couple of
+    hint-free paragraphs in the middle of it.
+
+    It must stop at the body. The earlier version recorded every match without
+    stopping, so it settled on the EARLIEST paragraph carrying a hint and swept
+    everything after it away. `_FOOTER_HINT_RX` matches a bare street address,
+    the word "unsubscribe", "copyright", or "all rights reserved" anywhere in a
+    paragraph, so a listing email naming "45 Oak Street" in its second paragraph
+    lost the rest of its content, and roughly a dozen copywriting checks then
+    graded what was left. Property addresses in the body are normal in exactly
+    the mail this tool is pointed at.
+    """
     if not paragraphs:
         return None, paragraphs
-    footer_start: int | None = None
-    for i in range(len(paragraphs) - 1, -1, -1):
+
+    # A footer ends the message. When the last paragraph carries no hint, any
+    # hint earlier on is body text: a sentence naming a street, or one that says
+    # the reader can unsubscribe. Checking this first is what stops a mid-body
+    # match from swallowing everything after it.
+    if not _FOOTER_HINT_RX.search(paragraphs[-1]):
+        return None, paragraphs
+
+    footer_start = len(paragraphs) - 1
+    gap = 0
+    for i in range(len(paragraphs) - 2, -1, -1):
         if _FOOTER_HINT_RX.search(paragraphs[i]):
             footer_start = i
-    if footer_start is None:
-        return None, paragraphs
+            gap = 0
+            continue
+        gap += 1
+        if gap > _FOOTER_GAP_TOLERANCE:
+            break
     footer = "\n\n".join(paragraphs[footer_start:])
     return footer, paragraphs[:footer_start]
 

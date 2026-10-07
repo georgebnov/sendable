@@ -33,10 +33,17 @@ def _email(*, subject=None, plain=None, html=None, ar=()):
     )
 
 
-def test_detects_fwd_subject():
-    assert is_forwarded(_email(subject="Fwd: hello")) is True
-    assert is_forwarded(_email(subject="FW: hello")) is True
+def test_a_subject_prefix_alone_is_not_a_forward():
+    # This test previously asserted that a bare "Fwd:" or "FW:" subject made a
+    # message a forward. Being read as a forward mutes the adversarial-content
+    # Being read as a forward mutes the adversarial-content CRITICALs, so a
+    # sender could disable them by typing "FW:" into their own subject line. The
+    # prefix now counts only alongside the original's quoted header block.
+    assert is_forwarded(_email(subject="Fwd: hello")) is False
+    assert is_forwarded(_email(subject="FW: hello")) is False
     assert is_forwarded(_email(subject="a normal subject")) is False
+    quoted = "From: a@b.com\nDate: Mon, 1 Sep 2026 10:00:00 +0000\nSubject: hello\nTo: c@d.com"
+    assert is_forwarded(_email(subject="FW: hello", plain=quoted)) is True
 
 
 def test_detects_body_marker():
@@ -44,9 +51,14 @@ def test_detects_body_marker():
     assert is_forwarded(e) is True
 
 
-def test_detects_forward_signer():
+def test_a_gappssmtp_signature_alone_is_not_a_forward():
+    # This test previously asserted the opposite. A Google Workspace domain with
+    # no custom DKIM signs EVERY direct send as d=<domain>.<date>.gappssmtp.com,
+    # so reading that as a forward cleared the DMARC alignment hard gate for
+    # exactly the senders it exists to catch, and told them about "the account
+    # that forwarded this" for mail nobody forwarded.
     e = _email(subject="x", ar=["dkim=pass header.d=abc.gappssmtp.com"])
-    assert is_forwarded(e) is True
+    assert is_forwarded(e) is False
 
 
 def test_extract_strips_subject_and_forward_header():

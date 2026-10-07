@@ -99,13 +99,38 @@ def _extract_https_url(header_value: str) -> str | None:
     return None
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect handler that refuses, so every 30x surfaces as an HTTPError.
+
+    urllib's default handler follows 301, 302, and 303 for up to ten hops,
+    rewriting a POST into a body-less GET on the way. None of those hops passes
+    through `_is_public_http_url`, so a List-Unsubscribe URL on a public host
+    answering `302 Location: http://169.254.169.254/latest/meta-data/` made the
+    auditing machine fetch a cloud metadata endpoint. That is the exact request
+    the gate exists to refuse, and the URL is chosen by whoever wrote the email.
+
+    Refusing turns every redirect into an HTTPError the caller already handles,
+    which runs the second hop back through the gate.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, msg, headers, fp)
+
+
+def _build_opener() -> urllib.request.OpenerDirector:
+    """An opener that will not follow a redirect of its own accord."""
+    return urllib.request.build_opener(_NoRedirect)
+
+
 def _probe_blocking(url: str) -> dict:
     """One POST. Returns dict with status, location, error."""
     if not _is_public_http_url(url):
         return {"status": None, "location": None, "error": "blocked non-public URL"}
     req = urllib.request.Request(url, data=_BODY, headers=_HEADERS, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=_TIMEOUT_S) as resp:
+        # A dedicated opener, never urlopen's default: the default follows a
+        # redirect to a target this function never gets to check.
+        with _build_opener().open(req, timeout=_TIMEOUT_S) as resp:
             return {
                 "status": resp.status,
                 "location": resp.headers.get("Location"),

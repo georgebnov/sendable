@@ -60,17 +60,51 @@ _MUTE_NOTE = (
 
 
 def is_forwarded(email: ParsedEmail) -> bool:
-    """True when the email looks like a forward: a Fwd:/Fw: subject, a
-    "Forwarded message" body marker, or a mailbox-provider forward signature."""
-    if _FWD_SUBJECT_RX.match(email.subject or ""):
-        return True
+    """True when the body shows this message was forwarded.
+
+    Detection requires the body marker a mail client inserts when someone
+    forwards inline, such as "---------- Forwarded message ---------". A subject
+    prefix or a signing domain may support that, but neither is enough on its own.
+
+    Why it is this strict. Being read as a forward clears the DMARC alignment
+    hard gate and mutes the hidden-content checks, including the CRITICAL for
+    prompt-injection text. Two earlier signals each granted that on their own:
+
+    A "Fwd:" or "FW:" subject prefix is typed by whoever sends the message. Any
+    sender could add it and have the adversarial-content findings dropped to INFO,
+    which made it a one-word bypass of the checks that matter most.
+
+    A `gappssmtp.com` signing domain is what Google Workspace uses for every
+    direct send from a domain that has not set up custom DKIM. Reading it as a
+    forward cleared the alignment gate for exactly the senders that gate exists
+    to catch, and told them a note about "the account that forwarded this" for
+    mail nobody forwarded.
+
+    The subject prefix still counts when the body also carries forwarded headers,
+    which is what a forward stripped of its marker line looks like.
+    """
     body = f"{email.plain_text or ''} {email.html or ''}"
     if _FWD_BODY_MARKER_RX.search(body):
         return True
-    for ar in email.authentication_results or []:
-        if any(sig in ar.lower() for sig in _FORWARD_SIGNERS):
-            return True
-    return False
+
+    # No marker. A subject prefix counts only alongside a quoted header block,
+    # which is the shape of a forward whose marker a client rewrote or dropped.
+    return bool(_FWD_SUBJECT_RX.match(email.subject or "")) and _has_quoted_headers(body)
+
+
+# A forwarded message carries the original's headers in its body. Three of these
+# in the same region is the shape of that block, and not of ordinary copy.
+_QUOTED_HEADER_RX = re.compile(
+    r"^\s*(?:>\s*)?(?:from|date|sent|subject|to|cc|reply-to)\s*:\s*\S",
+    re.IGNORECASE | re.MULTILINE,
+)
+_MIN_QUOTED_HEADERS = 3
+
+
+def _has_quoted_headers(body: str) -> bool:
+    """True when the body quotes the original message's header block."""
+    seen = {m.group(0).split(":", 1)[0].strip().lower() for m in _QUOTED_HEADER_RX.finditer(body)}
+    return len(seen) >= _MIN_QUOTED_HEADERS
 
 
 def _strip_subject(subject: str | None) -> str | None:
