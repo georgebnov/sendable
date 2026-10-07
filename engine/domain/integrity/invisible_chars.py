@@ -68,19 +68,23 @@ async def run(email: ParsedEmail) -> list[Finding]:
 
     for source, text in _collect_visible_parts(email):
         for m in _BIDI_OVERRIDE.finditer(text):
-            bidi_hits.append({
-                "source": source,
-                "offset": m.start(),
-                "codepoint": hex(ord(m.group(0))),
-                "context": _snippet(text, m.start()),
-            })
+            bidi_hits.append(
+                {
+                    "source": source,
+                    "offset": m.start(),
+                    "codepoint": hex(ord(m.group(0))),
+                    "context": _snippet(text, m.start()),
+                }
+            )
         for m in _ZERO_WIDTH.finditer(text):
-            zw_hits.append({
-                "source": source,
-                "offset": m.start(),
-                "codepoint": hex(ord(m.group(0))),
-                "context": _snippet(text, m.start()),
-            })
+            zw_hits.append(
+                {
+                    "source": source,
+                    "offset": m.start(),
+                    "codepoint": hex(ord(m.group(0))),
+                    "context": _snippet(text, m.start()),
+                }
+            )
 
     def _source_summary(hits: list[dict]) -> str:
         counts: dict[str, int] = {}
@@ -89,46 +93,51 @@ async def run(email: ParsedEmail) -> list[Finding]:
         return ", ".join(f"{s} ×{n}" for s, n in counts.items())
 
     if bidi_hits:
-        findings.append(Finding(
-            check="content.bidi_override",
-            severity=Severity.CRITICAL,
-            passed=False,
-            message=(
-                f"Bidirectional override characters detected "
-                f"({len(bidi_hits)} in {_source_summary(bidi_hits)}). "
-                f"Prompt-injection / spoofing risk."
-            ),
-            details={
-                "count": len(bidi_hits),
-                "codepoints": sorted({h["codepoint"] for h in bidi_hits}),
-                "locations": [
-                    f"{h['source']} @ char {h['offset']}: {h['context']}"
-                    for h in bidi_hits[:10]
-                ],
-            },
-        ))
+        findings.append(
+            Finding(
+                check="content.bidi_override",
+                severity=Severity.CRITICAL,
+                passed=False,
+                message=(
+                    f"Bidirectional override characters detected "
+                    f"({len(bidi_hits)} in {_source_summary(bidi_hits)}). "
+                    f"Prompt-injection / spoofing risk."
+                ),
+                details={
+                    "count": len(bidi_hits),
+                    "codepoints": sorted({h["codepoint"] for h in bidi_hits}),
+                    "locations": [
+                        f"{h['source']} @ char {h['offset']}: {h['context']}"
+                        for h in bidi_hits[:10]
+                    ],
+                },
+            )
+        )
     else:
-        findings.append(Finding(
-            check="content.bidi_override",
-            severity=Severity.INFO,
-            passed=True,
-            message="No bidirectional override characters.",
-        ))
+        findings.append(
+            Finding(
+                check="content.bidi_override",
+                severity=Severity.INFO,
+                passed=True,
+                message="No bidirectional override characters.",
+            )
+        )
 
     if zw_hits:
         # Subject is user-controlled — any zero-widths there stay HIGH
         # regardless of ESP. Only body-only hits get demoted, since ESPs
         # commonly inject U+200B around footer / social / unsubscribe.
         subject_hits = any(h["source"] == "subject" for h in zw_hits)
-        profile = None if subject_hits else esp.detect(email)
-        is_chrome = profile is not None and profile.is_high_confidence()
-        if is_chrome:
+        detected = None if subject_hits else esp.detect(email)
+        # Narrowed profile rather than a bool, so chrome.name below type-checks.
+        chrome = detected if (detected is not None and detected.is_high_confidence()) else None
+        if chrome is not None:
             severity = Severity.INFO
             source = "esp_template"
             message = (
                 f"Zero-width / invisible characters detected "
                 f"({len(zw_hits)} in {_source_summary(zw_hits)}). "
-                f"Located in body only — {profile.name} injects these around "
+                f"Located in body only — {chrome.name} injects these around "
                 f"footer / social / unsubscribe blocks. Template chrome, not "
                 f"user content."
             )
@@ -139,28 +148,31 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 f"Zero-width / invisible characters detected "
                 f"({len(zw_hits)} in {_source_summary(zw_hits)})."
             )
-        findings.append(Finding(
-            check="content.zero_width",
-            severity=severity,
-            passed=False,
-            message=message,
-            details={
-                "count": len(zw_hits),
-                "codepoints": sorted({h["codepoint"] for h in zw_hits}),
-                "locations": [
-                    f"{h['source']} @ char {h['offset']}: {h['context']}"
-                    for h in zw_hits[:10]
-                ],
-                "esp": profile.name if profile else None,
-            },
-            source=source,
-        ))
+        findings.append(
+            Finding(
+                check="content.zero_width",
+                severity=severity,
+                passed=False,
+                message=message,
+                details={
+                    "count": len(zw_hits),
+                    "codepoints": sorted({h["codepoint"] for h in zw_hits}),
+                    "locations": [
+                        f"{h['source']} @ char {h['offset']}: {h['context']}" for h in zw_hits[:10]
+                    ],
+                    "esp": detected.name if detected else None,
+                },
+                source=source,
+            )
+        )
     else:
-        findings.append(Finding(
-            check="content.zero_width",
-            severity=Severity.INFO,
-            passed=True,
-            message="No zero-width / invisible characters.",
-        ))
+        findings.append(
+            Finding(
+                check="content.zero_width",
+                severity=Severity.INFO,
+                passed=True,
+                message="No zero-width / invisible characters.",
+            )
+        )
 
     return findings

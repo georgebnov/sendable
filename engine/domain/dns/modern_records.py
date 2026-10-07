@@ -44,6 +44,7 @@ _HTTPS_TIMEOUT = 5.0
 
 # ─── MTA-STS ────────────────────────────────────────────────────────────
 
+
 async def _fetch_mta_sts_policy(domain: str) -> tuple[str | None, str | None]:
     """HTTPS GET the policy file. Returns (text, error)."""
     url = f"https://mta-sts.{domain}/.well-known/mta-sts.txt"
@@ -61,7 +62,10 @@ async def _fetch_mta_sts_policy(domain: str) -> tuple[str | None, str | None]:
         except urllib.error.HTTPError as e:
             return None, f"http_{e.code}"
         except urllib.error.URLError as e:
-            return None, f"url_error:{type(e.reason).__name__ if hasattr(e, 'reason') else 'unknown'}"
+            return (
+                None,
+                f"url_error:{type(e.reason).__name__ if hasattr(e, 'reason') else 'unknown'}",
+            )
         except ssl.SSLError as e:
             return None, f"ssl_error:{type(e).__name__}"
         except Exception as e:
@@ -108,44 +112,52 @@ async def _run_mta_sts(domain: str) -> list[Finding]:
         # isn't a deliverability factor. Deducting points for something we
         # explicitly tell the user doesn't matter was internally inconsistent.
         # Surface it as awareness, not a penalty.
-        findings.append(Finding(
+        findings.append(
+            Finding(
+                check="mta_sts.published",
+                severity=Severity.INFO,
+                passed=True,
+                message=(
+                    f"No MTA-STS record at {qname}. Inbound security hardening, "
+                    "not an outbound deliverability factor — Gmail/Microsoft do "
+                    "not penalize spam scoring for missing MTA-STS. Optional."
+                ),
+                details={"dns_error": ans.error},
+            )
+        )
+        return findings
+
+    findings.append(
+        Finding(
             check="mta_sts.published",
             severity=Severity.INFO,
             passed=True,
-            message=(
-                f"No MTA-STS record at {qname}. Inbound security hardening, "
-                "not an outbound deliverability factor — Gmail/Microsoft do "
-                "not penalize spam scoring for missing MTA-STS. Optional."
-            ),
-            details={"dns_error": ans.error},
-        ))
-        return findings
-
-    findings.append(Finding(
-        check="mta_sts.published",
-        severity=Severity.INFO,
-        passed=True,
-        message=f"MTA-STS record at {qname}.",
-        details={"record": records[0][:200]},
-    ))
+            message=f"MTA-STS record at {qname}.",
+            details={"record": records[0][:200]},
+        )
+    )
 
     if len(records) > 1:
-        findings.append(Finding(
-            check="mta_sts.multiple_records",
-            severity=Severity.LOW,
-            passed=False,
-            message=(
-                f"{len(records)} MTA-STS records found (inbound TLS policy "
-                "broken). Does not affect outbound deliverability."
-            ),
-        ))
+        findings.append(
+            Finding(
+                check="mta_sts.multiple_records",
+                severity=Severity.LOW,
+                passed=False,
+                message=(
+                    f"{len(records)} MTA-STS records found (inbound TLS policy "
+                    "broken). Does not affect outbound deliverability."
+                ),
+            )
+        )
     else:
-        findings.append(Finding(
-            check="mta_sts.multiple_records",
-            severity=Severity.INFO,
-            passed=True,
-            message="Single MTA-STS record.",
-        ))
+        findings.append(
+            Finding(
+                check="mta_sts.multiple_records",
+                severity=Severity.INFO,
+                passed=True,
+                message="Single MTA-STS record.",
+            )
+        )
 
     rec = records[0]
     syntax_issues: list[str] = []
@@ -153,68 +165,81 @@ async def _run_mta_sts(domain: str) -> list[Finding]:
     if not has_id:
         syntax_issues.append("missing 'id=' tag")
     if syntax_issues:
-        findings.append(Finding(
-            check="mta_sts.syntax",
-            severity=Severity.LOW,
-            passed=False,
-            message=(
-                f"MTA-STS record syntax: {'; '.join(syntax_issues)}. "
-                "Inbound TLS policy hygiene; not a deliverability factor."
-            ),
-        ))
+        findings.append(
+            Finding(
+                check="mta_sts.syntax",
+                severity=Severity.LOW,
+                passed=False,
+                message=(
+                    f"MTA-STS record syntax: {'; '.join(syntax_issues)}. "
+                    "Inbound TLS policy hygiene; not a deliverability factor."
+                ),
+            )
+        )
     else:
-        findings.append(Finding(
-            check="mta_sts.syntax",
-            severity=Severity.INFO,
-            passed=True,
-            message="MTA-STS record syntax OK.",
-        ))
+        findings.append(
+            Finding(
+                check="mta_sts.syntax",
+                severity=Severity.INFO,
+                passed=True,
+                message="MTA-STS record syntax OK.",
+            )
+        )
 
     policy_text, fetch_error = await _fetch_mta_sts_policy(domain)
     if policy_text is None:
-        findings.append(Finding(
-            check="mta_sts.policy_fetch",
-            severity=Severity.LOW,
-            passed=False,
-            message=(
-                f"MTA-STS policy file not retrievable: {fetch_error}. "
-                "Inbound TLS enforcement is broken for senders that honor "
-                "MTA-STS, but does not affect your outbound deliverability."
-            ),
-        ))
+        findings.append(
+            Finding(
+                check="mta_sts.policy_fetch",
+                severity=Severity.LOW,
+                passed=False,
+                message=(
+                    f"MTA-STS policy file not retrievable: {fetch_error}. "
+                    "Inbound TLS enforcement is broken for senders that honor "
+                    "MTA-STS, but does not affect your outbound deliverability."
+                ),
+            )
+        )
         return findings
 
-    findings.append(Finding(
-        check="mta_sts.policy_fetch",
-        severity=Severity.INFO,
-        passed=True,
-        message="MTA-STS policy file retrieved.",
-    ))
+    findings.append(
+        Finding(
+            check="mta_sts.policy_fetch",
+            severity=Severity.INFO,
+            passed=True,
+            message="MTA-STS policy file retrieved.",
+        )
+    )
 
     _, policy_issues = _parse_mta_sts_policy(policy_text)
     if policy_issues:
-        findings.append(Finding(
-            check="mta_sts.policy_syntax",
-            severity=Severity.LOW,
-            passed=False,
-            message=(
-                f"MTA-STS policy syntax: {'; '.join(policy_issues[:3])}. "
-                "Inbound TLS policy hygiene; not a deliverability factor."
-            ),
-            details={"issues": policy_issues},
-        ))
+        findings.append(
+            Finding(
+                check="mta_sts.policy_syntax",
+                severity=Severity.LOW,
+                passed=False,
+                message=(
+                    f"MTA-STS policy syntax: {'; '.join(policy_issues[:3])}. "
+                    "Inbound TLS policy hygiene; not a deliverability factor."
+                ),
+                details={"issues": policy_issues},
+            )
+        )
     else:
-        findings.append(Finding(
-            check="mta_sts.policy_syntax",
-            severity=Severity.INFO,
-            passed=True,
-            message="MTA-STS policy syntax OK.",
-        ))
+        findings.append(
+            Finding(
+                check="mta_sts.policy_syntax",
+                severity=Severity.INFO,
+                passed=True,
+                message="MTA-STS policy syntax OK.",
+            )
+        )
 
     return findings
 
 
 # ─── TLSRPT ─────────────────────────────────────────────────────────────
+
 
 async def _run_tlsrpt(domain: str) -> list[Finding]:
     findings: list[Finding] = []
@@ -226,68 +251,81 @@ async def _run_tlsrpt(domain: str) -> list[Finding]:
         # Severity INFO (was LOW) — same reasoning as MTA-STS above.
         # The finding's own description says it isn't a deliverability
         # factor, so it shouldn't deduct points either.
-        findings.append(Finding(
+        findings.append(
+            Finding(
+                check="tlsrpt.published",
+                severity=Severity.INFO,
+                passed=True,
+                message=(
+                    f"No TLSRPT record at {qname}. TLSRPT is a reporting "
+                    "mechanism for inbound TLS failures — not an outbound "
+                    "deliverability factor. Optional ops visibility only."
+                ),
+                details={"dns_error": ans.error},
+            )
+        )
+        return findings
+
+    findings.append(
+        Finding(
             check="tlsrpt.published",
             severity=Severity.INFO,
             passed=True,
-            message=(
-                f"No TLSRPT record at {qname}. TLSRPT is a reporting "
-                "mechanism for inbound TLS failures — not an outbound "
-                "deliverability factor. Optional ops visibility only."
-            ),
-            details={"dns_error": ans.error},
-        ))
-        return findings
-
-    findings.append(Finding(
-        check="tlsrpt.published",
-        severity=Severity.INFO,
-        passed=True,
-        message=f"TLSRPT record at {qname}.",
-        details={"record": records[0][:200]},
-    ))
+            message=f"TLSRPT record at {qname}.",
+            details={"record": records[0][:200]},
+        )
+    )
 
     if len(records) > 1:
-        findings.append(Finding(
-            check="tlsrpt.multiple_records",
-            severity=Severity.LOW,
-            passed=False,
-            message=(
-                f"{len(records)} TLSRPT records found. Inbound TLS reporting "
-                "hygiene; not a deliverability factor."
-            ),
-        ))
+        findings.append(
+            Finding(
+                check="tlsrpt.multiple_records",
+                severity=Severity.LOW,
+                passed=False,
+                message=(
+                    f"{len(records)} TLSRPT records found. Inbound TLS reporting "
+                    "hygiene; not a deliverability factor."
+                ),
+            )
+        )
     else:
-        findings.append(Finding(
-            check="tlsrpt.multiple_records",
-            severity=Severity.INFO,
-            passed=True,
-            message="Single TLSRPT record.",
-        ))
+        findings.append(
+            Finding(
+                check="tlsrpt.multiple_records",
+                severity=Severity.INFO,
+                passed=True,
+                message="Single TLSRPT record.",
+            )
+        )
 
     rec = records[0]
     if "rua=" not in rec.lower():
-        findings.append(Finding(
-            check="tlsrpt.syntax",
-            severity=Severity.LOW,
-            passed=False,
-            message=(
-                "TLSRPT record missing rua= tag (no report destination). "
-                "Inbound TLS reporting hygiene; not a deliverability factor."
-            ),
-        ))
+        findings.append(
+            Finding(
+                check="tlsrpt.syntax",
+                severity=Severity.LOW,
+                passed=False,
+                message=(
+                    "TLSRPT record missing rua= tag (no report destination). "
+                    "Inbound TLS reporting hygiene; not a deliverability factor."
+                ),
+            )
+        )
     else:
-        findings.append(Finding(
-            check="tlsrpt.syntax",
-            severity=Severity.INFO,
-            passed=True,
-            message="TLSRPT record syntax OK.",
-        ))
+        findings.append(
+            Finding(
+                check="tlsrpt.syntax",
+                severity=Severity.INFO,
+                passed=True,
+                message="TLSRPT record syntax OK.",
+            )
+        )
 
     return findings
 
 
 # ─── BIMI ───────────────────────────────────────────────────────────────
+
 
 async def _dmarc_policy(domain: str) -> str | None:
     """Current DMARC enforcement level (none|quarantine|reject), or None when
@@ -316,54 +354,60 @@ async def _run_bimi(domain: str) -> list[Finding]:
         if not eligible:
             # BIMI is ignored below enforcement — don't hand out a record that
             # can't work yet. Point them at the prerequisite instead.
-            findings.append(Finding(
+            findings.append(
+                Finding(
+                    check="bimi.published",
+                    severity=Severity.INFO,
+                    passed=False,
+                    message=(
+                        f"No BIMI logo record. BIMI only works once your DMARC "
+                        f"policy is at quarantine or reject (you're at "
+                        f"p={policy or 'none'}). Move your DMARC up first, then add "
+                        f"the logo record."
+                    ),
+                    details={
+                        "dns_error": ans.error,
+                        "dmarc_policy": policy,
+                        "eligible": False,
+                    },
+                )
+            )
+            return findings
+
+        suggested = f"v=BIMI1; l=https://{domain}/bimi/logo.svg;"
+        findings.append(
+            Finding(
                 check="bimi.published",
                 severity=Severity.INFO,
                 passed=False,
                 message=(
-                    f"No BIMI logo record. BIMI only works once your DMARC "
-                    f"policy is at quarantine or reject (you're at "
-                    f"p={policy or 'none'}). Move your DMARC up first, then add "
-                    f"the logo record."
+                    f"No BIMI record at {qname} (optional — Gmail/Apple logo bonus). "
+                    f"You're at p={policy}, so you're eligible. Add a TXT record at "
+                    f"{qname} with this value: {suggested} — point l= at a square "
+                    f"SVG (SVG Tiny PS profile) logo you host over HTTPS. To actually "
+                    f"display the logo, Gmail and Apple also require a Verified Mark "
+                    f"Certificate (VMC), added as a=https://your-host/vmc.pem."
                 ),
                 details={
                     "dns_error": ans.error,
                     "dmarc_policy": policy,
-                    "eligible": False,
+                    "eligible": True,
+                    "record_host": qname,
+                    "suggested_record": suggested,
                 },
-            ))
-            return findings
-
-        suggested = f"v=BIMI1; l=https://{domain}/bimi/logo.svg;"
-        findings.append(Finding(
-            check="bimi.published",
-            severity=Severity.INFO,
-            passed=False,
-            message=(
-                f"No BIMI record at {qname} (optional — Gmail/Apple logo bonus). "
-                f"You're at p={policy}, so you're eligible. Add a TXT record at "
-                f"{qname} with this value: {suggested} — point l= at a square "
-                f"SVG (SVG Tiny PS profile) logo you host over HTTPS. To actually "
-                f"display the logo, Gmail and Apple also require a Verified Mark "
-                f"Certificate (VMC), added as a=https://your-host/vmc.pem."
-            ),
-            details={
-                "dns_error": ans.error,
-                "dmarc_policy": policy,
-                "eligible": True,
-                "record_host": qname,
-                "suggested_record": suggested,
-            },
-        ))
+            )
+        )
         return findings
 
-    findings.append(Finding(
-        check="bimi.published",
-        severity=Severity.INFO,
-        passed=True,
-        message=f"BIMI record at {qname}.",
-        details={"record": records[0][:200]},
-    ))
+    findings.append(
+        Finding(
+            check="bimi.published",
+            severity=Severity.INFO,
+            passed=True,
+            message=f"BIMI record at {qname}.",
+            details={"record": records[0][:200]},
+        )
+    )
 
     rec = records[0]
     syntax_issues: list[str] = []
@@ -372,24 +416,29 @@ async def _run_bimi(domain: str) -> list[Finding]:
     elif not re.search(r"l\s*=\s*https://", rec, re.IGNORECASE):
         syntax_issues.append("'l=' must be https://")
     if syntax_issues:
-        findings.append(Finding(
-            check="bimi.syntax",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=f"BIMI syntax: {'; '.join(syntax_issues)}",
-        ))
+        findings.append(
+            Finding(
+                check="bimi.syntax",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=f"BIMI syntax: {'; '.join(syntax_issues)}",
+            )
+        )
     else:
-        findings.append(Finding(
-            check="bimi.syntax",
-            severity=Severity.INFO,
-            passed=True,
-            message="BIMI syntax OK.",
-        ))
+        findings.append(
+            Finding(
+                check="bimi.syntax",
+                severity=Severity.INFO,
+                passed=True,
+                message="BIMI syntax OK.",
+            )
+        )
 
     return findings
 
 
 # ─── public ─────────────────────────────────────────────────────────────
+
 
 async def run(domain: str) -> list[Finding]:
     mta_sts_f, tlsrpt_f, bimi_f = await asyncio.gather(

@@ -56,18 +56,13 @@ _PASSIVE_HREF_RX = re.compile(
 def _is_passive(text: str, href: str) -> bool:
     if _PASSIVE_TEXT_RX.search(text or ""):
         return True
-    if _PASSIVE_HREF_RX.search(href or ""):
-        return True
-    return False
+    return bool(_PASSIVE_HREF_RX.search(href or ""))
 
 
 async def run(email: ParsedEmail) -> list[Finding]:
     structured = extract_structured(email)
 
-    active = [
-        c for c in structured.cta_blocks
-        if not _is_passive(c.text, c.href)
-    ]
+    active = [c for c in structured.cta_blocks if not _is_passive(c.text, c.href)]
     count = len(active)
     samples = [{"text": c.text[:80], "href": c.href[:120]} for c in active[:10]]
 

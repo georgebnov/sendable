@@ -49,8 +49,7 @@ _TAIL_INTENSIFIERS = ("now", "today", "here", "below")
 def _normalize(text: str) -> str:
     t = (text or "").lower().strip()
     t = re.sub(r"[^\w\s]+", " ", t)
-    t = re.sub(r"\s+", " ", t).strip()
-    return t
+    return re.sub(r"\s+", " ", t).strip()
 
 
 def _matched_bad_phrase(text: str) -> str | None:
@@ -68,10 +67,7 @@ def _matched_bad_phrase(text: str) -> str | None:
 
 async def run(email: ParsedEmail) -> list[Finding]:
     structured = extract_structured(email)
-    active = [
-        c for c in structured.cta_blocks
-        if not _is_passive(c.text, c.href)
-    ]
+    active = [c for c in structured.cta_blocks if not _is_passive(c.text, c.href)]
 
     if not active:
         return [
@@ -95,10 +91,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f"Primary CTA reads \"{primary.text}\" — generic action "
-                    f"verb (\"{matched}\"). Rewrite to name the outcome the "
-                    f"reader gets, not the mechanical action. e.g. \"Move "
-                    f"into your dream home\" not \"Buy Now\"."
+                    f'Primary CTA reads "{primary.text}" — generic action '
+                    f'verb ("{matched}"). Rewrite to name the outcome the '
+                    f'reader gets, not the mechanical action. e.g. "Move '
+                    f'into your dream home" not "Buy Now".'
                 ),
                 details={
                     "primary_cta_text": primary.text,
@@ -113,10 +109,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             check="copywriting.cta_outcome_copy",
             severity=Severity.INFO,
             passed=True,
-            message=(
-                f"Primary CTA \"{primary.text}\" avoids generic action-verb "
-                f"patterns."
-            ),
+            message=(f'Primary CTA "{primary.text}" avoids generic action-verb patterns.'),
             details={
                 "primary_cta_text": primary.text,
                 "href": primary.href[:120],

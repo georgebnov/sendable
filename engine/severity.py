@@ -6,10 +6,10 @@ thresholds (SCORE_GO_MIN, SCORE_REVIEW_MIN) are consumed by scoring.py.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"

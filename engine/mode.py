@@ -23,9 +23,7 @@ _TEST_SUBJECT_PREFIX_RX = re.compile(
     re.IGNORECASE,
 )
 
-_TEST_PLUS_ADDR_RX = re.compile(
-    r"\+(audit|test|preview|qa|staging|dev)@", re.IGNORECASE
-)
+_TEST_PLUS_ADDR_RX = re.compile(r"\+(audit|test|preview|qa|staging|dev)@", re.IGNORECASE)
 
 # Headers that ESPs add only on test/preview sends. Real campaigns never
 # carry them. Same list cleanup.py uses to strip headers.
@@ -61,9 +59,25 @@ _MERGE_TAG_RXS = (
 # MSO Outlook conditional comment counts as an unfilled merge tag.
 _BRACKET_PLACEHOLDER_RX = re.compile(r"\[([^\[\]\n]{1,80})\]")
 _BRACKET_PLACEHOLDER_KEYWORDS = (
-    "name", "first", "last", "full", "email", "company", "city",
-    "country", "phone", "url", "link", "unsub", "merge", "tag",
-    "field", "goes here", "fallback", "recipient", "subscriber",
+    "name",
+    "first",
+    "last",
+    "full",
+    "email",
+    "company",
+    "city",
+    "country",
+    "phone",
+    "url",
+    "link",
+    "unsub",
+    "merge",
+    "tag",
+    "field",
+    "goes here",
+    "fallback",
+    "recipient",
+    "subscriber",
 )
 _BRACKET_PLACEHOLDER_SKIP = ("if mso", "endif", "mso ", "outlook", "endif]")
 
@@ -122,7 +136,8 @@ def detect(email: ParsedEmail, *, force: str | None = None) -> ModeResult:
     # name. Any unfilled merge tag implies the send never went through
     # ESP variable substitution → test send.
     scan_corpus = "\n".join(
-        s for s in (
+        s
+        for s in (
             email.html,
             email.plain_text,
             email.subject,

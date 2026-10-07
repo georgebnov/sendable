@@ -42,50 +42,99 @@ from ..dns_client import query
 # (decommissioned June 2024).
 _DBLS = [
     # ─── Tier 1: industry-standard ────────────────────────────────────
-    ("spamhaus_dbl", "dbl.spamhaus.org", Severity.HIGH,
-     "Spamhaus Domain Block List — most-consulted URL reputation list. A real listing here directly hurts inbox placement at every major receiver."),
-    ("surbl_multi", "multi.surbl.org", Severity.HIGH,
-     "SURBL multi — covers phish/malware/abuse listings. Many corporate filters chain through this."),
-    ("uribl_multi", "multi.uribl.com", Severity.HIGH,
-     "URIBL multi — combined list (BLACK + GREY + RED). Bitmask response: 2=BLACK, 4=GREY, 8=RED."),
+    (
+        "spamhaus_dbl",
+        "dbl.spamhaus.org",
+        Severity.HIGH,
+        "Spamhaus Domain Block List: most-consulted URL reputation list. A real listing here "
+        "directly hurts inbox placement at every major receiver.",
+    ),
+    (
+        "surbl_multi",
+        "multi.surbl.org",
+        Severity.HIGH,
+        "SURBL multi: covers phish/malware/abuse listings. Many corporate filters chain through "
+        "this.",
+    ),
+    (
+        "uribl_multi",
+        "multi.uribl.com",
+        Severity.HIGH,
+        "URIBL multi: combined list (BLACK + GREY + RED). Bitmask response: "
+        "2=BLACK, 4=GREY, 8=RED.",
+    ),
     # ─── Tier 2: medium ───────────────────────────────────────────────
-    ("ivm_uri", "uri.ivmuri.org", Severity.MEDIUM,
-     "Invaluement IPv4 URI — paid subscription list of abused URI domains."),
-    ("nordspam_dbl", "dbl.nordspam.com", Severity.MEDIUM,
-     "Nordspam DBL — Nordic anti-spam URL reputation."),
-    ("sem_fresh", "fresh.spameatingmonkey.net", Severity.MEDIUM,
-     "Spam Eating Monkey FRESH — recently-registered domains used in spam."),
-    ("sem_uri", "uribl.spameatingmonkey.net", Severity.MEDIUM,
-     "Spam Eating Monkey URIBL — domains found in spam URIs."),
-    ("sem_urired", "urired.spameatingmonkey.net", Severity.MEDIUM,
-     "Spam Eating Monkey URIRED — redirector/cloaker domains."),
+    (
+        "ivm_uri",
+        "uri.ivmuri.org",
+        Severity.MEDIUM,
+        "Invaluement IPv4 URI — paid subscription list of abused URI domains.",
+    ),
+    (
+        "nordspam_dbl",
+        "dbl.nordspam.com",
+        Severity.MEDIUM,
+        "Nordspam DBL — Nordic anti-spam URL reputation.",
+    ),
+    (
+        "sem_fresh",
+        "fresh.spameatingmonkey.net",
+        Severity.MEDIUM,
+        "Spam Eating Monkey FRESH — recently-registered domains used in spam.",
+    ),
+    (
+        "sem_uri",
+        "uribl.spameatingmonkey.net",
+        Severity.MEDIUM,
+        "Spam Eating Monkey URIBL — domains found in spam URIs.",
+    ),
+    (
+        "sem_urired",
+        "urired.spameatingmonkey.net",
+        Severity.MEDIUM,
+        "Spam Eating Monkey URIRED — redirector/cloaker domains.",
+    ),
 ]
 
 # Account for 80%+ of links in normal mail; almost never listed.
-_SKIP_DOMAINS = frozenset({
-    "google.com", "youtube.com", "googleusercontent.com",
-    "microsoft.com", "office.com", "bing.com",
-    "apple.com", "icloud.com",
-    "amazon.com", "amazonaws.com", "cloudfront.net",
-    "facebook.com", "instagram.com", "twitter.com", "x.com",
-    "linkedin.com",
-    "github.com",
-    "wikipedia.org",
-    "mozilla.org",
-    "w3.org",
-})
+_SKIP_DOMAINS = frozenset(
+    {
+        "google.com",
+        "youtube.com",
+        "googleusercontent.com",
+        "microsoft.com",
+        "office.com",
+        "bing.com",
+        "apple.com",
+        "icloud.com",
+        "amazon.com",
+        "amazonaws.com",
+        "cloudfront.net",
+        "facebook.com",
+        "instagram.com",
+        "twitter.com",
+        "x.com",
+        "linkedin.com",
+        "github.com",
+        "wikipedia.org",
+        "mozilla.org",
+        "w3.org",
+    }
+)
 
 # Administrative-error sentinels — NOT real listings, NOT clean either.
 # 127.0.0.1 is URIBL/SURBL "Query Refused"; 127.255.255.x is the
 # Spamhaus/Barracuda public-resolver / rate-limit / typo signal. Reading
 # any of these as a hit produces false positives; ignoring them as clean
 # produces false negatives. Surface as inconclusive instead.
-_DBL_SENTINELS = frozenset({
-    "127.0.0.1",
-    "127.255.255.252",
-    "127.255.255.254",
-    "127.255.255.255",
-})
+_DBL_SENTINELS = frozenset(
+    {
+        "127.0.0.1",
+        "127.255.255.252",
+        "127.255.255.254",
+        "127.255.255.255",
+    }
+)
 
 
 def _body_domains(email: ParsedEmail, sender_domain: str | None) -> list[str]:
@@ -120,7 +169,9 @@ def _body_domains(email: ParsedEmail, sender_domain: str | None) -> list[str]:
     return out
 
 
-async def _check_one(domain: str, label: str, dbl_host: str, severity: Severity, blurb: str) -> Finding | None:
+async def _check_one(
+    domain: str, label: str, dbl_host: str, severity: Severity, blurb: str
+) -> Finding | None:
     qname = f"{domain}.{dbl_host}"
     ans = await query(qname, "A")
     # NXDOMAIN = definitively clean.
@@ -159,12 +210,14 @@ async def _check_one(domain: str, label: str, dbl_host: str, severity: Severity,
 async def run(parsed: ParsedEmail, sender_domain: str | None) -> list[Finding]:
     domains = _body_domains(parsed, sender_domain)
     if not domains:
-        return [Finding(
-            check="url_reputation.scanned",
-            severity=Severity.INFO,
-            passed=True,
-            message="No external link domains in body to scan.",
-        )]
+        return [
+            Finding(
+                check="url_reputation.scanned",
+                severity=Severity.INFO,
+                passed=True,
+                message="No external link domains in body to scan.",
+            )
+        ]
 
     tasks = [
         _check_one(d, label, host, sev, blurb)
@@ -174,19 +227,25 @@ async def run(parsed: ParsedEmail, sender_domain: str | None) -> list[Finding]:
     results = await asyncio.gather(*tasks)
     hits = [f for f in results if f is not None]
 
-    findings: list[Finding] = [Finding(
-        check="url_reputation.scanned",
-        severity=Severity.INFO,
-        passed=True,
-        message=f"Scanned {len(domains)} body link domain(s) against {len(_DBLS)} URL blacklist(s).",
-        details={"domains_scanned": domains, "dbls": [h for _, h, _, _ in _DBLS]},
-    )]
-    findings.extend(hits)
-    if not hits:
-        findings.append(Finding(
-            check="url_reputation.no_listings",
+    findings: list[Finding] = [
+        Finding(
+            check="url_reputation.scanned",
             severity=Severity.INFO,
             passed=True,
-            message="No body-link domain is currently listed on Spamhaus DBL or SURBL.",
-        ))
+            message=(
+                f"Scanned {len(domains)} body link domain(s) against {len(_DBLS)} URL blacklist(s)."
+            ),
+            details={"domains_scanned": domains, "dbls": [h for _, h, _, _ in _DBLS]},
+        )
+    ]
+    findings.extend(hits)
+    if not hits:
+        findings.append(
+            Finding(
+                check="url_reputation.no_listings",
+                severity=Severity.INFO,
+                passed=True,
+                message="No body-link domain is currently listed on Spamhaus DBL or SURBL.",
+            )
+        )
     return findings

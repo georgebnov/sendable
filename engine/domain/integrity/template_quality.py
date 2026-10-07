@@ -37,12 +37,12 @@ _GREETING_EMPTY_RX = re.compile(
 # tokens look unmistakably like merge fields ESPs use, not arbitrary curly
 # braces in code samples.
 _PLACEHOLDER_RXS = (
-    re.compile(r"\{\{\s*[A-Za-z_][\w\.\- ]*\s*\}\}"),       # {{ first_name }}
-    re.compile(r"\{%\s*[A-Za-z_][\w\.\- ]*\s*%\}"),         # {% name %}
-    re.compile(r"\{!\s*[A-Za-z_][\w\.\- ]*\s*!\}"),         # {! contact.FIRSTNAME !}
-    re.compile(r"%%\s*[A-Za-z_][\w\.\- ]*\s*%%"),           # %%first_name%%
-    re.compile(r"\*\|\s*[A-Za-z_][\w\.\- ]*\s*\|\*"),       # *|FNAME|* (Mailchimp)
-    re.compile(r"\[\[\s*[A-Za-z_][\w\.\- ]*\s*\]\]"),       # [[ first_name ]]
+    re.compile(r"\{\{\s*[A-Za-z_][\w\.\- ]*\s*\}\}"),  # {{ first_name }}
+    re.compile(r"\{%\s*[A-Za-z_][\w\.\- ]*\s*%\}"),  # {% name %}
+    re.compile(r"\{!\s*[A-Za-z_][\w\.\- ]*\s*!\}"),  # {! contact.FIRSTNAME !}
+    re.compile(r"%%\s*[A-Za-z_][\w\.\- ]*\s*%%"),  # %%first_name%%
+    re.compile(r"\*\|\s*[A-Za-z_][\w\.\- ]*\s*\|\*"),  # *|FNAME|* (Mailchimp)
+    re.compile(r"\[\[\s*[A-Za-z_][\w\.\- ]*\s*\]\]"),  # [[ first_name ]]
 )
 
 # Inline tags whose emptiness inside a greeting context indicates an
@@ -96,10 +96,12 @@ def _check_empty_href(email: ParsedEmail) -> Finding:
         href = a.get("href")
         text = a.get_text(separator=" ", strip=True)
         if href is None or not str(href).strip():
-            offenders.append({
-                "text": (text or "")[:60],
-                "href": "" if href is None else str(href)[:60],
-            })
+            offenders.append(
+                {
+                    "text": (text or "")[:60],
+                    "href": "" if href is None else str(href)[:60],
+                }
+            )
     if offenders:
         return Finding(
             check="content.empty_href",

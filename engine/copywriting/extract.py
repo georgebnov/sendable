@@ -29,7 +29,6 @@ checks would rather analyze too much than too little.
 from __future__ import annotations
 
 import re
-from typing import Optional
 
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field
@@ -131,6 +130,7 @@ _SIGNOFF_RX = re.compile(
 
 class CTABlock(BaseModel):
     """A button-shaped or action-verb anchor in the body."""
+
     text: str
     href: str
     has_button_styling: bool = False  # inline style background/padding hints
@@ -151,28 +151,45 @@ class StructuredEmail(BaseModel):
       - The full preserved body lives in `raw_plain` / `raw_html` for any
         consumer that needs to re-derive its own thing.
     """
-    subject: Optional[str] = None
-    preview_text: Optional[str] = None
-    greeting: Optional[str] = None
+
+    subject: str | None = None
+    preview_text: str | None = None
+    greeting: str | None = None
     body_blocks: list[str] = Field(default_factory=list)
     section_headers: list[str] = Field(default_factory=list)
     cta_blocks: list[CTABlock] = Field(default_factory=list)
-    ps: Optional[str] = None
-    signature: Optional[str] = None
-    footer: Optional[str] = None
+    ps: str | None = None
+    signature: str | None = None
+    footer: str | None = None
     word_count: int = 0
-    raw_html: Optional[str] = None
-    raw_plain: Optional[str] = None
+    raw_html: str | None = None
+    raw_plain: str | None = None
 
 
 # ─── Helpers ───────────────────────────────────────────────────────────
 
 
 _BLOCK_TAGS = {
-    "p", "div", "li", "tr", "td", "th", "br",
-    "h1", "h2", "h3", "h4", "h5", "h6",
-    "blockquote", "section", "article", "header", "footer",
-    "pre", "hr",
+    "p",
+    "div",
+    "li",
+    "tr",
+    "td",
+    "th",
+    "br",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "blockquote",
+    "section",
+    "article",
+    "header",
+    "footer",
+    "pre",
+    "hr",
 }
 
 
@@ -252,9 +269,8 @@ def _extract_cta_blocks(html: str | None) -> list[CTABlock]:
         style = (a.get("style") or "").lower()
         # Button styling: inline style declares a non-default background
         # plus padding. Crude but works on most ESP-built CTA buttons.
-        has_button_styling = (
-            "background" in style
-            and ("padding" in style or "border-radius" in style)
+        has_button_styling = "background" in style and (
+            "padding" in style or "border-radius" in style
         )
         is_cta = bool(_CTA_VERB_RX.match(text)) or has_button_styling
         if not is_cta:
@@ -263,11 +279,13 @@ def _extract_cta_blocks(html: str | None) -> list[CTABlock]:
         if key in seen:
             continue
         seen.add(key)
-        out.append(CTABlock(
-            text=text,
-            href=href,
-            has_button_styling=has_button_styling,
-        ))
+        out.append(
+            CTABlock(
+                text=text,
+                href=href,
+                has_button_styling=has_button_styling,
+            )
+        )
     return out
 
 
@@ -374,7 +392,7 @@ def extract_structured(parsed: ParsedEmail) -> StructuredEmail:
         body_text = ""
 
     if preview_text and body_text.lstrip().startswith(preview_text):
-        body_text = body_text.lstrip()[len(preview_text):].lstrip()
+        body_text = body_text.lstrip()[len(preview_text) :].lstrip()
 
     paragraphs = _split_paragraphs(body_text)
 
@@ -416,8 +434,12 @@ def extract_structured(parsed: ParsedEmail) -> StructuredEmail:
         signature=signature,
         footer=footer,
         word_count=_count_words(
-            parsed.subject, preview_text, greeting,
-            *paragraphs, ps, signature,
+            parsed.subject,
+            preview_text,
+            greeting,
+            *paragraphs,
+            ps,
+            signature,
         ),
         raw_html=raw_html,
         raw_plain=raw_plain,

@@ -84,9 +84,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                     check="content.image_text_ratio",
                     severity=Severity.INFO,
                     passed=True,
-                    message=(
-                        f"Visible text {visible_len} chars, {image_count} images."
-                    ),
+                    message=(f"Visible text {visible_len} chars, {image_count} images."),
                     details={"visible_chars": visible_len, "image_count": image_count},
                 )
             )

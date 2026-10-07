@@ -39,8 +39,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from engine.parse import parse_eml  # noqa: E402
-from engine.runner import audit  # noqa: E402
+from engine.parse import parse_eml
+from engine.runner import audit
 
 
 def _read_source(target: str) -> bytes:

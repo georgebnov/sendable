@@ -25,7 +25,10 @@ _DOUBT_PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("if you're still unsure", re.compile(r"\bif\s+you'?re\s+still\s+unsure\b", re.IGNORECASE)),
     ("if you have any doubts", re.compile(r"\bif\s+you\s+have\s+any\s+doubts?\b", re.IGNORECASE)),
     ("if you're not sure", re.compile(r"\bif\s+you'?re\s+not\s+sure\b", re.IGNORECASE)),
-    ("it's completely up to you", re.compile(r"\bit'?s\s+completely\s+up\s+to\s+you\b", re.IGNORECASE)),
+    (
+        "it's completely up to you",
+        re.compile(r"\bit'?s\s+completely\s+up\s+to\s+you\b", re.IGNORECASE),
+    ),
     ("it's up to you", re.compile(r"\bit'?s\s+up\s+to\s+you\b", re.IGNORECASE)),
     ("if you're on the fence", re.compile(r"\bif\s+you'?re\s+on\s+the\s+fence\b", re.IGNORECASE)),
     ("if this isn't for you", re.compile(r"\bif\s+this\s+isn'?t\s+for\s+you\b", re.IGNORECASE)),

@@ -26,7 +26,14 @@ _SPF_PREFIX_RX = re.compile(r"^\s*v\s*=\s*spf1\b", re.IGNORECASE)
 _TOKEN_SPLIT_RX = re.compile(r"\s+")
 _VALID_QUALIFIERS = ("+", "-", "~", "?")
 _VALID_MECHS = (
-    "all", "include", "a", "mx", "ptr", "ip4", "ip6", "exists",
+    "all",
+    "include",
+    "a",
+    "mx",
+    "ptr",
+    "ip4",
+    "ip6",
+    "exists",
 )
 _VALID_MODIFIERS = ("redirect", "exp")
 
@@ -67,7 +74,9 @@ def _all_spf_records(ans: DnsAnswer) -> list[str]:
     return [r for r in ans.records if _SPF_PREFIX_RX.match(r)]
 
 
-async def _count_lookups(parsed: dict, domain: str, depth: int = 0, seen: set | None = None) -> tuple[int, int, list[str]]:
+async def _count_lookups(
+    parsed: dict, domain: str, depth: int = 0, seen: set | None = None
+) -> tuple[int, int, list[str]]:
     """Recursively count DNS-lookup mechanisms (RFC 7208 §4.6.4) and void
     responses. `seen` guards against include loops. Returns
     (lookup_count, void_count, errors)."""
@@ -115,7 +124,9 @@ async def _count_lookups(parsed: dict, domain: str, depth: int = 0, seen: set | 
                     voids += 1
                 else:
                     sub = _parse_record(rec)
-                    sub_lookups, sub_voids, sub_errors = await _count_lookups(sub, target, depth + 1, seen)
+                    sub_lookups, sub_voids, sub_errors = await _count_lookups(
+                        sub, target, depth + 1, seen
+                    )
                     lookups += sub_lookups
                     voids += sub_voids
                     errors.extend(sub_errors)
@@ -128,41 +139,49 @@ async def run(domain: str) -> list[Finding]:
     spf_records = _all_spf_records(ans)
 
     if not spf_records:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.published",
-            severity=Severity.HIGH,
-            passed=False,
-            message=f"No SPF record published at {domain} (TXT v=spf1 ...).",
-            details={"dns_error": ans.error, "lookup_ms": ans.elapsed_ms},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.published",
+                severity=Severity.HIGH,
+                passed=False,
+                message=f"No SPF record published at {domain} (TXT v=spf1 ...).",
+                details={"dns_error": ans.error, "lookup_ms": ans.elapsed_ms},
+            )
+        )
         return findings
 
-    findings.append(Finding(
-        check=f"{CHECK_PREFIX}.published",
-        severity=Severity.INFO,
-        passed=True,
-        message=f"SPF record published at {domain}.",
-        details={"record": spf_records[0][:200]},
-    ))
-
-    if len(spf_records) > 1:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.multiple_records",
-            severity=Severity.HIGH,
-            passed=False,
-            message=(
-                f"{len(spf_records)} SPF records found. RFC 7208 §3.2 forbids "
-                "this; receivers will treat SPF as PermError."
-            ),
-            details={"count": len(spf_records)},
-        ))
-    else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.multiple_records",
+    findings.append(
+        Finding(
+            check=f"{CHECK_PREFIX}.published",
             severity=Severity.INFO,
             passed=True,
-            message="Single SPF record.",
-        ))
+            message=f"SPF record published at {domain}.",
+            details={"record": spf_records[0][:200]},
+        )
+    )
+
+    if len(spf_records) > 1:
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.multiple_records",
+                severity=Severity.HIGH,
+                passed=False,
+                message=(
+                    f"{len(spf_records)} SPF records found. RFC 7208 §3.2 forbids "
+                    "this; receivers will treat SPF as PermError."
+                ),
+                details={"count": len(spf_records)},
+            )
+        )
+    else:
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.multiple_records",
+                severity=Severity.INFO,
+                passed=True,
+                message="Single SPF record.",
+            )
+        )
 
     primary = spf_records[0]
     parsed = _parse_record(primary)
@@ -195,140 +214,172 @@ async def run(domain: str) -> list[Finding]:
             syntax_issues.append(f"unknown modifier '{mod['name']}'")
 
     if syntax_issues:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.syntax",
-            severity=Severity.HIGH,
-            passed=False,
-            message=f"SPF syntax issues: {'; '.join(syntax_issues[:5])}",
-            details={"issues": syntax_issues},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.syntax",
+                severity=Severity.HIGH,
+                passed=False,
+                message=f"SPF syntax issues: {'; '.join(syntax_issues[:5])}",
+                details={"issues": syntax_issues},
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.syntax",
-            severity=Severity.INFO,
-            passed=True,
-            message="SPF syntax OK.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.syntax",
+                severity=Severity.INFO,
+                passed=True,
+                message="SPF syntax OK.",
+            )
+        )
 
     if after_all:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.chars_after_all",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message="Mechanisms appear after 'all'; receivers ignore them.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.chars_after_all",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message="Mechanisms appear after 'all'; receivers ignore them.",
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.chars_after_all",
-            severity=Severity.INFO,
-            passed=True,
-            message="Nothing after 'all'.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.chars_after_all",
+                severity=Severity.INFO,
+                passed=True,
+                message="Nothing after 'all'.",
+            )
+        )
 
     if duplicate_includes:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.duplicate_include",
-            severity=Severity.LOW,
-            passed=False,
-            message=f"Duplicate include(s): {duplicate_includes[:5]}",
-            details={"duplicates": duplicate_includes},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.duplicate_include",
+                severity=Severity.LOW,
+                passed=False,
+                message=f"Duplicate include(s): {duplicate_includes[:5]}",
+                details={"duplicates": duplicate_includes},
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.duplicate_include",
-            severity=Severity.INFO,
-            passed=True,
-            message="No duplicate includes.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.duplicate_include",
+                severity=Severity.INFO,
+                passed=True,
+                message="No duplicate includes.",
+            )
+        )
 
     if has_ptr:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.ptr_mechanism",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=(
-                "SPF uses the deprecated 'ptr' mechanism. RFC 7208 §5.5 says "
-                "do not use; slow + unreliable."
-            ),
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.ptr_mechanism",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=(
+                    "SPF uses the deprecated 'ptr' mechanism. RFC 7208 §5.5 says "
+                    "do not use; slow + unreliable."
+                ),
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.ptr_mechanism",
-            severity=Severity.INFO,
-            passed=True,
-            message="No 'ptr' mechanism.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.ptr_mechanism",
+                severity=Severity.INFO,
+                passed=True,
+                message="No 'ptr' mechanism.",
+            )
+        )
 
     if has_redirect and has_all:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.redirect_with_all",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=(
-                "SPF has both 'redirect=' modifier and 'all' mechanism. "
-                "'all' wins — redirect is ignored. Pick one."
-            ),
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.redirect_with_all",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=(
+                    "SPF has both 'redirect=' modifier and 'all' mechanism. "
+                    "'all' wins — redirect is ignored. Pick one."
+                ),
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.redirect_with_all",
-            severity=Severity.INFO,
-            passed=True,
-            message="Redirect/all combination OK.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.redirect_with_all",
+                severity=Severity.INFO,
+                passed=True,
+                message="Redirect/all combination OK.",
+            )
+        )
 
     lookups, voids, recursion_errors = await _count_lookups(parsed, domain)
     if lookups > _LOOKUP_LIMIT:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.included_lookups",
-            severity=Severity.HIGH,
-            passed=False,
-            message=(
-                f"SPF requires {lookups} DNS lookups; RFC 7208 caps at "
-                f"{_LOOKUP_LIMIT}. Receivers may PermError."
-            ),
-            details={"count": lookups, "limit": _LOOKUP_LIMIT},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.included_lookups",
+                severity=Severity.HIGH,
+                passed=False,
+                message=(
+                    f"SPF requires {lookups} DNS lookups; RFC 7208 caps at "
+                    f"{_LOOKUP_LIMIT}. Receivers may PermError."
+                ),
+                details={"count": lookups, "limit": _LOOKUP_LIMIT},
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.included_lookups",
-            severity=Severity.INFO,
-            passed=True,
-            message=f"SPF lookup count {lookups} (≤ {_LOOKUP_LIMIT}).",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.included_lookups",
+                severity=Severity.INFO,
+                passed=True,
+                message=f"SPF lookup count {lookups} (≤ {_LOOKUP_LIMIT}).",
+            )
+        )
 
     if voids > _VOID_LIMIT:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.void_lookups",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=(
-                f"{voids} void DNS lookups (NXDOMAIN/no-answer). RFC 7208 "
-                f"caps at {_VOID_LIMIT}; over the cap forces PermError."
-            ),
-            details={"count": voids, "limit": _VOID_LIMIT},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.void_lookups",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=(
+                    f"{voids} void DNS lookups (NXDOMAIN/no-answer). RFC 7208 "
+                    f"caps at {_VOID_LIMIT}; over the cap forces PermError."
+                ),
+                details={"count": voids, "limit": _VOID_LIMIT},
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.void_lookups",
-            severity=Severity.INFO,
-            passed=True,
-            message=f"Void lookups {voids} (≤ {_VOID_LIMIT}).",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.void_lookups",
+                severity=Severity.INFO,
+                passed=True,
+                message=f"Void lookups {voids} (≤ {_VOID_LIMIT}).",
+            )
+        )
 
     if "recursive_loop" in recursion_errors:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.recursive_loop",
-            severity=Severity.HIGH,
-            passed=False,
-            message="SPF include chain has a recursive loop.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.recursive_loop",
+                severity=Severity.HIGH,
+                passed=False,
+                message="SPF include chain has a recursive loop.",
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.recursive_loop",
-            severity=Severity.INFO,
-            passed=True,
-            message="No recursive include loop.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.recursive_loop",
+                severity=Severity.INFO,
+                passed=True,
+                message="No recursive include loop.",
+            )
+        )
 
     return findings

@@ -39,9 +39,9 @@ _SENTENCE_RX = re.compile(r"[.!?]+(?:\s|$)")
 _MIN_WORDS = 30
 _MIN_SENTENCES = 3
 
-_GRADE_OK_MAX = 9      # ≤9 → INFO
-_GRADE_MED_MAX = 12    # 10-12 → MEDIUM
-                       # ≥13 → HIGH
+_GRADE_OK_MAX = 9  # ≤9 → INFO
+_GRADE_MED_MAX = 12  # 10-12 → MEDIUM
+# ≥13 → HIGH
 
 
 def _count_syllables(word: str) -> int:
@@ -90,11 +90,7 @@ def _flesch_kincaid_grade(text: str) -> tuple[float | None, dict]:
 
     syllables = sum(_count_syllables(w) for w in words)
     stats["syllables"] = syllables
-    grade = (
-        0.39 * (n_words / n_sentences)
-        + 11.8 * (syllables / n_words)
-        - 15.59
-    )
+    grade = 0.39 * (n_words / n_sentences) + 11.8 * (syllables / n_words) - 15.59
     return round(grade, 1), stats
 
 
@@ -127,10 +123,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="copywriting.reading_level",
                 severity=Severity.INFO,
                 passed=True,
-                message=(
-                    f"Reading level Grade {grade} — conversational range "
-                    f"(USA Today to NYT)."
-                ),
+                message=(f"Reading level Grade {grade} — conversational range (USA Today to NYT)."),
                 details=stats,
             )
         ]
@@ -142,8 +135,8 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f"Reading level Grade {grade} — formal range, risks "
-                    f"reading like a legal document. Aim for Grade 6–9: "
+                    f"Reading level Grade {grade} is in the formal range. It risks "
+                    f"reading like a legal document. Aim for Grade 6 to 9: "
                     f"shorter sentences, plainer words."
                 ),
                 details=stats,

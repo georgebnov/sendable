@@ -80,9 +80,7 @@ def is_free_mailbox(from_addr: str | None) -> str | None:
     return domain if domain in FREE_MAILBOX_DOMAINS else None
 
 
-def calibrate_for_free_mailbox(
-    findings: list[Finding], from_addr: str | None
-) -> list[Finding]:
+def calibrate_for_free_mailbox(findings: list[Finding], from_addr: str | None) -> list[Finding]:
     """When the From is a free mailbox, drop the sender-auth / domain-record
     findings and append one advisory. Otherwise return `findings` unchanged."""
     domain = is_free_mailbox(from_addr)

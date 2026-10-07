@@ -72,11 +72,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             branded_prefix = prefix.strip()
 
     hits = sorted(
-        {
-            m.group(0).lower()
-            for m in _DEADWORD_RX.finditer(subj)
-            if m.start() >= scan_from
-        }
+        {m.group(0).lower() for m in _DEADWORD_RX.finditer(subj) if m.start() >= scan_from}
     )
 
     if hits:
@@ -87,8 +83,8 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 passed=False,
                 message=(
                     f"Subject contains broadcast-content deadword(s): "
-                    f"{', '.join(hits)}. Words like \"newsletter\" cost "
-                    f"~−18.7% opens (Zippia). Replace with a specific "
+                    f'{", ".join(hits)}. Words like "newsletter" cost '
+                    f"about 18.7% of opens (Zippia). Replace with a specific "
                     f"noun or outcome from the body."
                 ),
                 details={"matches": hits, "subject": subj},

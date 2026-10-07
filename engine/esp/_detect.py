@@ -18,7 +18,6 @@ from email.utils import parseaddr
 from urllib.parse import urlparse
 
 from ..parse import ParsedEmail
-from ._profile import ESPProfile, ProfileSpec
 from . import (
     activecampaign,
     brevo,
@@ -31,6 +30,7 @@ from . import (
     mailgun,
     sendgrid,
 )
+from ._profile import ESPProfile, ProfileSpec
 
 _SPECS: tuple[ProfileSpec, ...] = (
     kit.SPEC,
@@ -85,7 +85,7 @@ def _unsubscribe_hosts(email: ParsedEmail) -> set[str]:
 def detect(email: ParsedEmail) -> ESPProfile | None:
     """Return the best-matching ESPProfile, or None if no signal fires."""
     dkim = _dkim_domains(email)
-    header_names = {k.lower() for k in email.headers.keys()}
+    header_names = {k.lower() for k in email.headers}
     feedback_id = (email.headers.get("feedback-id") or [""])[0].lower()
     unsub_hosts = _unsubscribe_hosts(email)
     body_lower = ((email.html or "") + " " + (email.plain_text or "")).lower()

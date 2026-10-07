@@ -42,9 +42,18 @@ _PLACEHOLDER_RX = re.compile(
 )
 _WORD_RX = re.compile(r"[A-Za-z]{3,}")
 # Common honorifics / suffixes that aren't usable for identity match.
-_NAME_STOPWORDS = frozenset({
-    "mr", "mrs", "ms", "dr", "prof", "the", "and", "team",
-})
+_NAME_STOPWORDS = frozenset(
+    {
+        "mr",
+        "mrs",
+        "ms",
+        "dr",
+        "prof",
+        "the",
+        "and",
+        "team",
+    }
+)
 
 _REGION_TAIL = 200
 
@@ -63,11 +72,7 @@ def _sign_off_region(structured) -> str:
 
 
 def _name_tokens(display: str) -> list[str]:
-    tokens = [
-        t.lower() for t in _WORD_RX.findall(display)
-        if t.lower() not in _NAME_STOPWORDS
-    ]
-    return tokens
+    return [t.lower() for t in _WORD_RX.findall(display) if t.lower() not in _NAME_STOPWORDS]
 
 
 def _initials(tokens: list[str]) -> str:
@@ -112,9 +117,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
     region_norm = _normalize(region)
     details["region_chars"] = len(region)
     details["region_source"] = (
-        "signature" if structured.signature
-        else "ps" if structured.ps
-        else "body_tail"
+        "signature" if structured.signature else "ps" if structured.ps else "body_tail"
     )
 
     if not region_norm:
@@ -137,7 +140,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="copywriting.from_name_body_consistency",
                 severity=Severity.INFO,
                 passed=True,
-                message=f"From name \"{display}\" appears in sign-off.",
+                message=f'From name "{display}" appears in sign-off.',
                 details={**details, "match_kind": "full"},
             )
         ]
@@ -151,10 +154,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="copywriting.from_name_body_consistency",
                 severity=Severity.INFO,
                 passed=True,
-                message=(
-                    f"From name partial match in sign-off: "
-                    f"{', '.join(word_hits)}."
-                ),
+                message=(f"From name partial match in sign-off: {', '.join(word_hits)}."),
                 details={**details, "match_kind": "partial", "tokens": word_hits},
             )
         ]
@@ -167,7 +167,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="copywriting.from_name_body_consistency",
                 severity=Severity.INFO,
                 passed=True,
-                message=f"From-name initials \"{init.upper()}\" appear in sign-off.",
+                message=f'From-name initials "{init.upper()}" appear in sign-off.',
                 details={**details, "match_kind": "initials", "initials": init},
             )
         ]
@@ -178,7 +178,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             severity=Severity.MEDIUM,
             passed=False,
             message=(
-                f"From display name \"{display}\" does not appear in the "
+                f'From display name "{display}" does not appear in the '
                 f"sign-off region. Recipients (and filters) expect the "
                 f"sender in From: to also sign the body."
             ),

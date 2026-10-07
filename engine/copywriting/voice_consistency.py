@@ -52,7 +52,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
     we_count = len(we_hits)
     total = i_count + we_count
 
-    details = {
+    details: dict[str, object] = {
         "i_count": i_count,
         "we_count": we_count,
         "total": total,
@@ -66,10 +66,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="copywriting.voice_consistency",
                 severity=Severity.INFO,
                 passed=True,
-                message=(
-                    f"Only {total} voice token(s) — too few to grade voice "
-                    f"consistency."
-                ),
+                message=(f"Only {total} voice token(s) — too few to grade voice consistency."),
                 details=details,
             )
         ]

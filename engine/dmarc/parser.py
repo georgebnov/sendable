@@ -34,15 +34,13 @@ from __future__ import annotations
 import gzip
 import io
 import re
+import xml.etree.ElementTree as _stdET  # only for the Element TYPE annotation
 import zipfile
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 # Use defusedxml against XXE + billion-laughs entity expansion. Reports come
 # from arbitrary senders on the internet — bare xml.etree is unsafe here.
 import defusedxml.ElementTree as ET
-import xml.etree.ElementTree as _stdET  # only for the Element TYPE annotation
-
 from pydantic import BaseModel, Field
 
 # Reporters declare XML namespaces inconsistently — Microsoft, Comcast,
@@ -65,30 +63,33 @@ def _strip_ns(elem) -> None:
 
 class AuthResult(BaseModel):
     """One row inside <auth_results>/<dkim> or <auth_results>/<spf>."""
-    domain: Optional[str] = None
-    selector: Optional[str] = None  # DKIM only
-    result: str = "none"             # pass | fail | none | temperror | softfail
+
+    domain: str | None = None
+    selector: str | None = None  # DKIM only
+    result: str = "none"  # pass | fail | none | temperror | softfail
 
 
 class PolicyOverride(BaseModel):
     """One <reason> entry under <policy_evaluated>. Indicates the
     receiver overrode the policy (e.g. ARC chain trusted, forwarded
     email, mailing list)."""
+
     type: str
-    comment: Optional[str] = None
+    comment: str | None = None
 
 
 class DmarcRecord(BaseModel):
     """One <record> row inside a DMARC report. ~1 per source-IP-per-
     receiver-per-period combination."""
+
     source_ip: str
     count: int = 1
-    disposition: str = "none"   # none | quarantine | reject
-    policy_dkim: str = "none"   # pass | fail
+    disposition: str = "none"  # none | quarantine | reject
+    policy_dkim: str = "none"  # pass | fail
     policy_spf: str = "none"
-    header_from: Optional[str] = None
-    envelope_from: Optional[str] = None
-    envelope_to: Optional[str] = None
+    header_from: str | None = None
+    envelope_from: str | None = None
+    envelope_to: str | None = None
     auth_dkim: list[AuthResult] = Field(default_factory=list)
     auth_spf: list[AuthResult] = Field(default_factory=list)
     reasons: list[PolicyOverride] = Field(default_factory=list)
@@ -97,24 +98,26 @@ class DmarcRecord(BaseModel):
 class DmarcPolicyPublished(BaseModel):
     """<policy_published> block — what the reporter saw in your DNS at
     the time of the report."""
+
     domain: str
-    adkim: Optional[str] = None     # r | s
-    aspf: Optional[str] = None      # r | s
-    p: Optional[str] = None         # none | quarantine | reject
-    sp: Optional[str] = None
-    pct: Optional[int] = None
-    fo: Optional[str] = None
+    adkim: str | None = None  # r | s
+    aspf: str | None = None  # r | s
+    p: str | None = None  # none | quarantine | reject
+    sp: str | None = None
+    pct: int | None = None
+    fo: str | None = None
 
 
 class DmarcReport(BaseModel):
     """One ingested aggregate report. Maps directly onto the
     <feedback> root of the XML."""
-    org_name: Optional[str] = None
-    org_email: Optional[str] = None
-    report_id: Optional[str] = None
-    date_begin: Optional[datetime] = None
-    date_end: Optional[datetime] = None
-    policy: Optional[DmarcPolicyPublished] = None
+
+    org_name: str | None = None
+    org_email: str | None = None
+    report_id: str | None = None
+    date_begin: datetime | None = None
+    date_end: datetime | None = None
+    policy: DmarcPolicyPublished | None = None
     records: list[DmarcRecord] = Field(default_factory=list)
 
 
@@ -144,7 +147,7 @@ def _decompress(raw: bytes) -> bytes:
 # ─── XML → models ────────────────────────────────────────────────────
 
 
-def _text(elem: Optional[_stdET.Element], tag: str) -> Optional[str]:
+def _text(elem: _stdET.Element | None, tag: str) -> str | None:
     if elem is None:
         return None
     child = elem.find(tag)
@@ -170,16 +173,16 @@ def _parse_metadata(root: _stdET.Element) -> dict:
     }
 
 
-def _epoch_to_dt(value: Optional[str]) -> Optional[datetime]:
+def _epoch_to_dt(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromtimestamp(int(value), tz=timezone.utc)
+        return datetime.fromtimestamp(int(value), tz=UTC)
     except (ValueError, OSError):
         return None
 
 
-def _parse_policy(root: _stdET.Element) -> Optional[DmarcPolicyPublished]:
+def _parse_policy(root: _stdET.Element) -> DmarcPolicyPublished | None:
     pol = root.find("policy_published")
     if pol is None:
         return None
@@ -202,7 +205,7 @@ def _parse_policy(root: _stdET.Element) -> Optional[DmarcPolicyPublished]:
     )
 
 
-def _parse_record(rec: _stdET.Element) -> Optional[DmarcRecord]:
+def _parse_record(rec: _stdET.Element) -> DmarcRecord | None:
     row = rec.find("row")
     if row is None:
         return None
@@ -224,9 +227,7 @@ def _parse_record(rec: _stdET.Element) -> Optional[DmarcRecord]:
         for r in pol_eval.findall("reason"):
             t = _text(r, "type")
             if t:
-                reasons.append(
-                    PolicyOverride(type=t, comment=_text(r, "comment"))
-                )
+                reasons.append(PolicyOverride(type=t, comment=_text(r, "comment")))
 
     identifiers = rec.find("identifiers")
     header_from = _text(identifiers, "header_from")
@@ -239,7 +240,7 @@ def _parse_record(rec: _stdET.Element) -> Optional[DmarcRecord]:
     # so we must distinguish them. The old code treated both as None →
     # nothing ever flagged as bounce; THIS now also fixes the inverse
     # bug we hit where None was being treated as "" by the classifier.
-    envelope_from: Optional[str] = None
+    envelope_from: str | None = None
     if identifiers is not None:
         env_node = identifiers.find("envelope_from")
         if env_node is not None:
@@ -250,16 +251,20 @@ def _parse_record(rec: _stdET.Element) -> Optional[DmarcRecord]:
     auth_spf: list[AuthResult] = []
     if auth is not None:
         for d in auth.findall("dkim"):
-            auth_dkim.append(AuthResult(
-                domain=_text(d, "domain"),
-                selector=_text(d, "selector"),
-                result=_text(d, "result") or "none",
-            ))
+            auth_dkim.append(
+                AuthResult(
+                    domain=_text(d, "domain"),
+                    selector=_text(d, "selector"),
+                    result=_text(d, "result") or "none",
+                )
+            )
         for s in auth.findall("spf"):
-            auth_spf.append(AuthResult(
-                domain=_text(s, "domain"),
-                result=_text(s, "result") or "none",
-            ))
+            auth_spf.append(
+                AuthResult(
+                    domain=_text(s, "domain"),
+                    result=_text(s, "result") or "none",
+                )
+            )
 
     return DmarcRecord(
         source_ip=source_ip,
@@ -290,9 +295,7 @@ def parse(raw: bytes) -> DmarcReport:
         raise ValueError(f"DMARC XML parse error: {e}") from e
     _strip_ns(root)
     if root.tag != "feedback":
-        raise ValueError(
-            f"unexpected root element {root.tag!r}, want <feedback>"
-        )
+        raise ValueError(f"unexpected root element {root.tag!r}, want <feedback>")
     meta = _parse_metadata(root)
     policy = _parse_policy(root)
     records: list[DmarcRecord] = []

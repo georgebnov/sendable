@@ -35,20 +35,20 @@ in the reference conversation.
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from engine.severity import Severity
 
-from .esp_fingerprint import ESPMatch, classify as _classify_ip, resolve_identity
+from .esp_fingerprint import ESPMatch, resolve_identity
+from .esp_fingerprint import classify as _classify_ip
+from .parser import DmarcPolicyPublished, DmarcRecord
 
 # Identity kinds that are inherently a recognised sender, not a spoofer on
 # random infrastructure (curated CIDR / vendor PTR match). A failing message
 # from one of these is an auth gap to fix, never an impostor.
 _CURATED_KINDS = frozenset({"esp", "gateway", "microsoft", "google"})
-from .parser import DmarcPolicyPublished, DmarcRecord
-
 
 Classification = Literal[
     "bounce",
@@ -73,11 +73,11 @@ Classification = Literal[
 class ClassificationResult(BaseModel):
     classification: Classification
     severity: Severity
-    headline: str                # one-line summary
-    explainer: str               # plain-English paragraph
-    suggested_action: Optional[str] = None
-    source_match: Optional[ESPMatch] = None
-    is_new_ip: bool = False      # only true when baseline was provided and ip absent
+    headline: str  # one-line summary
+    explainer: str  # plain-English paragraph
+    suggested_action: str | None = None
+    source_match: ESPMatch | None = None
+    is_new_ip: bool = False  # only true when baseline was provided and ip absent
     details: dict = Field(default_factory=dict)
 
 
@@ -115,13 +115,10 @@ def _dkim_domain_aligned(record: DmarcRecord, header_from: str) -> bool:
     if not header_from:
         return False
     h = header_from.lower()
-    return any(
-        (d.domain or "").lower() == h and d.result == "pass"
-        for d in record.auth_dkim
-    )
+    return any((d.domain or "").lower() == h and d.result == "pass" for d in record.auth_dkim)
 
 
-def _is_known_provider(ident, known_providers: Optional[set[str]]) -> bool:
+def _is_known_provider(ident, known_providers: set[str] | None) -> bool:
     """True when the source is a recognised sender — either a curated
     identity (CIDR/vendor match) or a real provider identity (a named
     domain/host) seen in past reports. A failing message from a known
@@ -134,7 +131,7 @@ def _is_known_provider(ident, known_providers: Optional[set[str]]) -> bool:
     if ident.kind in _CURATED_KINDS:
         return True
     if ident.kind in ("domain", "infra"):
-        return bool(known_providers) and ident.provider_key in known_providers
+        return known_providers is not None and ident.provider_key in known_providers
     return False
 
 
@@ -146,9 +143,9 @@ _RECUR_PERIODS = 2
 
 def classify_record(
     record: DmarcRecord,
-    policy: Optional[DmarcPolicyPublished] = None,
-    known_providers: Optional[set[str]] = None,
-    fail_history: Optional[dict[str, int]] = None,
+    policy: DmarcPolicyPublished | None = None,
+    known_providers: set[str] | None = None,
+    fail_history: dict[str, int] | None = None,
 ) -> ClassificationResult:
     """Run the rule cascade and return the first match.
 
@@ -169,7 +166,7 @@ def classify_record(
     known = _is_known_provider(ident, known_providers)
     header_from = (record.header_from or "").lower()
     domain = (policy.domain if policy else header_from).lower()
-    policy_p = (policy.p if policy else None)
+    policy_p = policy.p if policy else None
     dkim_pass = record.policy_dkim == "pass"
     spf_pass = record.policy_spf == "pass"
     fail_both = not dkim_pass and not spf_pass
@@ -212,10 +209,10 @@ def classify_record(
             severity=Severity.INFO,
             headline="Receiver trusted via ARC chain",
             explainer=(
-                f"The receiver applied an ARC override — they trusted "
-                f"the original authentication that came in before "
-                f"forwarding. DKIM may show as failing in this row but "
-                f"the email still passed end-to-end. No action."
+                "The receiver applied an ARC override — they trusted "
+                "the original authentication that came in before "
+                "forwarding. DKIM may show as failing in this row but "
+                "the email still passed end-to-end. No action."
             ),
             source_match=src,
             details=base,
@@ -228,9 +225,9 @@ def classify_record(
             severity=Severity.INFO,
             headline="Forwarded email override applied by receiver",
             explainer=(
-                f"The receiver flagged this as a forwarded message. "
-                f"Auth failures here come from the forwarding hop, not "
-                f"the original send. No action."
+                "The receiver flagged this as a forwarded message. "
+                "Auth failures here come from the forwarding hop, not "
+                "the original send. No action."
             ),
             source_match=src,
             details=base,
@@ -270,10 +267,10 @@ def classify_record(
             severity=Severity.INFO,
             headline="Mailing-list override applied by receiver",
             explainer=(
-                f"A mailing list re-distributed this message. The list's "
-                f"server signs with its own envelope so SPF on your domain "
-                f"naturally fails on this hop. The receiver recognised the "
-                f"list pattern and delivered it anyway. No action."
+                "A mailing list re-distributed this message. The list's "
+                "server signs with its own envelope so SPF on your domain "
+                "naturally fails on this hop. The receiver recognised the "
+                "list pattern and delivered it anyway. No action."
             ),
             source_match=src,
             details=base,
@@ -332,9 +329,7 @@ def classify_record(
         and not _spf_envelope_aligned(record, header_from)
         and dispo == "none"
     ):
-        fwd_dom = next(
-            (s.domain for s in record.auth_spf if s.domain), "?"
-        )
+        fwd_dom = next((s.domain for s in record.auth_spf if s.domain), "?")
         return ClassificationResult(
             classification="forwarding_artifact",
             severity=Severity.INFO,
@@ -355,11 +350,7 @@ def classify_record(
     # Mimecast, IronPort, Forcepoint) breaking DKIM looks like
     # spoofing on the surface (DKIM+SPF fail) but is actually the
     # recipient's own security stack misbehaving.
-    if (
-        ident.kind == "gateway"
-        and not dkim_pass
-        and dispo in ("none", "quarantine", "reject")
-    ):
+    if ident.kind == "gateway" and not dkim_pass and dispo in ("none", "quarantine", "reject"):
         return ClassificationResult(
             classification="gateway_relay",
             severity=Severity.LOW,

@@ -76,7 +76,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 passed=False,
                 message=(
                     f"Opening uses generic filler phrase: "
-                    f"\"{hits[0]}\". Spam-filter NLP models flag these "
+                    f'"{hits[0]}". Spam-filter NLP models flag these '
                     f"as mass-email markers. Open with something specific "
                     f"to the recipient or the news instead."
                 ),

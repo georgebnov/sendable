@@ -13,7 +13,7 @@ Doc tier: §9 (header / MIME structure signals).
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 
 from ...parse import ParsedEmail
@@ -49,7 +49,7 @@ def _parse_received_date(headers: dict[str, list[str]]) -> datetime | None:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -60,125 +60,147 @@ async def run(email: ParsedEmail) -> list[Finding]:
     # ─── required headers present ────────────────────────────────────
     missing = [h for h in _REQUIRED_HEADERS if not headers.get(h)]
     if missing:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.required_headers",
-            severity=Severity.HIGH,
-            passed=False,
-            message=(
-                f"Required RFC 5322 header(s) missing: {missing}. "
-                "Filters add ~1.5 spam-points per missing header."
-            ),
-            details={"missing": missing},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.required_headers",
+                severity=Severity.HIGH,
+                passed=False,
+                message=(
+                    f"Required RFC 5322 header(s) missing: {missing}. "
+                    "Filters add ~1.5 spam-points per missing header."
+                ),
+                details={"missing": missing},
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.required_headers",
-            severity=Severity.INFO,
-            passed=True,
-            message="All required RFC 5322 headers present.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.required_headers",
+                severity=Severity.INFO,
+                passed=True,
+                message="All required RFC 5322 headers present.",
+            )
+        )
 
     # ─── no duplicates of single-instance headers ────────────────────
     duplicates = [h for h in _NO_DUPLICATE_HEADERS if len(headers.get(h, [])) > 1]
     if duplicates:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.duplicate_headers",
-            severity=Severity.HIGH,
-            passed=False,
-            message=(
-                f"Duplicate single-instance header(s): {duplicates}. "
-                "Many MTAs reject; filters score this as malformed."
-            ),
-            details={"duplicates": duplicates},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.duplicate_headers",
+                severity=Severity.HIGH,
+                passed=False,
+                message=(
+                    f"Duplicate single-instance header(s): {duplicates}. "
+                    "Many MTAs reject; filters score this as malformed."
+                ),
+                details={"duplicates": duplicates},
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.duplicate_headers",
-            severity=Severity.INFO,
-            passed=True,
-            message="No duplicate single-instance headers.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.duplicate_headers",
+                severity=Severity.INFO,
+                passed=True,
+                message="No duplicate single-instance headers.",
+            )
+        )
 
     # ─── Date sanity ─────────────────────────────────────────────────
     date_hdr = headers.get("date", [])
     if not date_hdr:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.date_sanity",
-            severity=Severity.LOW,
-            passed=False,
-            message="No Date header — covered by required_headers above.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.date_sanity",
+                severity=Severity.LOW,
+                passed=False,
+                message="No Date header — covered by required_headers above.",
+            )
+        )
     else:
         try:
             sent_at = parsedate_to_datetime(date_hdr[0])
             if sent_at is None:
                 raise ValueError("None")
             if sent_at.tzinfo is None:
-                sent_at = sent_at.replace(tzinfo=timezone.utc)
+                sent_at = sent_at.replace(tzinfo=UTC)
         except (TypeError, ValueError):
-            findings.append(Finding(
-                check=f"{CHECK_PREFIX}.date_sanity",
-                severity=Severity.MEDIUM,
-                passed=False,
-                message=f"Date header unparseable: {date_hdr[0][:80]!r}.",
-                details={"raw": date_hdr[0][:200]},
-            ))
+            findings.append(
+                Finding(
+                    check=f"{CHECK_PREFIX}.date_sanity",
+                    severity=Severity.MEDIUM,
+                    passed=False,
+                    message=f"Date header unparseable: {date_hdr[0][:80]!r}.",
+                    details={"raw": date_hdr[0][:200]},
+                )
+            )
         else:
             received_at = _parse_received_date(headers)
-            anchor = received_at or datetime.now(timezone.utc)
+            anchor = received_at or datetime.now(UTC)
             drift = abs((sent_at - anchor).total_seconds())
             drift_days = drift / 86400.0
             if drift_days > _DATE_DRIFT_DAYS:
                 direction = "future" if sent_at > anchor else "past"
-                findings.append(Finding(
-                    check=f"{CHECK_PREFIX}.date_sanity",
-                    severity=Severity.MEDIUM,
-                    passed=False,
-                    message=(
-                        f"Date is {drift_days:.1f} days in the {direction} "
-                        f"vs receive time. SpamAssassin DATE_IN_{direction.upper()} "
-                        "fires above 6h drift; >7d is heavily weighted."
-                    ),
-                    details={
-                        "drift_days": round(drift_days, 1),
-                        "sent_at": sent_at.isoformat(),
-                        "received_at": (received_at.isoformat() if received_at else "now"),
-                    },
-                ))
+                findings.append(
+                    Finding(
+                        check=f"{CHECK_PREFIX}.date_sanity",
+                        severity=Severity.MEDIUM,
+                        passed=False,
+                        message=(
+                            f"Date is {drift_days:.1f} days in the {direction} "
+                            f"vs receive time. SpamAssassin DATE_IN_{direction.upper()} "
+                            "fires above 6h drift; >7d is heavily weighted."
+                        ),
+                        details={
+                            "drift_days": round(drift_days, 1),
+                            "sent_at": sent_at.isoformat(),
+                            "received_at": (received_at.isoformat() if received_at else "now"),
+                        },
+                    )
+                )
             else:
-                findings.append(Finding(
-                    check=f"{CHECK_PREFIX}.date_sanity",
-                    severity=Severity.INFO,
-                    passed=True,
-                    message=f"Date within {drift_days:.1f}d of receive time.",
-                ))
+                findings.append(
+                    Finding(
+                        check=f"{CHECK_PREFIX}.date_sanity",
+                        severity=Severity.INFO,
+                        passed=True,
+                        message=f"Date within {drift_days:.1f}d of receive time.",
+                    )
+                )
 
     # ─── Message-ID well-formed ──────────────────────────────────────
     mid = headers.get("message-id", [])
     if not mid:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.message_id",
-            severity=Severity.LOW,
-            passed=False,
-            message="No Message-ID — covered by required_headers above.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.message_id",
+                severity=Severity.LOW,
+                passed=False,
+                message="No Message-ID — covered by required_headers above.",
+            )
+        )
     elif not _MSG_ID_RX.match(mid[0]):
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.message_id",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=(
-                f"Message-ID malformed: {mid[0][:120]!r}. RFC 5322 requires "
-                "<localpart@domain> shape."
-            ),
-            details={"raw": mid[0][:200]},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.message_id",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=(
+                    f"Message-ID malformed: {mid[0][:120]!r}. RFC 5322 requires "
+                    "<localpart@domain> shape."
+                ),
+                details={"raw": mid[0][:200]},
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.message_id",
-            severity=Severity.INFO,
-            passed=True,
-            message="Message-ID well-formed.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.message_id",
+                severity=Severity.INFO,
+                passed=True,
+                message="Message-ID well-formed.",
+            )
+        )
 
     return findings

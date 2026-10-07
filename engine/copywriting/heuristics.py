@@ -50,7 +50,7 @@ def _relabel(findings: list[Finding]) -> list[Finding]:
     out: list[Finding] = []
     for f in findings:
         if f.check.startswith(_OLD_PREFIX):
-            new_check = _NEW_PREFIX + f.check[len(_OLD_PREFIX):]
+            new_check = _NEW_PREFIX + f.check[len(_OLD_PREFIX) :]
             f = f.model_copy(update={"check": new_check})
         out.append(f)
     return out
@@ -74,9 +74,8 @@ async def run(email: ParsedEmail) -> list[Finding]:
     # Preview-text used for spam-trigger scan. Prefer real preheader from
     # hidden HTML; fall back to opening body line when no preheader was
     # shipped (substring matching only — not authoritative).
-    preview = (
-        structured.preview_text
-        or (structured.body_blocks[0][:120] if structured.body_blocks else "")
+    preview = structured.preview_text or (
+        structured.body_blocks[0][:120] if structured.body_blocks else ""
     )
     body = _narrative_body(structured)
 
@@ -86,7 +85,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
     # Spam-trigger scan + compound-signal score.
     trigger_map = _load_trigger_map()
     trigger_findings, fired_categories = _check_spam_triggers(
-        subject, preview, body, trigger_map,
+        subject,
+        preview,
+        body,
+        trigger_map,
     )
     findings.extend(_relabel(trigger_findings))
     findings.extend(_relabel(_check_compound_signal(fired_categories)))

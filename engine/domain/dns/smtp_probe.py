@@ -32,7 +32,6 @@ from __future__ import annotations
 import asyncio
 import re
 import smtplib
-import socket
 import ssl
 
 from ...report import Finding
@@ -71,7 +70,7 @@ def _open_relay_probe_blocking(host: str) -> dict:
                     out["open_relay"] = False
             except Exception:
                 out["open_relay"] = None
-    except (smtplib.SMTPException, socket.error, ssl.SSLError) as e:
+    except (OSError, smtplib.SMTPException, ssl.SSLError) as e:
         out["error"] = f"connect:{type(e).__name__}:{e}"
     except Exception as e:
         out["error"] = f"error:{type(e).__name__}"
@@ -86,35 +85,41 @@ async def run(domain: str) -> list[Finding]:
     findings: list[Finding] = []
     mx_ans = await query(domain, "MX")
     if not mx_ans.ok or not mx_ans.records:
-        findings.append(Finding(
-            check="smtp.dns_resolution",
-            severity=Severity.HIGH,
-            passed=False,
-            message=f"No MX records for {domain}.",
-            details={"dns_error": mx_ans.error},
-        ))
+        findings.append(
+            Finding(
+                check="smtp.dns_resolution",
+                severity=Severity.HIGH,
+                passed=False,
+                message=f"No MX records for {domain}.",
+                details={"dns_error": mx_ans.error},
+            )
+        )
         return findings
 
-    findings.append(Finding(
-        check="smtp.dns_resolution",
-        severity=Severity.INFO,
-        passed=True,
-        message=f"{len(mx_ans.records)} MX record(s) for {domain}.",
-        details={"mx": list(mx_ans.records)[:5]},
-    ))
+    findings.append(
+        Finding(
+            check="smtp.dns_resolution",
+            severity=Severity.INFO,
+            passed=True,
+            message=f"{len(mx_ans.records)} MX record(s) for {domain}.",
+            details={"mx": list(mx_ans.records)[:5]},
+        )
+    )
 
     # Null MX (RFC 7505): single MX target "." — domain accepts no mail.
     if len(mx_ans.records) == 1 and mx_ans.records[0].rstrip().endswith(" ."):
-        findings.append(Finding(
-            check="smtp.null_mx",
-            severity=Severity.INFO,
-            passed=True,
-            message=(
-                f"Null MX record (RFC 7505) at {domain} — domain explicitly "
-                "accepts no mail. SMTP probe skipped."
-            ),
-            details={"mx": mx_ans.records[0]},
-        ))
+        findings.append(
+            Finding(
+                check="smtp.null_mx",
+                severity=Severity.INFO,
+                passed=True,
+                message=(
+                    f"Null MX record (RFC 7505) at {domain} — domain explicitly "
+                    "accepts no mail. SMTP probe skipped."
+                ),
+                details={"mx": mx_ans.records[0]},
+            )
+        )
         return findings
 
     def _pref(rec: str) -> int:
@@ -122,15 +127,11 @@ async def run(domain: str) -> list[Finding]:
             return int(rec.split(" ", 1)[0])
         except (ValueError, IndexError):
             return 999
-    mx_records_sorted = sorted(mx_ans.records, key=_pref)
-    mx_hosts = [
-        (m.split(" ", 1)[1] if " " in m else m).rstrip(".")
-        for m in mx_records_sorted
-    ]
 
-    per_host_findings = await asyncio.gather(
-        *[_audit_mx_host(mx_host) for mx_host in mx_hosts]
-    )
+    mx_records_sorted = sorted(mx_ans.records, key=_pref)
+    mx_hosts = [(m.split(" ", 1)[1] if " " in m else m).rstrip(".") for m in mx_records_sorted]
+
+    per_host_findings = await asyncio.gather(*[_audit_mx_host(mx_host) for mx_host in mx_hosts])
     for host_f in per_host_findings:
         findings.extend(host_f)
     return findings
@@ -144,74 +145,88 @@ async def _audit_mx_host(mx_host: str) -> list[Finding]:
     findings: list[Finding] = []
 
     if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}$", mx_host):
-        findings.append(Finding(
-            check="smtp.mx_bare_ip",
-            severity=Severity.HIGH,
-            passed=False,
-            message=(
-                f"MX target {mx_host!r} is a bare IP literal — RFC 1035/5321 "
-                "forbid IP literals in MX records. Many strict receivers reject."
-            ),
-            details={"mx_host": mx_host},
-        ))
+        findings.append(
+            Finding(
+                check="smtp.mx_bare_ip",
+                severity=Severity.HIGH,
+                passed=False,
+                message=(
+                    f"MX target {mx_host!r} is a bare IP literal — RFC 1035/5321 "
+                    "forbid IP literals in MX records. Many strict receivers reject."
+                ),
+                details={"mx_host": mx_host},
+            )
+        )
     else:
-        findings.append(Finding(
-            check="smtp.mx_bare_ip",
-            severity=Severity.INFO,
-            passed=True,
-            message=f"{mx_host}: not a bare IP literal.",
-            details={"mx_host": mx_host},
-        ))
+        findings.append(
+            Finding(
+                check="smtp.mx_bare_ip",
+                severity=Severity.INFO,
+                passed=True,
+                message=f"{mx_host}: not a bare IP literal.",
+                details={"mx_host": mx_host},
+            )
+        )
 
     cname_ans = await query(mx_host, "CNAME")
     if cname_ans.ok and cname_ans.records:
-        findings.append(Finding(
-            check="smtp.mx_cname_violation",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=(
-                f"MX target {mx_host} is a CNAME → {cname_ans.records[0]!r}. "
-                "RFC 2181 §10.3 forbids CNAMEs as MX targets; some receivers "
-                "reject (defer the alias chain instead)."
-            ),
-            details={"mx_host": mx_host, "cname_to": list(cname_ans.records)},
-        ))
+        findings.append(
+            Finding(
+                check="smtp.mx_cname_violation",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=(
+                    f"MX target {mx_host} is a CNAME → {cname_ans.records[0]!r}. "
+                    "RFC 2181 §10.3 forbids CNAMEs as MX targets; some receivers "
+                    "reject (defer the alias chain instead)."
+                ),
+                details={"mx_host": mx_host, "cname_to": list(cname_ans.records)},
+            )
+        )
     else:
-        findings.append(Finding(
-            check="smtp.mx_cname_violation",
-            severity=Severity.INFO,
-            passed=True,
-            message=f"{mx_host}: not a CNAME.",
-            details={"mx_host": mx_host},
-        ))
+        findings.append(
+            Finding(
+                check="smtp.mx_cname_violation",
+                severity=Severity.INFO,
+                passed=True,
+                message=f"{mx_host}: not a CNAME.",
+                details={"mx_host": mx_host},
+            )
+        )
 
     probe = await _open_relay_probe(mx_host)
     if probe["open_relay"] is True:
-        findings.append(Finding(
-            check="smtp.open_relay",
-            severity=Severity.CRITICAL,
-            passed=False,
-            message=(
-                f"{mx_host} accepted off-domain RCPT TO; appears to be an open "
-                "relay. Major reputation hit."
-            ),
-        ))
+        findings.append(
+            Finding(
+                check="smtp.open_relay",
+                severity=Severity.CRITICAL,
+                passed=False,
+                message=(
+                    f"{mx_host} accepted off-domain RCPT TO; appears to be an open "
+                    "relay. Major reputation hit."
+                ),
+            )
+        )
     elif probe["open_relay"] is False:
-        findings.append(Finding(
-            check="smtp.open_relay",
-            severity=Severity.INFO,
-            passed=True,
-            message=f"{mx_host} rejected open-relay probe.",
-        ))
+        findings.append(
+            Finding(
+                check="smtp.open_relay",
+                severity=Severity.INFO,
+                passed=True,
+                message=f"{mx_host} rejected open-relay probe.",
+            )
+        )
     else:
-        findings.append(Finding(
-            check="smtp.open_relay",
-            severity=Severity.INFO,
-            passed=True,
-            message=(
-                f"{mx_host} open-relay probe inconclusive "
-                f"({probe.get('error') or 'no response'})."
-            ),
-        ))
+        findings.append(
+            Finding(
+                check="smtp.open_relay",
+                severity=Severity.INFO,
+                passed=True,
+                message=(
+                    f"{mx_host} open-relay probe inconclusive "
+                    f"({probe.get('error') or 'no response'})."
+                ),
+            )
+        )
 
     return findings

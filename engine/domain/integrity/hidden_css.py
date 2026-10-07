@@ -171,20 +171,25 @@ async def run(email: ParsedEmail) -> list[Finding]:
         # Adversarial hits never get demoted — instruction-verb / long
         # hidden text is a real prompt-injection signal regardless of who
         # injected it.
-        profile = None if any_adversarial else esp.detect(email)
-        is_chrome = (
-            profile is not None
-            and profile.is_high_confidence()
-            and all(h.get("class") == "benign" for h in hits)
+        detected = None if any_adversarial else esp.detect(email)
+        # Narrowed profile rather than a bool, so chrome.name below type-checks.
+        chrome = (
+            detected
+            if (
+                detected is not None
+                and detected.is_high_confidence()
+                and all(h.get("class") == "benign" for h in hits)
+            )
+            else None
         )
-        if is_chrome:
+        if chrome is not None:
             severity = Severity.INFO
             source = "esp_template"
             message = (
                 f"Hidden-text patterns detected ({len(hits)} hit(s)) but match "
-                f"{profile.name} template chrome (preview-text / footer). "
+                f"{chrome.name} template chrome (preview-text / footer). "
                 f"Not user content — clear the preview-text field in your "
-                f"{profile.name} composer to remove."
+                f"{chrome.name} composer to remove."
             )
         else:
             severity = Severity.CRITICAL if any_adversarial else Severity.HIGH
@@ -199,7 +204,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=severity,
                 passed=False,
                 message=message,
-                details={"hits": hits[:20], "esp": profile.name if profile else None},
+                details={"hits": hits[:20], "esp": detected.name if detected else None},
                 source=source,
             )
         ]

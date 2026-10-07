@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email import message_from_bytes, policy
 from email.message import EmailMessage
 from email.utils import parsedate_to_datetime
@@ -38,8 +38,8 @@ def _parse_rfc2822_date(value: str) -> datetime | None:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def _extract_received_at(headers: dict[str, list[str]]) -> datetime | None:
@@ -103,7 +103,7 @@ def parse_eml(source: bytes | str | Path) -> ParsedEmail:
         html=html,
         plain_text=plain,
         from_addr=msg.get("From"),
-        to_addrs=[addr for addr in (msg.get_all("To") or [])],
+        to_addrs=list(msg.get_all("To") or []),
         subject=msg.get("Subject"),
         authentication_results=headers.get("authentication-results", []),
         received_at=_extract_received_at(headers),

@@ -24,8 +24,17 @@ _DMARC_PREFIX_RX = re.compile(r"^\s*v\s*=\s*DMARC1\b", re.IGNORECASE)
 _TAG_RX = re.compile(r"\s*([a-zA-Z]+)\s*=\s*([^;]+?)\s*(?:;|$)")
 
 _VALID_TAGS = {
-    "v", "p", "sp", "rua", "ruf", "adkim", "aspf",
-    "pct", "fo", "rf", "ri",
+    "v",
+    "p",
+    "sp",
+    "rua",
+    "ruf",
+    "adkim",
+    "aspf",
+    "pct",
+    "fo",
+    "rf",
+    "ri",
 }
 _VALID_POLICIES = ("none", "quarantine", "reject")
 _VALID_ALIGNMENT = ("r", "s")
@@ -59,58 +68,73 @@ async def run(domain: str) -> list[Finding]:
     # parent policy (and parent's `sp=` applies to subdomains).
     if not records:
         from ...copywriting.link_quality import _registrable
+
         org_domain = _registrable(domain)
         if org_domain and org_domain != domain:
             fallback_qname = f"_dmarc.{org_domain}"
             fallback_ans = await query(fallback_qname, "TXT")
-            fallback_records = [r for r in fallback_ans.records if _DMARC_PREFIX_RX.match(r)] if fallback_ans.ok else []
+            fallback_records = (
+                [r for r in fallback_ans.records if _DMARC_PREFIX_RX.match(r)]
+                if fallback_ans.ok
+                else []
+            )
             if fallback_records:
                 qname = fallback_qname
                 ans = fallback_ans
                 records = fallback_records
-                findings.append(Finding(
-                    check=f"{CHECK_PREFIX}.org_domain_fallback",
-                    severity=Severity.INFO,
-                    passed=True,
-                    message=(
-                        f"No DMARC at _dmarc.{domain}; inherited from "
-                        f"organizational domain {org_domain} per RFC 7489 §6.6.3."
-                    ),
-                    details={"queried": domain, "found_at": org_domain},
-                ))
+                findings.append(
+                    Finding(
+                        check=f"{CHECK_PREFIX}.org_domain_fallback",
+                        severity=Severity.INFO,
+                        passed=True,
+                        message=(
+                            f"No DMARC at _dmarc.{domain}; inherited from "
+                            f"organizational domain {org_domain} per RFC 7489 §6.6.3."
+                        ),
+                        details={"queried": domain, "found_at": org_domain},
+                    )
+                )
 
     if not records:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.published",
-            severity=Severity.HIGH,
-            passed=False,
-            message=f"No DMARC record at {qname} (and no parent org-domain record).",
-            details={"dns_error": ans.error},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.published",
+                severity=Severity.HIGH,
+                passed=False,
+                message=f"No DMARC record at {qname} (and no parent org-domain record).",
+                details={"dns_error": ans.error},
+            )
+        )
         return findings
 
-    findings.append(Finding(
-        check=f"{CHECK_PREFIX}.published",
-        severity=Severity.INFO,
-        passed=True,
-        message=f"DMARC record published at {qname}.",
-        details={"record": records[0][:200]},
-    ))
-
-    if len(records) > 1:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.multiple_records",
-            severity=Severity.HIGH,
-            passed=False,
-            message=f"{len(records)} DMARC records found; receivers will ignore both.",
-        ))
-    else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.multiple_records",
+    findings.append(
+        Finding(
+            check=f"{CHECK_PREFIX}.published",
             severity=Severity.INFO,
             passed=True,
-            message="Single DMARC record.",
-        ))
+            message=f"DMARC record published at {qname}.",
+            details={"record": records[0][:200]},
+        )
+    )
+
+    if len(records) > 1:
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.multiple_records",
+                severity=Severity.HIGH,
+                passed=False,
+                message=f"{len(records)} DMARC records found; receivers will ignore both.",
+            )
+        )
+    else:
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.multiple_records",
+                severity=Severity.INFO,
+                passed=True,
+                message="Single DMARC record.",
+            )
+        )
 
     parsed = _parse(records[0])
     syntax_issues: list[str] = []
@@ -131,45 +155,53 @@ async def run(domain: str) -> list[Finding]:
             syntax_issues.append("pct not numeric")
 
     if syntax_issues:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.syntax",
-            severity=Severity.HIGH,
-            passed=False,
-            message=f"DMARC syntax issues: {'; '.join(syntax_issues[:5])}",
-            details={"issues": syntax_issues},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.syntax",
+                severity=Severity.HIGH,
+                passed=False,
+                message=f"DMARC syntax issues: {'; '.join(syntax_issues[:5])}",
+                details={"issues": syntax_issues},
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.syntax",
-            severity=Severity.INFO,
-            passed=True,
-            message="DMARC syntax OK.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.syntax",
+                severity=Severity.INFO,
+                passed=True,
+                message="DMARC syntax OK.",
+            )
+        )
 
     policy = parsed.get("p", "").lower()
     if policy == "none":
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.policy_enabled",
-            severity=Severity.LOW,
-            passed=False,
-            message=(
-                "DMARC policy is p=none (monitor-only). This meets the Gmail / "
-                "Yahoo / Microsoft minimum compliance bar — your sending is "
-                "technically compliant — but p=none does not protect your "
-                "domain from spoofing: receivers still deliver mail that fails "
-                "DMARC. Recommended upgrade path: review aggregate (rua) reports "
-                "for ~30 days, then advance to p=quarantine and eventually "
-                "p=reject."
-            ),
-            family="dmarc_policy",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.policy_enabled",
+                severity=Severity.LOW,
+                passed=False,
+                message=(
+                    "DMARC policy is p=none (monitor-only). This meets the Gmail / "
+                    "Yahoo / Microsoft minimum compliance bar — your sending is "
+                    "technically compliant — but p=none does not protect your "
+                    "domain from spoofing: receivers still deliver mail that fails "
+                    "DMARC. Recommended upgrade path: review aggregate (rua) reports "
+                    "for ~30 days, then advance to p=quarantine and eventually "
+                    "p=reject."
+                ),
+                family="dmarc_policy",
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.policy_enabled",
-            severity=Severity.INFO,
-            passed=True,
-            message=f"DMARC policy enforced: p={policy}.",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.policy_enabled",
+                severity=Severity.INFO,
+                passed=True,
+                message=f"DMARC policy enforced: p={policy}.",
+            )
+        )
 
     # External validation: any rua/ruf address whose domain != sender domain
     # must be authorized via `<sender>._report._dmarc.<rua-domain>` TXT.
@@ -187,22 +219,26 @@ async def run(domain: str) -> list[Finding]:
             if not authorized:
                 external_failures.append(f"{tag}:{addr}")
     if external_failures:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.external_validation",
-            severity=Severity.MEDIUM,
-            passed=False,
-            message=(
-                f"External rua/ruf domain(s) without authorization TXT: "
-                f"{external_failures[:3]}. Reports won't be delivered."
-            ),
-            details={"failures": external_failures},
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.external_validation",
+                severity=Severity.MEDIUM,
+                passed=False,
+                message=(
+                    f"External rua/ruf domain(s) without authorization TXT: "
+                    f"{external_failures[:3]}. Reports won't be delivered."
+                ),
+                details={"failures": external_failures},
+            )
+        )
     else:
-        findings.append(Finding(
-            check=f"{CHECK_PREFIX}.external_validation",
-            severity=Severity.INFO,
-            passed=True,
-            message="External rua/ruf authorization OK (or none external).",
-        ))
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.external_validation",
+                severity=Severity.INFO,
+                passed=True,
+                message="External rua/ruf authorization OK (or none external).",
+            )
+        )
 
     return findings

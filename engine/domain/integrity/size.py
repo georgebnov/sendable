@@ -27,7 +27,9 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="size.html_bytes",
                 severity=Severity.CRITICAL,
                 passed=False,
-                message=f"HTML is {byte_len:,} bytes, exceeds Gmail clip limit ({GMAIL_CLIP_BYTES:,}).",
+                message=(
+                    f"HTML is {byte_len:,} bytes, exceeds Gmail clip limit ({GMAIL_CLIP_BYTES:,})."
+                ),
                 details={"bytes": byte_len, "limit": GMAIL_CLIP_BYTES},
             )
         ]

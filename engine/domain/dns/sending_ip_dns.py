@@ -33,84 +33,91 @@ from .blacklist import extract_sender_ip
 async def run(headers: dict[str, list[str]]) -> list[Finding]:
     sender_ip = extract_sender_ip(headers)
     if not sender_ip:
-        return [Finding(
+        return [
+            Finding(
+                check="sending_ip.extraction",
+                severity=Severity.INFO,
+                passed=False,
+                message=(
+                    "No sender IP recoverable from Received chain; PTR/FCrDNS "
+                    "checks skipped. Common cause: message was ARC-rewritten or "
+                    "forwarded before this audit ingested it."
+                ),
+            )
+        ]
+
+    findings: list[Finding] = [
+        Finding(
             check="sending_ip.extraction",
             severity=Severity.INFO,
-            passed=False,
-            message=(
-                "No sender IP recoverable from Received chain; PTR/FCrDNS "
-                "checks skipped. Common cause: message was ARC-rewritten or "
-                "forwarded before this audit ingested it."
-            ),
-        )]
-
-    findings: list[Finding] = [Finding(
-        check="sending_ip.extraction",
-        severity=Severity.INFO,
-        passed=True,
-        message=f"Sending IP extracted from Received chain: {sender_ip}.",
-        details={"ip": sender_ip},
-    )]
+            passed=True,
+            message=f"Sending IP extracted from Received chain: {sender_ip}.",
+            details={"ip": sender_ip},
+        )
+    ]
 
     ptr_ans = await reverse_lookup(sender_ip)
     if not ptr_ans.ok or not ptr_ans.records:
-        findings.append(Finding(
-            check="sending_ip.ptr_resolves",
-            severity=Severity.HIGH,
-            passed=False,
-            message=(
-                f"No PTR record for sending IP {sender_ip}. Gmail and "
-                "Microsoft require a valid PTR on the IP that delivered "
-                "the message; missing PTR is a hard deliverability hit."
-            ),
-            details={"ip": sender_ip, "dns_error": ptr_ans.error},
-        ))
+        findings.append(
+            Finding(
+                check="sending_ip.ptr_resolves",
+                severity=Severity.HIGH,
+                passed=False,
+                message=(
+                    f"No PTR record for sending IP {sender_ip}. Gmail and "
+                    "Microsoft require a valid PTR on the IP that delivered "
+                    "the message; missing PTR is a hard deliverability hit."
+                ),
+                details={"ip": sender_ip, "dns_error": ptr_ans.error},
+            )
+        )
         return findings
 
     ptr = ptr_ans.records[0].rstrip(".")
-    findings.append(Finding(
-        check="sending_ip.ptr_resolves",
-        severity=Severity.INFO,
-        passed=True,
-        message=f"PTR for sending IP {sender_ip} → {ptr}.",
-        details={"ip": sender_ip, "ptr": ptr},
-    ))
+    findings.append(
+        Finding(
+            check="sending_ip.ptr_resolves",
+            severity=Severity.INFO,
+            passed=True,
+            message=f"PTR for sending IP {sender_ip} → {ptr}.",
+            details={"ip": sender_ip, "ptr": ptr},
+        )
+    )
 
     # FCrDNS: forward-resolve the PTR hostname and confirm it returns
     # the same sending IP. Strict Gmail/MS requirement.
     fwd_ans = await query(ptr, "A")
     forward_ips = list(fwd_ans.records) if fwd_ans.ok else []
     if sender_ip in forward_ips:
-        findings.append(Finding(
-            check="sending_ip.fcrdns",
-            severity=Severity.INFO,
-            passed=True,
-            message=(
-                f"FCrDNS verified: PTR {ptr} forward-resolves to "
-                f"{sender_ip}."
-            ),
-            details={"ip": sender_ip, "ptr": ptr, "forward_ips": forward_ips},
-        ))
+        findings.append(
+            Finding(
+                check="sending_ip.fcrdns",
+                severity=Severity.INFO,
+                passed=True,
+                message=(f"FCrDNS verified: PTR {ptr} forward-resolves to {sender_ip}."),
+                details={"ip": sender_ip, "ptr": ptr, "forward_ips": forward_ips},
+            )
+        )
     else:
-        findings.append(Finding(
-            check="sending_ip.fcrdns",
-            severity=Severity.HIGH,
-            passed=False,
-            message=(
-                f"FCrDNS mismatch: PTR for {sender_ip} is {ptr}, but {ptr} "
-                f"forward-resolves to {forward_ips or '(no A record)'}. "
-                "Gmail and Microsoft require the PTR to round-trip back to "
-                "the same IP; mismatch is a deliverability hit."
-            ),
-            details={"ip": sender_ip, "ptr": ptr, "forward_ips": forward_ips},
-        ))
+        findings.append(
+            Finding(
+                check="sending_ip.fcrdns",
+                severity=Severity.HIGH,
+                passed=False,
+                message=(
+                    f"FCrDNS mismatch: PTR for {sender_ip} is {ptr}, but {ptr} "
+                    f"forward-resolves to {forward_ips or '(no A record)'}. "
+                    "Gmail and Microsoft require the PTR to round-trip back to "
+                    "the same IP; mismatch is a deliverability hit."
+                ),
+                details={"ip": sender_ip, "ptr": ptr, "forward_ips": forward_ips},
+            )
+        )
 
     return findings
 
 
-def demote_to_info_when_esp(
-    findings: list[Finding], esp_name: str
-) -> list[Finding]:
+def demote_to_info_when_esp(findings: list[Finding], esp_name: str) -> list[Finding]:
     """Same pattern as the RBL scan: when the sending IP belongs to a
     high-confidence ESP, demote PTR/FCrDNS findings — the marketer can't
     re-publish DNS records on SendGrid/Mailchimp/Brevo's IPs."""
@@ -119,13 +126,17 @@ def demote_to_info_when_esp(
         if f.passed:
             out.append(f)
             continue
-        out.append(f.model_copy(update={
-            "severity": Severity.INFO,
-            "message": (
-                f"[ESP outbound IP — {esp_name}] {f.message} "
-                f"This IP is operated by {esp_name}, not by your domain; "
-                f"forward the finding to their deliverability team."
-            ),
-            "source": "esp_owned",
-        }))
+        out.append(
+            f.model_copy(
+                update={
+                    "severity": Severity.INFO,
+                    "message": (
+                        f"[ESP outbound IP — {esp_name}] {f.message} "
+                        f"This IP is operated by {esp_name}, not by your domain; "
+                        f"forward the finding to their deliverability team."
+                    ),
+                    "source": "esp_owned",
+                }
+            )
+        )
     return out
