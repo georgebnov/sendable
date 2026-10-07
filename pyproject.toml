@@ -92,7 +92,7 @@ known-first-party = ["engine", "store"]
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
-files = ["engine", "scripts", "tests"]  # extended as store/ lands
+files = ["engine", "store", "scripts", "tests"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

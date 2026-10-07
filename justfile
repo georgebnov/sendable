@@ -11,7 +11,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 # The minimum share of statements that must be covered. Raise this as coverage
 # grows; never lower it to make a red run go green.
-coverage_floor := "60"
+coverage_floor := "61"
 
 # Everything. Run this before every commit.
 check: lint types test
