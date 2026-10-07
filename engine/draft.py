@@ -105,10 +105,18 @@ def _rewrite_required_headers(finding: Finding) -> Finding | None:
 
     Returns the adjusted finding, or None when there is nothing left to report.
     """
+    if finding.passed:
+        # Already passing, so there is nothing a draft could have failed. The
+        # passing finding carries no details["missing"], and treating that as an
+        # unexpected shape deleted a check that had actually run and then reported
+        # it as skipped, which is the opposite of what happened.
+        return finding
+
     missing = finding.details.get("missing")
     if not isinstance(missing, list):
-        # An older or unexpected shape. Dropping it is safer than guessing, since
-        # the message would otherwise name headers a draft cannot have.
+        # Failing, but not in the shape this knows how to re-judge. Dropping it is
+        # safer than guessing, because the message would otherwise name headers a
+        # draft cannot have.
         return None
 
     writer_missing = [h for h in missing if str(h).lower() not in _SERVER_ADDED_HEADERS]

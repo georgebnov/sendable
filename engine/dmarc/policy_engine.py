@@ -164,7 +164,18 @@ def _ladder_index(rec: DmarcRecord) -> int:
 
 
 def _build_record(policy: str, pct: int, rua: str) -> str:
-    base = f"v=DMARC1; p={policy}; rua=mailto:{rua}"
+    """The exact TXT record to publish.
+
+    `rua` may arrive with or without its scheme. Prepending a second one produced
+    `rua=mailto:mailto:dmarc@example.com`, which is not a valid DMARC URI, so
+    receivers drop the tag and stop sending the aggregate reports this whole tool
+    reads. The CLI's own default carries the scheme, so every suggestion it made
+    without an explicit --rua was that broken string.
+    """
+    address = rua.strip()
+    if not address.lower().startswith("mailto:"):
+        address = f"mailto:{address}"
+    base = f"v=DMARC1; p={policy}; rua={address}"
     if policy != "none" and pct < 100:
         base += f"; pct={pct}"
     return base

@@ -35,7 +35,11 @@ uv run --quiet ruff format --check . || fail=1
 echo "> mypy"
 uv run --quiet mypy || fail=1
 echo "> pytest with the coverage floor"
-uv run --quiet pytest -q --cov --cov-fail-under=69 || fail=1
+# Read the floor from the justfile rather than restating it. It was a literal in
+# four files, and the last bump missed this one, so the hook passed at a coverage
+# CI then rejected, while both files claimed to run the same gate.
+floor="$(sed -n 's/^coverage_floor := "\([0-9]*\)"/\1/p' justfile)"
+uv run --quiet pytest -q --cov --cov-fail-under="${floor:-70}" || fail=1
 
 if [ "$fail" -ne 0 ]; then
     echo "x gate failed. Fix the errors above; do not suppress them." >&2

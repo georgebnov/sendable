@@ -50,12 +50,10 @@ def _day(stamp: str) -> str:
     return stamp[:10] if len(stamp) >= 10 else stamp
 
 
-def _emit(data: object, as_json: bool, render: object = None) -> None:
-    if as_json:
-        json.dump(data, sys.stdout, indent=2, default=str)
-        sys.stdout.write("\n")
-    elif callable(render):
-        render()
+def _emit(data: object) -> None:
+    """Print a machine-readable payload. Callers render their own table."""
+    json.dump(data, sys.stdout, indent=2, default=str)
+    sys.stdout.write("\n")
 
 
 def _cmd_list(store: Store, args: argparse.Namespace) -> int:
@@ -64,7 +62,7 @@ def _cmd_list(store: Store, args: argparse.Namespace) -> int:
         print("No audits stored yet. Run scripts/audit.py on an email first.", file=sys.stderr)
         return 1
     if args.json:
-        _emit([asdict(r) | {"path": str(r.path)} for r in rows], True)
+        _emit([asdict(r) | {"path": str(r.path)} for r in rows])
         return 0
     print(f"{'DATE':<11} {'SCORE':>5} {'VERDICT':<8} {'SENDER':<24} SUBJECT")
     for r in rows:
@@ -81,7 +79,7 @@ def _cmd_trend(store: Store, args: argparse.Namespace) -> int:
         print("No audits stored yet.", file=sys.stderr)
         return 1
     if args.json:
-        _emit([asdict(p) for p in points], True)
+        _emit([asdict(p) for p in points])
         return 0
     print(f"{'DATE':<11} {'SCORE':>5}  {'':<22} VERDICT")
     for p in points:
@@ -102,7 +100,7 @@ def _cmd_problems(store: Store, args: argparse.Namespace) -> int:
         return 1
     total = len(score_history(store, from_domain=args.domain))
     if args.json:
-        _emit({"audits": total, "failures_by_check": counts}, True)
+        _emit({"audits": total, "failures_by_check": counts})
         return 0
     print(f"Across {total} audit(s), worst first:\n")
     print(f"{'FAILED IN':>9}  CHECK")
@@ -118,7 +116,7 @@ def _cmd_senders(store: Store, args: argparse.Namespace) -> int:
         print("No audits stored yet.", file=sys.stderr)
         return 1
     if args.json:
-        _emit([asdict(r) for r in rows], True)
+        _emit([asdict(r) for r in rows])
         return 0
     print(f"{'SENDER':<28} {'AUDITS':>6} {'LATEST':>6} {'AVG':>5} {'WORST':<8} LAST SEEN")
     for r in rows:

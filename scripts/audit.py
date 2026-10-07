@@ -141,6 +141,14 @@ def main() -> None:
     ap.add_argument("--pretty", action="store_true", help="Indent the JSON output.")
     args = ap.parse_args()
 
+    if args.offline and args.probe_unsub:
+        sys.exit(
+            "error: --offline and --probe-unsub contradict each other.\n"
+            "--offline means no outbound traffic at all. --probe-unsub fetches the "
+            "unsubscribe URL from the email under audit.\n"
+            "Drop one of them."
+        )
+
     raw = _read_source(args.target)
     # A draft is not a send. Storing it would add a row with no authentication
     # results to the history that every drift check reads, making a clean

@@ -43,6 +43,7 @@ import argparse
 import json
 import sys
 from dataclasses import asdict
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -84,6 +85,17 @@ def _ingest(args: argparse.Namespace) -> int:
         json.dumps({"files": len(args.files), "stored": stored, "skipped": skipped}),
         file=sys.stdout,
     )
+    # Nothing stored and something skipped is a failed ingest. Returning 0 let a
+    # caller treat it as success, then run `status` and be told to ingest the
+    # reports it had just tried to ingest.
+    if stored == 0 and skipped:
+        print(
+            f"error: none of the {len(args.files)} file(s) could be read as a DMARC "
+            f"aggregate report. Providers send .xml, .xml.gz, or .zip; check you "
+            f"passed the attachment and not the message that carried it.",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
@@ -105,7 +117,14 @@ def _status(args: argparse.Namespace) -> int:
         f"[dmarc] {len(reports)} report(s) for {domain} in the last {args.days} day(s)",
         file=sys.stderr,
     )
-    window = build_window(reports, domain=domain, known_providers=store.known_providers(domain))
+    # The baseline must come from BEFORE the window being judged. Built from the
+    # same reports, every source is already known and no spoof can be reported.
+    window_start = datetime.now(UTC) - timedelta(days=args.days)
+    window = build_window(
+        reports,
+        domain=domain,
+        known_providers=store.known_providers(domain, before=window_start),
+    )
 
     # The live DNS read is what makes the advice current. A report describes mail
     # sent days ago, so a fix made today is invisible in it.
@@ -149,8 +168,11 @@ def _senders(args: argparse.Namespace) -> int:
     if not reports:
         print(f"error: no stored DMARC reports for {args.domain}.", file=sys.stderr)
         return 1
+    window_start = datetime.now(UTC) - timedelta(days=args.days)
     window = build_window(
-        reports, domain=args.domain, known_providers=store.known_providers(args.domain)
+        reports,
+        domain=args.domain,
+        known_providers=store.known_providers(args.domain, before=window_start),
     )
     rows = sorted(window.senders, key=lambda s: s.volume, reverse=True)
     json.dump(

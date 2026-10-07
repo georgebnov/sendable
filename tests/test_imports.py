@@ -76,3 +76,16 @@ def test_every_script_dependency_is_also_a_project_dependency() -> None:
             f"{script.name} declares {sorted(extra)}, which pyproject.toml does not. "
             f"Add them there too, or `just check` passes while `uv run` fails."
         )
+
+        # The direction that actually ships a break. A package added to
+        # pyproject.toml and imported from engine/ or store/, but left out of a
+        # script's header, passes every check here: `uv sync` installs it, so the
+        # suite and the type checker are happy, and only a real user running
+        # `uv run scripts/<name>.py` hits ModuleNotFoundError.
+        missing = declared - names - {"openai"}
+        assert not missing, (
+            f"{script.name} does not declare {sorted(missing)}, which pyproject.toml "
+            f"lists as a runtime dependency. `uv sync` installs it for the tests, so "
+            f"everything here passes while `uv run scripts/{script.name}` fails for a "
+            f"user with only uv."
+        )
