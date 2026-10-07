@@ -295,3 +295,37 @@ def test_ingesting_only_unreadable_files_exits_non_zero(tmp_path) -> None:
     )
     assert result.returncode == 1, result.stdout + result.stderr
     assert "could be read as a DMARC" in result.stderr
+
+
+# ── the streak is only safe because evidence depth is gated first ──────────
+
+
+def test_a_wide_span_with_thin_evidence_cannot_advance() -> None:
+    """Two reports a month apart must not read as a month of clean sending.
+
+    `clean_streak_days` measures the span the clean run covers, so two reports 29
+    days apart return 30. On its own that would clear CLEAN_DAYS_REQUIRED on two
+    days of evidence.
+
+    It is safe only because `dmarc_decision` checks MIN_DAYS_WITH_DATA and
+    MIN_MESSAGES_IN_WINDOW first and returns HOLD_INSUFFICIENT_DATA before the
+    streak is ever consulted. That ordering is load-bearing, and nothing else
+    records it, so this test fails if the gates are reordered or removed.
+    """
+    from engine.dmarc.policy_engine import (
+        MIN_DAYS_WITH_DATA,
+        dmarc_decision,
+    )
+    from engine.dmarc.policy_engine import (
+        DmarcRecord as PolicyRecord,
+    )
+
+    reports = [_report(_rec(), day=1), _report(_rec(), day=30)]
+    window = build_window(reports, domain=DOMAIN)
+    assert window.clean_streak_days >= CLEAN_DAYS_REQUIRED, "the span is wide"
+    assert window.days_with_data < MIN_DAYS_WITH_DATA, "but the evidence is thin"
+
+    action = dmarc_decision(PolicyRecord(exists=True, p="none"), window, "mailto:dmarc@example.com")
+    assert action.code == "HOLD_INSUFFICIENT_DATA", (
+        f"a wide span with two days of data advanced anyway: {action.code}"
+    )
