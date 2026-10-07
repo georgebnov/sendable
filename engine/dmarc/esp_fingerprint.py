@@ -152,7 +152,12 @@ def classify(ip: str) -> ESPMatch:
     if not host:
         return ESPMatch(name="unknown", kind="unknown", hostname=None)
     for suffix, name, kind in _SUFFIX_TABLE:
-        if host.endswith(suffix.lstrip(".")) or ("." + host).endswith(suffix):
+        # Match on a label boundary, never on a bare string ending. Reverse DNS
+        # is set by whoever rents the IP, so "mail.toolkit.com" is something
+        # anyone can publish; a plain endswith("kit.com") accepted it as Kit, and
+        # the classifier then reports a spoof as a sender you already use.
+        domain = suffix.lstrip(".")
+        if host == domain or host.endswith("." + domain):
             return ESPMatch(name=name, kind=kind, hostname=host)
     return ESPMatch(name="unknown", kind="unknown", hostname=host)
 

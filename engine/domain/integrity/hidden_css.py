@@ -36,10 +36,37 @@ _COMPILED = [(re.compile(p, re.IGNORECASE), name) for p, name in _PATTERNS]
 
 # Instruction verbs common in prompt-injection payloads. Narrow list is fine
 # for PoC — legit preheaders are unlikely to contain any of these.
+# Prompt-injection phrasing, not single words.
+#
+# The earlier version matched any of "ignore", "forget", "previous",
+# "instructions", "you are", or "act as" on its own. A preheader is hidden text
+# by design, so every ESP puts one in a display:none span, and ordinary preheader
+# copy tripped it: "Don't forget: sale ends Sunday", "You are invited to our open
+# house", "Please ignore if you already registered", "Assembly instructions
+# inside". Each became CRITICAL, which is a hard gate, so a clean campaign scored
+# NO_GO and the sender was told their email contained a prompt-injection attack.
+#
+# Injection text addresses a model and tells it to disregard what it was told.
+# That takes a verb AND an object, which is what these patterns require.
 _INSTRUCTION_VERBS = re.compile(
-    r"\b(ignore|disregard|forget|override|previous|instructions?|assistant|admin|"
-    r"system\s+prompt|you\s+are|act\s+as)\b",
-    re.IGNORECASE,
+    r"""
+    # An imperative to disregard earlier instructions.
+      \b(?:ignore|disregard|forget|override|bypass)\s+
+      (?:(?:all|any|the|your|these|previous|prior|above|earlier|other)\s+)*
+      (?:instructions?|prompts?|rules?|directions?|guidelines?|context)
+    # Naming the model's own configuration.
+    | \bsystem\s+prompt\b
+    # Role reassignment.
+    | \byou\s+are\s+now\b
+    | \bact\s+as\s+(?:a|an|the)\s+\w+
+    # Supplying replacement instructions.
+    | \b(?:new|updated|revised)\s+instructions?\b
+    | \bdo\s+not\s+(?:follow|obey)\s+(?:the\s+)?(?:previous|prior|above|earlier)\b
+    # Telling a classifier what verdict to reach.
+    | \b(?:approve|classify|mark|treat)\s+(?:this|the)\s+(?:message|email|mail)\b
+      [^.]{0,40}?\bas\s+(?:safe|legitimate|trusted|not\s+spam)
+    """,
+    re.IGNORECASE | re.VERBOSE,
 )
 
 # Whitespace + invisible + filler characters. ESP preheader "spacers" use
