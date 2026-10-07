@@ -29,12 +29,18 @@ because tightening policy would start rejecting that sender's real mail.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
+from engine.copywriting.link_quality import _registrable
 from engine.dmarc.classifier import classify_record
 from engine.dmarc.esp_fingerprint import classify as classify_ip
 from engine.dmarc.parser import DmarcRecord as ParsedRecord
 from engine.dmarc.parser import DmarcReport
 from engine.dmarc.policy_engine import Sender, Window
+
+# How harshly a receiver acted, worst last. A merge keeps the worst, because a
+# sender being rejected anywhere is being rejected.
+_DISPOSITION_RANK = {"none": 0, "quarantine": 1, "reject": 2}
 
 # The trailing period the summary covers. 21 days is long enough that a weekly
 # sender appears more than once, and short enough that a fix shows up quickly.
@@ -115,8 +121,11 @@ def _forwarder_domain(record: ParsedRecord) -> str | None:
     for auth in record.auth_spf:
         if not auth.domain:
             continue
-        parts = auth.domain.split(".")
-        return ".".join(parts[-2:]) if len(parts) >= 2 else auth.domain
+        # Use the public-suffix list, not the last two labels. "Last two" turned
+        # mail.forwarder.co.uk into "co.uk", so every UK, Australian, and Japanese
+        # forwarder collapsed into one row, which is the opposite of the grouping
+        # this exists to do.
+        return _registrable(auth.domain) or auth.domain
     return None
 
 
@@ -139,20 +148,36 @@ def _sender_name(record: ParsedRecord, verdict: str | None) -> str:
     return f"Unknown source {record.source_ip}"
 
 
-def _aligned(auths: list, domain: str, *, exact: bool) -> bool:
-    """Did any auth result pass on this domain.
+def _aligned(auths: list, domain: str, *, strict: bool) -> bool:
+    """Did any auth result pass on a domain that aligns with `domain`.
 
-    DKIM alignment in relaxed mode compares organizational domains, which for the
-    shapes seen in reports means an exact match on the registrable domain. SPF
-    alignment accepts a subdomain, because a provider commonly sends as
-    mail.example.com on behalf of example.com.
+    DMARC publishes two alignment modes per method, and both default to relaxed:
+
+      strict   the authenticated domain must equal the From domain exactly
+      relaxed  they must share an organizational domain, so a subdomain aligns
+
+    Relaxed is the default, and it is what makes an ESP signing `d=em.example.com`
+    for `From: @example.com` correctly aligned. Treating that as unaligned told
+    the user a working sender was failing DMARC and that they must not tighten
+    their policy.
+
+    The comparison is on a label boundary, never a bare string ending. A plain
+    `endswith` accepted `notexample.com` as aligned with `example.com`, so a
+    spoofer passing SPF on a lookalike read as aligned, dropped out of the blocker
+    list, and the engine offered to advance the policy.
     """
-    target = domain.lower()
+    target = domain.lower().rstrip(".")
+    target_org = _registrable(target) or target
     for auth in auths:
         if auth.result != "pass" or not auth.domain:
             continue
-        got = auth.domain.lower()
-        if got == target or (not exact and got.endswith(target)):
+        got = auth.domain.lower().rstrip(".")
+        if got == target:
+            return True
+        if strict:
+            continue
+        # Relaxed: compare organizational domains, which is what RFC 7489 means.
+        if (_registrable(got) or got) == target_org:
             return True
     return False
 
@@ -185,6 +210,14 @@ class _Bucket:
             self.legitimacy = "suspicious"
         elif self.legitimacy == "unconfirmed" and other.legitimacy == "legit":
             self.legitimacy = "legit"
+        # Worst disposition wins. policy_engine gates its most urgent action,
+        # "legit mail is being rejected right now", on this field. Keeping
+        # whichever report happened to be read first meant a user whose real mail
+        # one receiver was rejecting was never told, because another receiver
+        # reported the same sender as delivered.
+        if _DISPOSITION_RANK.get(other.disposition, 0) > _DISPOSITION_RANK.get(self.disposition, 0):
+            self.disposition = other.disposition
+            self.classification = other.classification
         if other.first_seen and (self.first_seen is None or other.first_seen < self.first_seen):
             self.first_seen = other.first_seen
 
@@ -218,14 +251,20 @@ def build_window(
     an IP". Without it, new-sender detection is skipped rather than guessed.
     """
     by_key: dict[str, _Bucket] = {}
-    days: set[str] = set()
+    days: set[date] = set()
     total_volume = 0
 
     for report in reports:
-        day = report.date_end.strftime("%Y-%m-%d") if report.date_end else None
+        day = report.date_end.date() if report.date_end else None
         begin = report.date_begin.strftime("%Y-%m-%d") if report.date_begin else None
         if day:
             days.add(day)
+
+        # The published alignment tags, which default to relaxed. They were parsed
+        # into DmarcPolicyPublished and then never read, so a domain publishing
+        # adkim=s was graded as if it had published the default.
+        adkim_strict = bool(report.policy and (report.policy.adkim or "r").lower() == "s")
+        aspf_strict = bool(report.policy and (report.policy.aspf or "r").lower() == "s")
 
         for record in report.records:
             verdict = classify_record(
@@ -234,10 +273,8 @@ def build_window(
             bucket = _Bucket(
                 name=_sender_name(record, verdict),
                 volume=record.count,
-                # Relaxed DKIM alignment compares the organizational domain.
-                dkim_aligned=_aligned(record.auth_dkim, domain, exact=True),
-                # SPF alignment accepts a sending subdomain.
-                spf_aligned=_aligned(record.auth_spf, domain, exact=False),
+                dkim_aligned=_aligned(record.auth_dkim, domain, strict=adkim_strict),
+                spf_aligned=_aligned(record.auth_spf, domain, strict=aspf_strict),
                 spf_authpassed=any(a.result == "pass" for a in record.auth_spf),
                 has_dkim_signature=bool(record.auth_dkim),
                 legitimacy=legitimacy_from_classification(verdict),
@@ -262,9 +299,24 @@ def build_window(
     # the policy tightened now. One anywhere in the window resets it to zero,
     # which is the conservative reading and the one that protects the user.
     has_blocker = any((not s.dmarc_aligned) and s.legitimacy != "suspicious" for s in senders)
+
+    # The streak is how many days the clean run covers, not how many reports
+    # arrived. Counting report-days meant a sender who mails on weekdays, or who
+    # loses a day to a provider that skips empty periods or to one unreadable
+    # file, could never reach CLEAN_DAYS_REQUIRED and so could never advance. A
+    # day with no report is not a dirty day.
+    #
+    # With a blocker present this stays 0. Working out when the blocker started
+    # needs per-day aggregation the summary does not do, and 0 is the answer that
+    # protects the user.
+    clean_streak_days = 0
+    if not has_blocker and days:
+        span = (max(days) - min(days)).days + 1
+        clean_streak_days = span
+
     return Window(
         senders=senders,
-        clean_streak_days=0 if has_blocker else len(days),
+        clean_streak_days=clean_streak_days,
         days_with_data=len(days),
         total_volume=total_volume,
     )

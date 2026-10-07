@@ -108,3 +108,15 @@ jobs:
           cd /tmp/bare
           uv run --quiet "$GITHUB_WORKSPACE/scripts/reports.py" list
           uv run --quiet "$GITHUB_WORKSPACE/scripts/reports.py" trend
+
+      # dmarc.py was the one entry point this job never drove, so a dependency
+      # missing from its header alone would have shipped. It needs no network:
+      # ingesting a report and then asking for a domain with none exits 1.
+      - name: Drive the DMARC entry point
+        run: |
+          cd /tmp/bare
+          uv run --quiet "$GITHUB_WORKSPACE/scripts/dmarc.py" --help > /dev/null
+          if uv run --quiet "$GITHUB_WORKSPACE/scripts/dmarc.py" status --domain nothing.invalid; then
+            echo "expected a non-zero exit for a domain with no stored reports" >&2
+            exit 1
+          fi
