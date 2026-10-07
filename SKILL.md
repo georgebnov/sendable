@@ -50,7 +50,21 @@ uv run scripts/dmarc.py status --domain example.com --pretty
 
 # Everything sending as this domain, busiest first.
 uv run scripts/dmarc.py senders --domain example.com --pretty
+
+# Read what is already stored. Nothing here audits or writes.
+uv run scripts/reports.py trend          # is the score moving, and which way
+uv run scripts/reports.py problems       # what keeps failing, worst first
+uv run scripts/reports.py senders        # one row per sending domain
+uv run scripts/reports.py list           # every audit, newest first
+uv run scripts/reports.py show <sha>     # one full report
 ```
+
+Every `reports.py` subcommand takes `--json`. Without it the output is a table for
+a person to read. `--domain` narrows `trend`, `problems`, and `list` to one sender.
+
+`problems` is the most useful of the five. It counts how many stored audits each
+check failed in, worst first, so the top line is the thing that keeps happening
+rather than the thing that happened most recently.
 
 Every command prints JSON on stdout and progress on stderr, so stdout always
 parses. Exit code is 0 on success and 1 when there is nothing to work with.
