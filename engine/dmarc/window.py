@@ -36,6 +36,7 @@ from engine.dmarc.classifier import classify_record
 from engine.dmarc.esp_fingerprint import classify as classify_ip
 from engine.dmarc.parser import DmarcRecord as ParsedRecord
 from engine.dmarc.parser import DmarcReport
+from engine.dmarc.policy_engine import _UNCONTROLLABLE_TAGS as _UNCONTROLLABLE
 from engine.dmarc.policy_engine import Sender, Window
 
 # How harshly a receiver acted, worst last. A merge keeps the worst, because a
@@ -298,7 +299,17 @@ def build_window(
     # alignment but is not a spoof: real mail that would start being rejected if
     # the policy tightened now. One anywhere in the window resets it to zero,
     # which is the conservative reading and the one that protects the user.
-    has_blocker = any((not s.dmarc_aligned) and s.legitimacy != "suspicious" for s in senders)
+    # A blocker here means "something I must fix before advancing". A hop on the
+    # recipient's side is not that: their gateway, mailing list, or forwarder
+    # breaks alignment by design and the sender cannot authenticate it. Counting
+    # them held the streak at zero permanently, so no domain whose recipients used
+    # a security gateway could ever advance.
+    has_blocker = any(
+        (not s.dmarc_aligned)
+        and s.legitimacy != "suspicious"
+        and s.classification not in _UNCONTROLLABLE
+        for s in senders
+    )
 
     # The streak is how many days the clean run covers, not how many reports
     # arrived. Counting report-days meant a sender who mails on weekdays, or who

@@ -190,14 +190,35 @@ _UNCONTROLLABLE_TAGS = {
     "gateway_relay",
     "policy_override_fwd",
     "policy_override_mailing_list",
+    # A delivery-status notification, not a send. window._LEGIT already says
+    # treating it as legit "keeps it out of the blocker list", which was not true
+    # until _is_blocker consulted this set.
+    "bounce",
 }
 
 
+def _fixable_blockers(blockers: list[Sender]) -> list[Sender]:
+    """The blockers the sender can actually do something about.
+
+    Drops hops on the recipient's side. Those still belong in `blockers` itself,
+    because the bleeding branch uses that list to reassure the user when such a
+    hop is being rejected, which is a real thing to say and not a thing to fix.
+    """
+    return [s for s in blockers if s.classification not in _UNCONTROLLABLE_TAGS]
+
+
 def _is_blocker(s: Sender) -> bool:
-    """A sender blocks advancement if it's NOT dmarc-aligned and we can't safely
-    ignore it. Only ignore CONFIRMED-suspicious sources (advancing blocks them,
-    which is the goal). 'unconfirmed' is treated conservatively as a blocker
-    until a human confirms it's spoof."""
+    """A sender that is not aligned and cannot simply be ignored.
+
+    A confirmed spoof is ignored, because advancing is what stops it.
+    "unconfirmed" is not: a recognised sender failing alignment is the sender's
+    own mail, and tightening would start rejecting it.
+
+    This list feeds two different questions, and they want different answers for a
+    recipient-side relay. "Is this sender's mail being rejected right now" wants
+    the relay included, so the bleeding branch can say the block was expected.
+    "Does this stop me advancing" does not, which `_fixable_blockers` answers.
+    """
     return (not s.dmarc_aligned) and s.legitimacy != "suspicious"
 
 
@@ -540,8 +561,15 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
         )
 
     # 2. BLOCKED: a legit/unconfirmed sender is unaligned (would break if advanced).
-    if blockers:
-        names = ", ".join(s.name for s in blockers)
+    #
+    # Only senders the user can actually fix. A recipient's security gateway,
+    # mailing list, forwarder, or a bounce notification cannot be authenticated by
+    # the sender, so counting them here produced "Authenticate Mimecast relay
+    # (SPF include + aligned DKIM)", an instruction this file's own comments call
+    # impossible, and held every such domain off the ladder permanently.
+    fixable_blockers = _fixable_blockers(blockers)
+    if fixable_blockers:
+        names = ", ".join(s.name for s in fixable_blockers)
         return Action(
             "BLOCKED_FIX_SENDERS",
             Tier.REVIEW,
