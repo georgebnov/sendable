@@ -1,0 +1,58 @@
+name: Bug report
+description: A check reports something wrong, or a command fails.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An audit report is the most useful thing you can attach, and it contains
+        real subject lines, real link URLs, and your sending domain. Redact before
+        posting, or reproduce with a fixture from `tests/fixtures/`.
+
+        For anything exploitable, read SECURITY.md instead of filing here.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem is it
+      options:
+        - A check reported a problem that is not real (false finding)
+        - A check missed a problem that is real
+        - A command crashed or returned an error
+        - The advice was wrong or unactionable
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The exact command you ran
+      render: shell
+      placeholder: uv run scripts/audit.py mail.eml --offline
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+      description: For a false finding, say why the configuration is actually correct.
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: The output
+      description: Redact subject lines, link URLs, and your domain.
+      render: json
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Output of `uv --version` and `python --version`, plus your OS.
+      placeholder: uv 0.12.10, Python 3.13.1, macOS 15
+    validations:
+      required: true
