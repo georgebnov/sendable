@@ -236,6 +236,31 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
         sigs = await _bruteforce_selectors(domain)
         bruteforced = True
         if not sigs:
+            # The message may still be signed, just not by this domain. When the
+            # only signatures belong to a provider, saying "DKIM is not
+            # configured" is false and sends the sender to fix working mail. Name
+            # the provider instead, and say what is actually missing.
+            if out_of_scope:
+                signers = sorted({s["signing_domain"] for s in out_of_scope if s["signing_domain"]})
+                return [
+                    Finding(
+                        check=f"{CHECK_PREFIX}.published",
+                        severity=Severity.MEDIUM,
+                        passed=False,
+                        message=(
+                            f"This mail is DKIM-signed by {', '.join(signers)}, not by "
+                            f"{domain}. The signature authenticates the message, but the "
+                            f"key belongs to that provider, so you cannot rotate it and it "
+                            f"does not align with your From domain for DMARC. Ask your "
+                            f"sending tool for a branded or custom DKIM setup, which "
+                            f"publishes a key under {domain}."
+                        ),
+                        details={
+                            "third_party_signers": signers,
+                            "selectors_tried": list(_COMMON_SELECTORS),
+                        },
+                    )
+                ]
             return [
                 Finding(
                     check=f"{CHECK_PREFIX}.published",
@@ -336,10 +361,30 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
             )
 
             # Key bit-length sanity. cryptography.hazmat parses both SPKI
-            # and bare-RSAPublicKey forms; Ed25519 reports 256.
+            # and bare-RSAPublicKey forms.
+            #
+            # The floor is an RSA floor. Ed25519 keys are always 256-bit and that
+            # is strong: RFC 8463 defines Ed25519-SHA256 for DKIM precisely
+            # because a 256-bit curve key gives more security than a 2048-bit RSA
+            # key in a much smaller record. Measuring it against the RSA floor
+            # reported a correct modern key as dangerously weak, which sent the
+            # sender to "fix" a working configuration.
             k_alg = (parsed.get("k") or "rsa").lower()
             bits = _key_bits(public_key, k_alg)
-            if bits is not None:
+            if k_alg == "ed25519":
+                findings.append(
+                    Finding(
+                        check=f"{CHECK_PREFIX}.key_bits",
+                        severity=Severity.INFO,
+                        passed=True,
+                        message=(
+                            f"DKIM key at {qname} is Ed25519 (RFC 8463). Key size is "
+                            f"fixed and strong; the RSA size floor does not apply."
+                        ),
+                        details={"selector": selector, "algorithm": "ed25519", "bits": bits},
+                    )
+                )
+            elif bits is not None:
                 if bits < _DKIM_KEY_BITS_FLOOR:
                     findings.append(
                         Finding(
