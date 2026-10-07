@@ -60,7 +60,7 @@ jobs:
       # No network and no model: the suite must be deterministic. OPENAI_API_KEY
       # is deliberately absent, which is also what the conftest enforces.
       - name: Tests
-        run: uv run --python ${{ matrix.python }} pytest -q --cov --cov-report=term --cov-fail-under=61
+        run: uv run --python ${{ matrix.python }} pytest -q --cov --cov-report=term --cov-fail-under=69
 
   packaged-script:
     name: the script a user actually runs

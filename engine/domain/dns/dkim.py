@@ -23,7 +23,14 @@ Covered:
 
 from __future__ import annotations
 
+import asyncio
+import base64
 import re
+
+from cryptography.exceptions import UnsupportedAlgorithm
+from cryptography.hazmat.primitives.serialization import load_der_public_key
+from pyasn1.codec.der.decoder import decode as der_decode
+from pyasn1.error import PyAsn1Error
 
 from ...copywriting.link_quality import _registrable
 from ...report import Finding
@@ -101,8 +108,6 @@ def _key_bits(p_value: str, k_alg: str = "rsa") -> int | None:
 
     Returns the bit count, or None if the key is unparseable.
     """
-    import base64
-
     cleaned = "".join(p_value.split())
     if not cleaned:
         return None
@@ -114,28 +119,28 @@ def _key_bits(p_value: str, k_alg: str = "rsa") -> int | None:
     if k_alg == "ed25519":
         return 256  # Ed25519 is fixed-size
 
-    # Try SubjectPublicKeyInfo first (most common in the wild).
+    # SubjectPublicKeyInfo first, which is what most published keys use.
+    # ValueError covers a key that is not valid DER; UnsupportedAlgorithm covers
+    # one this build of cryptography cannot read. Both mean "try the next form".
     try:
-        from cryptography.hazmat.primitives.serialization import load_der_public_key
-
         key = load_der_public_key(der)
+    except (ValueError, UnsupportedAlgorithm):
+        pass
+    else:
         bits = getattr(key, "key_size", None)
         if bits:
             return bits
-    except Exception:
-        pass
 
-    # Fallback: strict RFC 6376 — bare RSAPublicKey ASN.1 sequence of (n, e).
+    # Strict RFC 6376 is a bare RSAPublicKey: an ASN.1 sequence of (n, e).
+    # Several verifiers accept both forms, so a key in this shape is still valid.
     try:
-        from pyasn1.codec.der.decoder import decode as der_decode
-
         decoded, _ = der_decode(der)
-        modulus = int(decoded[0])
-        return modulus.bit_length()
-    except Exception:
+        return int(decoded[0]).bit_length()
+    except (PyAsn1Error, IndexError, TypeError, ValueError):
         pass
 
-    # Final byte-length heuristic if pyasn1 isn't available either.
+    # Neither form parsed. Estimate from the DER length, which is accurate enough
+    # to tell a 1024-bit key from a 2048-bit one.
     n = len(der)
     if n < 130:
         return 512
@@ -198,7 +203,6 @@ async def _bruteforce_selectors(domain: str) -> list[dict]:
     """When no DKIM-Signature header is available, try common selectors
     against `domain`. Returns the same shape as `_signatures()` so the
     caller can audit each found record. Concurrent fan-out, NXDOMAIN-fast."""
-    import asyncio as _asyncio
 
     async def _try(sel: str) -> dict | None:
         ans = await query(f"{sel}._domainkey.{domain}", "TXT")
@@ -215,7 +219,7 @@ async def _bruteforce_selectors(domain: str) -> list[dict]:
             "canon": None,  # unknown — no c= tag to read
         }
 
-    found = await _asyncio.gather(*[_try(s) for s in _COMMON_SELECTORS])
+    found = await asyncio.gather(*[_try(s) for s in _COMMON_SELECTORS])
     return [f for f in found if f is not None]
 
 

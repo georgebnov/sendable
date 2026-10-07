@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 
+from ...copywriting.link_quality import _registrable
 from ...report import Finding
 from ...severity import Severity
 from ..dns_client import query
@@ -67,8 +68,6 @@ async def run(domain: str) -> list[Finding]:
     # the organizational domain. Required so subdomain audits inherit
     # parent policy (and parent's `sp=` applies to subdomains).
     if not records:
-        from ...copywriting.link_quality import _registrable
-
         org_domain = _registrable(domain)
         if org_domain and org_domain != domain:
             fallback_qname = f"_dmarc.{org_domain}"
