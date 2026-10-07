@@ -10,8 +10,10 @@ tests/fixtures/*.eml -text
 # The shell hook must keep LF endings or bash cannot run it on a Windows checkout.
 .githooks/pre-commit text eol=lf
 
-# Generated, and noisy in a diff. Still reviewable with `git diff -- uv.lock`.
-uv.lock linguist-generated=true -diff
+# Generated and noisy, so GitHub collapses it by default and keeps it out of the
+# language bar. The diff itself stays readable on purpose: a dependency bump is
+# reviewed by reading exactly which versions moved, and `-diff` would hide that.
+uv.lock linguist-generated=true
 
 # Keep the language bar honest: the SaaS pending removal is not what this repo is.
 production/** linguist-vendored=true
