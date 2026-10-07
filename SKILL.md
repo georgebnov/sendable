@@ -36,6 +36,9 @@ uv run scripts/audit.py mail.eml
 # Same, no outbound traffic at all: copy and structure checks only.
 uv run scripts/audit.py mail.eml --offline
 
+# Grade something not sent yet. Use this for any draft an agent wrote.
+uv run scripts/audit.py draft.eml --draft
+
 # From a pipe.
 cat mail.eml | uv run scripts/audit.py -
 
@@ -172,10 +175,25 @@ client offers it.
 
 Say these plainly rather than implying a guarantee.
 
-- **A draft cannot be fully graded.** About half the checks read headers that only
-  exist once a message has been sent and received: the DKIM signature, the SPF
-  result, alignment, TLS, the Received chain. Grading a draft covers copy and
-  structure only. To check a real send, send it to `+check` and grade that.
+- **A draft cannot be fully graded.** Roughly a third of the checks read headers
+  that only exist once a message has been sent and received: the DKIM signature,
+  the SPF result, alignment, TLS, the Received chain, and the Date and Message-ID
+  the sending server adds.
+
+  **Always pass `--draft` for a message that has not been sent.** Without it a
+  well-written draft scores 30 and NO_GO, with 8 failing findings that the writer
+  cannot act on, burying the one that was real. With it the same draft scores 99.
+
+  In draft mode the `authentication` and `hygiene` sub-scores were **skipped, not
+  passed**. Do not tell the user their authentication is fine on the strength of a
+  draft audit. The `sender.draft_mode` finding lists exactly what was skipped in
+  `details.skipped_checks`, and names those two sub-scores in
+  `details.unverified_sub_scores`.
+
+  A draft is not stored, because a row with no authentication results would make a
+  clean sender look like it had started failing in every later drift comparison.
+
+  To check the rest, send it to `+check` and grade the copy that arrives.
 - **Blocklist checks need a useful vantage point.** The blocklist operators
   rate-limit or refuse queries from residential addresses, so results from a home
   connection can be wrong. `--offline` skips them.
