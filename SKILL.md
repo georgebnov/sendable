@@ -17,8 +17,8 @@ sender's earlier sends, so it catches a regression that no single email reveals.
 
 Over 100 distinct checks, in four groups: 38 on the copy and structure of the
 message itself, 10 on authentication and alignment, a domain phase covering the
-SPF, DKIM, DMARC, MTA-STS, TLSRPT, and BIMI records plus 32 blocklists, a URL
-reputation scan and a live SMTP probe, and 6 drift checks against history.
+SPF, DKIM, DMARC, MTA-STS, TLSRPT, and BIMI records plus 31 IP
+blocklists, 8 URL blocklists, and a live SMTP probe, and 6 drift checks against history.
 
 **Fix the domain.** `scripts/dmarc.py` reads the aggregate reports that receiving
 providers mail out, works out everything sending as the domain, and gives the one

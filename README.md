@@ -28,8 +28,8 @@ uv run scripts/audit.py mail.eml
 ```
 
 Over 100 checks: the copy and structure of the message, SPF, DKIM, DMARC and
-whether they align, MTA-STS, TLSRPT and BIMI records, 32 blocklists, URL
-reputation, a live SMTP probe, and 6 checks that compare this send against the
+whether they align, MTA-STS, TLSRPT and BIMI records, 31 IP blocklists, 8 URL
+blocklists, a live SMTP probe, and 6 checks that compare this send against the
 sender's earlier ones.
 
 That last group is the reason reports are stored. "Your DMARC policy went from

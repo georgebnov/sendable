@@ -1,38 +1,58 @@
 version: 2
 updates:
-  # Python deps for the production backend.
-  - package-ecosystem: pip
-    directory: /production/backend
+  # Python dependencies, read from pyproject.toml and uv.lock.
+  - package-ecosystem: uv
+    directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # Wait before proposing a bump. Without this, Dependabot opens a pull request
+    # the moment a version is published, including one published from a
+    # compromised maintainer account. A week is usually long enough for a
+    # malicious release to be yanked before it ever reaches a branch here.
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+    commit-message:
+      prefix: "build"
+      include: scope
     groups:
-      backend:
+      # Minor and patch bumps travel together: one incompatible upgrade should not
+      # block the rest. A major comes as its own pull request, because a major in
+      # pydantic or cryptography needs the audit output checked against a fixture.
+      dependencies:
         patterns: ["*"]
-        # Group only non-breaking bumps. Majors come as separate PRs so one
-        # incompatible upgrade can't block the whole batch.
         update-types: ["minor", "patch"]
 
-  # npm deps for the production frontend.
-  - package-ecosystem: npm
-    directory: /production/frontend
+  # The pinned hook revisions in .pre-commit-config.yaml. The ruff hook rev must
+  # match the ruff version pyproject resolves, or the hook and `just check`
+  # disagree about what passes, so review a ruff bump against both.
+  - package-ecosystem: pre-commit
+    directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
-    groups:
-      frontend:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
-    ignore:
-      # Frontend majors (React 19, ESLint 10, Next 16, @types/* majors, …) need
-      # a coordinated framework upgrade, not a weekly auto-bump — they break
-      # peer resolution against Next 14 / React 18. Do majors by hand; let
-      # Dependabot handle only minor/patch here.
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+    # Wait before proposing a bump. Without this, Dependabot opens a pull request
+    # the moment a version is published, including one published from a
+    # compromised maintainer account. A week is usually long enough for a
+    # malicious release to be yanked before it ever reaches a branch here.
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+    commit-message:
+      prefix: "build"
+      include: scope
 
-  # Keep the GitHub Actions themselves up to date.
+  # The actions used by .github/workflows/skill.yml.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    # Wait before proposing a bump. Without this, Dependabot opens a pull request
+    # the moment a version is published, including one published from a
+    # compromised maintainer account. A week is usually long enough for a
+    # malicious release to be yanked before it ever reaches a branch here.
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+    commit-message:
+      prefix: "ci"

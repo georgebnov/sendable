@@ -1,9 +1,9 @@
 # The gate for the Sendable skill. Exactly what `just check` runs locally, so a
 # green local run means a green run here.
 #
-# The matrix covers the Python versions the project claims to support. The skill
-# is distributed as a script that resolves its own dependencies, so the version a
-# user happens to have is the version that matters.
+# Actions are pinned to a commit hash, not a tag, because a tag can be moved to
+# point at different code. The trailing comment is the human-readable version, and
+# Dependabot reads it to propose a bump.
 
 name: Skill
 
@@ -20,6 +20,11 @@ on:
       - "docs/**"
       - "**.md"
 
+# Read-only. Nothing here publishes, comments, or writes to the repository, so the
+# default token permissions are more than it needs.
+permissions:
+  contents: read
+
 concurrency:
   group: skill-${{ github.ref }}
   cancel-in-progress: true
@@ -31,19 +36,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.11 is the floor the project declares. 3.14 is the newest release, and
-        # it is what a user with a current uv will get.
+        # 3.11 is the floor the project declares, and the code depends on it:
+        # StrEnum and typing.NotRequired both arrived in 3.11. 3.14 is what a user
+        # with a current uv will resolve to.
         python: ["3.11", "3.14"]
     steps:
-      - uses: actions/checkout@v4
+      # persist-credentials: false keeps the checkout token out of .git/config,
+      # where a later step or a cached artifact could pick it up.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
-
-      - name: Pin the interpreter
-        run: uv python install ${{ matrix.python }}
 
       - name: Sync the environment
         run: uv sync --python ${{ matrix.python }}
@@ -57,8 +64,8 @@ jobs:
       - name: Types
         run: uv run --python ${{ matrix.python }} mypy
 
-      # No network and no model: the suite must be deterministic. OPENAI_API_KEY
-      # is deliberately absent, which is also what the conftest enforces.
+      # No network and no model: the suite must be deterministic. OPENAI_API_KEY is
+      # deliberately absent, which is also what tests/conftest.py enforces.
       - name: Tests
         run: uv run --python ${{ matrix.python }} pytest -q --cov --cov-report=term --cov-fail-under=69
 
@@ -66,16 +73,19 @@ jobs:
     name: the script a user actually runs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
       # This job never runs `uv sync`. It proves the published entry point works
-      # from a bare checkout with no project environment, which is how someone
-      # who downloads the skill will invoke it.
+      # from a bare checkout with no project environment, which is how someone who
+      # downloads the skill invokes it. The gate job cannot catch a dependency
+      # missing from a PEP 723 header, because `uv sync` installs the dev group.
       - name: Audit an email with no project environment
         run: |
           mkdir -p /tmp/bare && cp tests/fixtures/clean_bulk.eml /tmp/bare/mail.eml
@@ -92,3 +102,9 @@ jobs:
 
       - name: Confirm it wrote a report to the store
         run: test -d /tmp/bare/.sendable/audits && ls -1 /tmp/bare/.sendable/audits
+
+      - name: Read the stored report back
+        run: |
+          cd /tmp/bare
+          uv run --quiet "$GITHUB_WORKSPACE/scripts/reports.py" list
+          uv run --quiet "$GITHUB_WORKSPACE/scripts/reports.py" trend

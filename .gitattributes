@@ -1,0 +1,17 @@
+# Normalise line endings for text, so a Windows checkout does not fail the format
+# check or change a hash.
+* text=auto eol=lf
+
+# Raw email fixtures are byte-exact. RFC 5322 specifies CRLF between header lines,
+# and the store hashes message content, so normalising these would change what the
+# tests assert and what a record's filename is.
+tests/fixtures/*.eml -text
+
+# The shell hook must keep LF endings or bash cannot run it on a Windows checkout.
+.githooks/pre-commit text eol=lf
+
+# Generated, and noisy in a diff. Still reviewable with `git diff -- uv.lock`.
+uv.lock linguist-generated=true -diff
+
+# Keep the language bar honest: the SaaS pending removal is not what this repo is.
+production/** linguist-vendored=true
