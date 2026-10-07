@@ -76,6 +76,7 @@ async def _run(
     offline: bool,
     store: Store | None,
     probe_unsub: bool,
+    draft: bool,
 ) -> tuple[Report, int, Path | None]:
     """Audit the message. Returns the report, the history depth, and where it was stored."""
     email = parse_eml(raw)
@@ -85,6 +86,7 @@ async def _run(
         history=history or None,
         domain_health=not offline,
         probe_unsub=probe_unsub,
+        draft=draft,
     )
     saved = store.save(email, report, raw=raw) if store is not None else None
     return report, len(history), saved
@@ -119,6 +121,16 @@ def main() -> None:
         ),
     )
     ap.add_argument(
+        "--draft",
+        action="store_true",
+        help=(
+            "Grade a message that has not been sent yet. Skips the checks that "
+            "read headers only a server can add: SPF, DKIM, and DMARC results and "
+            "alignment, transport encryption, Date, and Message-ID. Without this, "
+            "a good draft scores NO_GO because none of those exist."
+        ),
+    )
+    ap.add_argument(
         "--probe-unsub",
         action="store_true",
         help=(
@@ -130,12 +142,27 @@ def main() -> None:
     args = ap.parse_args()
 
     raw = _read_source(args.target)
-    store = None if args.no_store else Store(args.store)
+    # A draft is not a send. Storing it would add a row with no authentication
+    # results to the history that every drift check reads, making a clean
+    # sender look like it had started failing.
+    store = None if (args.no_store or args.draft) else Store(args.store)
     report, depth, saved = asyncio.run(
-        _run(raw, offline=args.offline, store=store, probe_unsub=args.probe_unsub)
+        _run(
+            raw,
+            offline=args.offline,
+            store=store,
+            probe_unsub=args.probe_unsub,
+            draft=args.draft,
+        )
     )
 
     # Context on stderr. stdout stays machine-readable.
+    if args.draft:
+        print(
+            "[draft] graded as an unsent draft. Not stored, because a draft has "
+            "no authentication results and would skew this sender's history.",
+            file=sys.stderr,
+        )
     if store is not None:
         if depth:
             print(

@@ -83,9 +83,12 @@ just smoke     # run the packaged script with no project environment
 
 ## Honest limits
 
-- **A draft cannot be fully graded.** Half the checks read headers that only exist
-  once a message has been sent and received. Grading a draft covers copy and
-  structure. To check a real send, send it and grade the received copy.
+- **A draft cannot be fully graded.** Roughly a third of the checks read headers
+  that only exist once a message has been sent and received. Pass `--draft` for an
+  unsent message: without it a good draft scores 30 and NO_GO on 8 findings nobody
+  can act on. In draft mode the authentication and hygiene sub-scores were skipped
+  rather than passed, which the report states. To check those, send it and grade
+  the copy that arrives.
 - **Blocklist checks need a useful vantage point.** The operators rate-limit or
   refuse queries from residential addresses, so results from a home connection can
   be wrong. `--offline` skips them.

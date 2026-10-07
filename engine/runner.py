@@ -71,6 +71,7 @@ from .domain.integrity import (
     template_quality,
     unsubscribe,
 )
+from .draft import calibrate_for_draft, draft_hint, looks_like_draft
 from .forward import calibrate_for_forward, extract_original, is_forwarded
 from .free_mailbox import calibrate_for_free_mailbox
 from .history import EmailFacts
@@ -138,6 +139,7 @@ async def audit(
     domain_health: bool = True,
     force_mode: str | None = None,
     probe_unsub: bool = False,
+    draft: bool = False,
 ) -> Report:
     # ─── Step 1: detect mode ────────────────────────────────────────
     mode_result = detect_mode(email, force=force_mode)
@@ -241,6 +243,15 @@ async def audit(
     findings = calibrate_for_free_mailbox(findings, cleaned_email.from_addr)
     if forwarded:
         findings = calibrate_for_forward(findings)
+
+    # Draft calibration runs last, so it removes delivery-header findings whatever
+    # the earlier calibrations did with them. When the caller did not ask for it
+    # but the message looks unsent, say so instead of deciding for them: a score
+    # that changes on a guess makes two runs disagree invisibly.
+    if draft:
+        findings = calibrate_for_draft(findings)
+    elif looks_like_draft(cleaned_email):
+        findings.append(draft_hint())
 
     result = score_findings(findings, in_spam=in_spam)
     return Report(
