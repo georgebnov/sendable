@@ -48,10 +48,17 @@ _QUIET_MUTE_PREFIXES = (
     "auth.tls_transport",
     "auth.authentication_results",
     "sending_ip.",
-    "content.zero_width",
-    "content.bidi_override",
-    "content.hidden_css_salting",
 )
+
+# Deliberately NOT muted on a forward: content.hidden_css_salting,
+# content.zero_width, and content.bidi_override.
+#
+# A forward rewrites transport and authentication, so muting those is right.
+# Hidden text is content: it survives a forward byte for byte, and the checks run
+# on the extracted original anyway. Muting them made the body marker
+# "---------- Forwarded message ---------" a one-line bypass of the
+# prompt-injection hard gate, exactly like the "FW:" subject prefix that was
+# closed earlier. Anyone can type either into their own email.
 
 ADVISORY_CHECK = "delivery.forwarded"
 _MUTE_NOTE = (

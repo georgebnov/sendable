@@ -28,6 +28,8 @@ import ssl
 import urllib.error
 import urllib.request
 
+from engine.net import build_opener, is_public_http_url
+
 from ...report import Finding
 from ...severity import Severity
 from ..dns_client import query
@@ -49,11 +51,19 @@ async def _fetch_mta_sts_policy(domain: str) -> tuple[str | None, str | None]:
     """HTTPS GET the policy file. Returns (text, error)."""
     url = f"https://mta-sts.{domain}/.well-known/mta-sts.txt"
 
+    # The domain comes from the From header of the email under audit, and this
+    # fetch runs by default in any non-offline audit. Refuse a host that resolves
+    # anywhere internal, and refuse every redirect, because the default opener
+    # follows one to a target nothing re-checks.
+    if not is_public_http_url(url, require_https=True):
+        return None, "blocked_non_public_host"
+
     def _do() -> tuple[str | None, str | None]:
         try:
             ctx = ssl.create_default_context()
             req = urllib.request.Request(url, headers={"User-Agent": "audit/0.0.1"})
-            with urllib.request.urlopen(req, timeout=_HTTPS_TIMEOUT, context=ctx) as resp:
+            opener = build_opener(ssl_context=ctx)
+            with opener.open(req, timeout=_HTTPS_TIMEOUT) as resp:
                 ctype = resp.headers.get("Content-Type", "")
                 body = resp.read(8192).decode("utf-8", errors="replace")
                 if "text/plain" not in ctype:
@@ -79,12 +89,15 @@ def _parse_mta_sts_policy(text: str) -> tuple[dict[str, list[str]], list[str]]:
     lines accumulate into a list."""
     kv: dict[str, list[str]] = {}
     issues: list[str] = []
-    for raw in text.splitlines():
+    for lineno, raw in enumerate(text.splitlines(), start=1):
         line = raw.strip()
         if not line:
             continue
         if ":" not in line:
-            issues.append(f"line missing ':' — '{line[:40]}'")
+            # The line's content is deliberately not quoted. This body came
+            # from a host the audited email chose, and the finding is written to
+            # the user's stored report.
+            issues.append(f"line {lineno} has no ':' separator")
             continue
         key, _, val = line.partition(":")
         kv.setdefault(key.strip().lower(), []).append(val.strip())

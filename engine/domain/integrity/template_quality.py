@@ -28,9 +28,21 @@ from ...severity import Severity
 # Greeting words followed by an empty bound (comma/colon/punctuation) with
 # nothing meaningful in between. Catches plain text "Hi ," "Hello ," and
 # similar constructs after we strip empty inline tags from HTML.
+# A greeting whose name is MISSING, which is what an unfilled merge field leaves
+# behind: "Hi ," or "Hello  :" with a gap where the name should be.
+#
+# The whitespace was `*`, so this matched a greeting followed directly by
+# punctuation, which is every ordinary "Hi," in every newsletter, plus "Hi, Sam"
+# with the comma before the name, plus the word "hello" anywhere in prose. Each
+# hit is HIGH against a hygiene budget of 20, which took that sub-score to 0 and
+# moved an otherwise clean email down a verdict.
+#
+# It now needs at least one whitespace character between the greeting and the
+# punctuation, which is the gap the missing name left, and it must sit at the
+# start of a line or block rather than anywhere in the body.
 _GREETING_EMPTY_RX = re.compile(
-    r"\b(hi|hello|hey|dear|greetings)\b[\s ]*[,:;.!]",
-    re.IGNORECASE,
+    r"(?:^|[\r\n>])\s*(hi|hello|hey|dear|greetings)\b[\s\u00a0]+[,:;.!]",
+    re.IGNORECASE | re.MULTILINE,
 )
 
 # Unrendered placeholder syntaxes. We match conservatively: only flag when
