@@ -11,8 +11,10 @@ surfaced as INFO findings; this runner never raises.
 from __future__ import annotations
 
 import asyncio
+from email.utils import parseaddr
 
 from .. import esp as esp_detect
+from ..copywriting.link_quality import _registrable
 from ..parse import ParsedEmail
 from ..report import Finding
 from ..severity import Severity
@@ -99,10 +101,6 @@ def _demote_to_info(findings: list[Finding], operator: str) -> list[Finding]:
 def _registrable_from(parsed: ParsedEmail) -> str | None:
     """Reuses the same registrable extractor used by audit.copywriting.link_quality
     and memory.derived. Lazy-import keeps this module importable in isolation."""
-    from email.utils import parseaddr
-
-    from engine.copywriting.link_quality import _registrable
-
     raw = parsed.from_addr
     if not raw:
         return None

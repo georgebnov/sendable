@@ -27,6 +27,7 @@ because drift is about how this real send compares to past real sends.
 from __future__ import annotations
 
 import asyncio
+import sys
 
 from . import llm as _llm
 from .cleanup import cleanup
@@ -70,8 +71,11 @@ from .domain.integrity import (
     size,
     template_quality,
     unsubscribe,
+    unsubscribe_live,
 )
+from .domain.runner import run_domain_health
 from .draft import calibrate_for_draft, draft_hint, looks_like_draft
+from .drift.runner import run_drift
 from .forward import calibrate_for_forward, extract_original, is_forwarded
 from .free_mailbox import calibrate_for_free_mailbox
 from .history import EmailFacts
@@ -183,22 +187,16 @@ async def audit(
     async def _drift_bucket() -> list[Finding]:
         if history is None:
             return []
-        from engine.drift.runner import run_drift
-
         return await run_drift(email, history)
 
     async def _dh_bucket() -> list[Finding]:
         if not domain_health:
             return []
-        from engine.domain.runner import run_domain_health
-
         return await run_domain_health(cleaned_email)
 
     async def _unsub_bucket() -> list[Finding]:
         if not probe_unsub:
             return []
-        from .domain.integrity import unsubscribe_live
-
         return await unsubscribe_live.run(cleaned_email)
 
     all_results = await asyncio.gather(
@@ -210,13 +208,11 @@ async def audit(
 
     _acc = _llm.get_accumulator()
     if _acc and _acc["calls"]:
-        import sys as _sys
-
         print(
             f"[llm] AUDIT TOTAL calls={_acc['calls']} "
             f"in={_acc['in']} out={_acc['out']} "
             f"cost=${_acc['usd']:.6f}",
-            file=_sys.stderr,
+            file=sys.stderr,
         )
     findings: list[Finding] = [f for sub in all_results for f in sub]
 
