@@ -67,7 +67,12 @@ jobs:
       # No network and no model: the suite must be deterministic. OPENAI_API_KEY is
       # deliberately absent, which is also what tests/conftest.py enforces.
       - name: Tests
-        run: uv run --python ${{ matrix.python }} pytest -q --cov --cov-report=term --cov-fail-under=70
+        run: |
+          # The floor lives in the justfile, which owns it. Reading it here keeps
+          # CI and `just check` from drifting apart, which they already did once.
+          floor="$(sed -n 's/^coverage_floor := "\([0-9]*\)"/\1/p' justfile)"
+          uv run --python ${{ matrix.python }} pytest -q --cov --cov-report=term \
+            --cov-fail-under="${floor:-80}"
 
   packaged-script:
     name: the script a user actually runs

@@ -66,7 +66,10 @@ repos:
 
       - id: pytest
         name: pytest with the coverage floor
-        entry: uv run --quiet pytest -q --cov --cov-fail-under=70
+        # `just test` reads the floor from the justfile, which owns the value.
+        # Restating it here is how the last bump left the shell hook at 69 while
+        # everything else moved to 70.
+        entry: just test
         language: system
         types: [python]
         pass_filenames: false

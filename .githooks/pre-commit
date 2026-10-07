@@ -39,7 +39,7 @@ echo "> pytest with the coverage floor"
 # four files, and the last bump missed this one, so the hook passed at a coverage
 # CI then rejected, while both files claimed to run the same gate.
 floor="$(sed -n 's/^coverage_floor := "\([0-9]*\)"/\1/p' justfile)"
-uv run --quiet pytest -q --cov --cov-fail-under="${floor:-70}" || fail=1
+uv run --quiet pytest -q --cov --cov-fail-under="${floor:-80}" || fail=1
 
 if [ "$fail" -ne 0 ]; then
     echo "x gate failed. Fix the errors above; do not suppress them." >&2
