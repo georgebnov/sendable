@@ -96,7 +96,7 @@ async def call_structured(
     if not api_key:
         return None
     try:
-        from openai import AsyncOpenAI
+        from openai import AsyncOpenAI, OpenAIError
     except ImportError:
         return None
 
@@ -112,7 +112,10 @@ async def call_structured(
         # 30s cap per LLM call so the audit's total wall time stays well below
         # SQS visibility timeout even if a tail call hangs.
         client = AsyncOpenAI(api_key=api_key, timeout=30.0)
-        completion = await client.beta.chat.completions.parse(
+        # The stable path, not `client.beta.chat.completions.parse`. The beta
+        # alias is deprecated for removal, and the except below would have turned
+        # its disappearance into an AttributeError scored as a passing check.
+        completion = await client.chat.completions.parse(
             model=model,
             messages=[
                 {"role": "system", "content": system},
@@ -120,7 +123,7 @@ async def call_structured(
             ],
             response_format=response_format,
         )
-    except Exception as e:
+    except (OpenAIError, TimeoutError, OSError) as e:
         elapsed = time.monotonic() - t0
         print(
             f"[llm] {check} FAIL ({type(e).__name__}: {e}) {elapsed:.2f}s",

@@ -52,11 +52,43 @@ _HREF_RX = re.compile(r'href\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE)
 
 
 def _dkim_domains(email: ParsedEmail) -> set[str]:
+    """Signing domains the RECEIVER verified, not the ones the message claims.
+
+    A DKIM-Signature header is written by the sender and anyone can put any `d=`
+    in it. This signal scores 0.75, which is high confidence, and a high-confidence
+    profile makes `run_domain_health` skip the entire IP blocklist scan. One line
+    of `DKIM-Signature: d=kit.com` therefore disabled the blocklist fan-out for a
+    listed sender.
+
+    Authentication-Results is written by the receiving server after it checked the
+    signature, so a `d=` naming a provider counts only when it appears there with
+    `dkim=pass`.
+    """
+    verified = _verified_dkim_domains(email)
+    if not verified:
+        return set()
     out: set[str] = set()
     for raw in email.headers.get("dkim-signature", []):
         m = _DKIM_D_RX.search(raw)
         if m:
-            out.add(m.group(1).strip().lower())
+            claimed = m.group(1).strip().lower()
+            if claimed in verified:
+                out.add(claimed)
+    return out
+
+
+_AR_DKIM_PASS_RX = re.compile(
+    r"\bdkim\s*=\s*pass\b[^;]*?\bheader\.(?:d|i)\s*=\s*@?([A-Za-z0-9.\-_]+)",
+    re.IGNORECASE,
+)
+
+
+def _verified_dkim_domains(email: ParsedEmail) -> set[str]:
+    """Domains the receiving server reported a passing DKIM signature for."""
+    out: set[str] = set()
+    for raw in email.authentication_results or []:
+        for match in _AR_DKIM_PASS_RX.finditer(raw):
+            out.add(match.group(1).strip().lower().lstrip("@"))
     return out
 
 
