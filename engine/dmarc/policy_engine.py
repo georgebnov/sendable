@@ -25,7 +25,7 @@ status pill + title + detail + suggested_action (+ new_record when relevant).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
 from engine.dmarc.spf_merge import merge_spf
@@ -373,6 +373,42 @@ def spf_findings(spf: SpfRecord, senders: list[Sender]) -> list[Action]:
             act.new_record = merged
             if warning:
                 act.suggested_action += f" Heads up: {warning}"
+    return out
+
+
+def apply_live_spf_fixes(spf: SpfRecord, senders: list[Sender]) -> list[Sender]:
+    """Clear "not in your SPF" alarms the sender has already fixed.
+
+    A DMARC aggregate report describes mail that was sent days ago. When someone
+    adds a provider's SPF include today, the reports keep showing that provider
+    failing SPF until the old reports age out of the window, which takes weeks.
+    This reads the live published SPF record instead: when the provider's include
+    is in the record now, mark that sender as passing and aligned, so the alarm
+    drops.
+
+    The match is a substring test on the domain part of the include token. That
+    is enough to tell whether the record names that provider. A full per-source
+    SPF evaluation against the published record is a later refinement.
+
+    The assumption is that a published include means that sender will pass and
+    align from now on. That holds for a provider which sends as the user's own
+    domain, such as Google Workspace or Microsoft 365. A third-party provider
+    that sends from its own bounce domain can pass SPF without aligning, so this
+    function can hide that case.
+
+    Returns a new list. The senders passed in are not changed.
+    """
+    if not spf.exists or not spf.raw:
+        return senders
+    out: list[Sender] = []
+    for sender in senders:
+        # esp_include looks like "include:_spf.google.com". Compare the domain
+        # part, so the test works whether or not the prefix was stored.
+        token = (sender.esp_include or "").split(":", 1)[-1]
+        if token and not sender.spf_authpassed and token in spf.raw:
+            out.append(replace(sender, spf_authpassed=True, spf_aligned=True))
+        else:
+            out.append(sender)
     return out
 
 

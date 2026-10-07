@@ -1,60 +1,71 @@
-# Task runner for the Sendable monorepo. Every recipe runs from the repo root;
-# the per-stack recipes cd into their own tree. The gates here are exactly the
-# ones CI runs (.github/workflows/ci.yml + frontend.yml), plus the website,
-# which has no workflow yet.
+# Task runner for the Sendable skill.
+#
+# `just check` is the gate. It is exactly what CI runs, so a green local run
+# means a green CI run. Every recipe works from the repo root.
+#
+# The skill itself needs no environment: a caller runs `uv run scripts/audit.py`
+# and uv resolves the dependencies from the script's own header. These recipes
+# are for developing the skill, not for using it.
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-backend := justfile_directory() / "production/backend"
-frontend := justfile_directory() / "production/frontend"
-website := justfile_directory() / "production/website"
+# The minimum share of statements that must be covered. Raise this as coverage
+# grows; never lower it to make a red run go green.
+coverage_floor := "54"
 
-# Run every stack's gate: lint, format, types, tests.
-check: check-backend check-frontend check-website
+# Everything. Run this before every commit.
+check: lint types test
 
-# Backend: ruff (lint + format), mypy on the gated paths, pytest against Postgres.
-check-backend:
+# ruff, as both linter and formatter. No file is excluded from either.
+lint:
+    uv run --quiet ruff check .
+    uv run --quiet ruff format --check .
+
+# mypy over engine, scripts, and the tests themselves.
+types:
+    uv run --quiet mypy
+
+# The suite, with a coverage floor that fails the run if it drops.
+test:
+    uv run --quiet pytest -q --cov --cov-report=term --cov-fail-under={{ coverage_floor }}
+
+# The suite with no coverage instrumentation. Faster while iterating.
+test-fast:
+    uv run --quiet pytest -q
+
+# Per-file coverage, worst first, to decide where the next test goes.
+coverage:
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{ backend }}"
-    if [ ! -x .venv/bin/python ]; then
-        echo "production/backend/.venv is missing — python3.12 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt" >&2
-        exit 1
-    fi
-    # Tests need DATABASE_URL (and the app needs its secrets) — .env has them.
-    # Invoke tools as `python -m` so a relocated venv's stale script shebangs
-    # don't matter.
-    if [ -f .env ]; then set -a; . ./.env; set +a; fi
-    .venv/bin/python -m ruff check .
-    .venv/bin/python -m ruff format --check .
-    .venv/bin/python -m mypy
-    .venv/bin/python -m pytest -q
+    uv run --quiet pytest -q --cov --cov-report=term 2>&1 \
+      | grep -E '^(engine|scripts|store)' \
+      | awk '{c=$NF; gsub("%","",c); print c+0"%\t"$2"\tstmts\t"$1}' \
+      | sort -n
 
-# Frontend: Prettier, ESLint via next lint, TypeScript. No test suite yet.
-check-frontend:
+# Apply every fix ruff can make on its own, then format.
+fix:
+    uv run --quiet ruff check . --fix
+    uv run --quiet ruff format .
+
+# Audit one email through the real entry point, the way a caller does.
+audit file *FLAGS:
+    uv run scripts/audit.py "{{ file }}" {{ FLAGS }}
+
+# Prove the packaged script runs with no project environment at all. This is the
+# path a user takes, so it is the one that must not break.
+smoke:
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{ frontend }}"
-    npx prettier --check .
-    npx next lint --max-warnings=0
-    npx tsc --noEmit
-
-# Website: ESLint, `astro check` for types, and a real build. No test suite yet.
-check-website:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cd "{{ website }}"
-    npm run --silent lint
-    npm run --silent check
-    npm run --silent build
-
-# Gate, then commit everything, push, and re-sync: `just ship "fix: ..."`.
-ship msg:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    just check
-    cd "{{ justfile_directory() }}"
-    git add -A
-    git commit -m "{{ msg }}"
-    git push
-    git pull --ff-only
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' EXIT
+    cp tests/fixtures/clean_bulk.eml "$tmp/mail.eml"
+    cd "$tmp"
+    uv run --quiet "{{ justfile_directory() }}/scripts/audit.py" mail.eml --offline 2>/dev/null > report.json
+    uv run --quiet python - <<'PY'
+    import json
+    r = json.load(open("report.json"))
+    assert 0 <= r["score"] <= 100, r["score"]
+    assert r["verdict"] in {"GO", "REVIEW", "NO_GO"}, r["verdict"]
+    assert r["findings"], "no findings means the fan-out did not run"
+    print(f'smoke ok: score={r["score"]} verdict={r["verdict"]} findings={len(r["findings"])}')
+    PY
