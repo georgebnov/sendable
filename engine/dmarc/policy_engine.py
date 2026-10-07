@@ -221,7 +221,7 @@ def spf_findings(spf: SpfRecord, senders: list[Sender]) -> list[Action]:
                 Tier.ACTION,
                 Severity.HIGH,
                 "More than one SPF record",
-                "Two or more v=spf1 records is a PermError — receivers treat SPF as "
+                "Two or more v=spf1 records is a PermError. Receivers treat SPF as "
                 "broken, so it fails for everyone.",
                 "Merge them into a single record with all includes combined.",
             )
@@ -247,7 +247,7 @@ def spf_findings(spf: SpfRecord, senders: list[Sender]) -> list[Action]:
                     Tier.ACTION,
                     Severity.HIGH,
                     "SPF ends in +all",
-                    "+all authorizes the entire internet to send as you — it makes "
+                    "+all authorizes the entire internet to send as you. It makes "
                     "SPF meaningless and invites spoofing.",
                     "Change +all to -all (hardfail) or ~all (softfail).",
                 )
@@ -282,7 +282,7 @@ def spf_findings(spf: SpfRecord, senders: list[Sender]) -> list[Action]:
                     Tier.GOOD,
                     Severity.INFO,
                     "SPF ends in -all",
-                    "Strongest setting — unlisted servers are rejected.",
+                    "Strongest setting. Unlisted servers are rejected.",
                     "No action.",
                 )
             )
@@ -305,7 +305,7 @@ def spf_findings(spf: SpfRecord, senders: list[Sender]) -> list[Action]:
                         Severity.LOW,
                         f"{s.name}: SPF not aligned (DKIM carries it)",
                         "SPF passes on the ESP's bounce domain, so it doesn't align "
-                        "— but DKIM aligns, so DMARC passes. Optional hardening.",
+                        "but DKIM aligns, so DMARC passes. Optional hardening.",
                         "Optional: add a custom Return-Path (CNAME to the ESP) so "
                         "SPF aligns too, for belt-and-suspenders.",
                     )
@@ -318,7 +318,7 @@ def spf_findings(spf: SpfRecord, senders: list[Sender]) -> list[Action]:
                         Severity.HIGH,
                         f"{s.name}: nothing aligns",
                         "SPF passes but on the ESP's domain (no alignment), and DKIM "
-                        "doesn't align either — so this sender FAILS DMARC.",
+                        "does not align either, so this sender FAILS DMARC.",
                         "Set up aligned DKIM with this provider (preferred), or a "
                         "custom Return-Path subdomain so SPF aligns.",
                     )
@@ -337,7 +337,7 @@ def spf_findings(spf: SpfRecord, senders: list[Sender]) -> list[Action]:
                         f"{s.name}: SPF fails (forwarded)",
                         "Forwarding breaks SPF by design. DKIM survived the hop, so "
                         "DMARC still passes.",
-                        "No action — forwarding can't be fixed at the source.",
+                        "No action. Forwarding cannot be fixed at the source.",
                     )
                 )
             else:
@@ -348,7 +348,7 @@ def spf_findings(spf: SpfRecord, senders: list[Sender]) -> list[Action]:
                     Severity.HIGH,
                     f"{s.name}: not in your SPF",
                     "A legitimate-looking sender isn't authorized by SPF and has "
-                    "no aligned DKIM — it fails DMARC and will be blocked at "
+                    "no aligned DKIM, so it fails DMARC and will be blocked at "
                     "enforcement.",
                     f"Add this provider's include to your SPF record{inc}, then set up its DKIM.",
                 )
@@ -457,7 +457,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
         spoof_blocked = sum(s.volume for s in senders if s.legitimacy == "suspicious")
         spoof_note = (
             f" Meanwhile your policy is correctly blocking {spoof_blocked} "
-            "impersonation attempt(s) — don't weaken it."
+            "impersonation attempt(s), so do not weaken it."
             if spoof_blocked
             else ""
         )
@@ -470,11 +470,11 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
                     "FORWARD_BLEED_OK",
                     Tier.REVIEW,
                     Severity.LOW,
-                    "A forwarded copy was blocked — expected",
+                    "A forwarded copy was blocked. This is expected.",
                     f"{names} re-sent your mail from infrastructure you don't "
                     f"control, so it failed authentication and was held "
                     f"({bleeding_volume} low-volume message(s))." + spoof_note,
-                    "Nothing to fix on your side — this is a recipient's "
+                    "Nothing to fix on your side. This is a recipient's "
                     "forwarder or security gateway. Easing your DMARC policy to "
                     "rescue a few uncontrollable forwards isn't worth it.",
                 )
@@ -489,7 +489,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
                 "FIX_SENDER",
                 Tier.ACTION,
                 Severity.HIGH,
-                "Your mail is being blocked — fix the sender",
+                "Your mail is being blocked. Fix the sender.",
                 f"{names} is legitimate but isn't authenticated for your domain, "
                 f"so the receiver is quarantining/rejecting it ({bleeding_volume} "
                 f"message(s) lost). The fix is on that sender, not your policy." + spoof_note,
@@ -537,7 +537,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
             Severity.MEDIUM,
             "Fix one sender before advancing",
             f"{names} is sending as you but isn't DMARC-aligned. Advancing now "
-            "would start blocking it. (Confirm it's really you — if it's spoof, "
+            "would start blocking it. (Confirm it is really you. If it is a spoof, "
             "mark it so and you can advance.)",
             f"Authenticate {names} (SPF include + aligned DKIM), or confirm it "
             "as spoof to dismiss it.",
@@ -574,7 +574,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
             "HOLD_INSUFFICIENT_TIME",
             Tier.GOOD,
             Severity.INFO,
-            f"On track — {window.clean_streak_days}/{CLEAN_DAYS_REQUIRED} clean days",
+            f"On track: {window.clean_streak_days} of {CLEAN_DAYS_REQUIRED} clean days",
             "Everything's authenticated, but we wait for a sustained clean streak "
             "before tightening so a once-a-week sender can't get caught out.",
             f"Hold steady for {left} more clean day(s), then advance.",
