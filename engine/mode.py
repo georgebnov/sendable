@@ -49,7 +49,12 @@ _MERGE_TAG_RXS = (
     re.compile(r"\{\{\s*[A-Za-z_][\w\.\- ]*\s*(\|[^\}]+)?\s*\}\}"),
     re.compile(r"\{%\s*[A-Za-z_][\w\.\- ]*\s*%\}"),
     re.compile(r"\*\|\s*[A-Za-z_][\w\.\- ]*\s*\|\*"),
-    re.compile(r"%[A-Z][A-Z0-9_]+%"),
+    # A merge tag, not percent-encoding. The interior must contain something
+    # that is not a hex digit, because "%C3%" and "%E2%" are the lead bytes of
+    # any UTF-8 character in a tracking link, which encoders emit in uppercase
+    # hex. Without this, ordinary campaign HTML was labelled a test send and
+    # cleanup rewrote its links before the link checks read them.
+    re.compile(r"%(?=[A-Z0-9_]*[G-Z_])[A-Z][A-Z0-9_]+%"),
     re.compile(r"%%\s*[A-Za-z_][\w\.\- ]*\s*%%"),
     re.compile(r"\[\[\s*[A-Za-z_][\w\.\- ]*\s*\]\]"),
 )

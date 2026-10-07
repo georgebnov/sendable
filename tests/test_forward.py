@@ -46,8 +46,28 @@ def test_a_subject_prefix_alone_is_not_a_forward():
     assert is_forwarded(_email(subject="FW: hello", plain=quoted)) is True
 
 
-def test_detects_body_marker():
+def test_a_bare_body_marker_is_not_a_forward():
+    # This test previously asserted the opposite. The marker line is typed by
+    # whoever wrote the message, exactly like the "FW:" subject prefix closed
+    # earlier, and it can sit inside a display:none div where no reader sees it.
+    # On its own it cleared the DMARC alignment hard gate and muted the
+    # authentication and transport findings, for precisely the senders that gate
+    # exists to catch.
     e = _email(subject="x", plain="---------- Forwarded message ---------\nFrom: a")
+    assert is_forwarded(e) is False
+
+
+def test_a_body_marker_with_the_quoted_headers_is_a_forward():
+    # A real inline forward carries the original's header block, which a sender
+    # cannot produce without actually quoting a message.
+    e = _email(
+        subject="x",
+        plain=(
+            "---------- Forwarded message ---------\n"
+            "From: a@b.com\nDate: Mon, 1 Sep 2026 10:00:00 +0000\n"
+            "Subject: hello\nTo: c@d.com\n\nThe body."
+        ),
+    )
     assert is_forwarded(e) is True
 
 

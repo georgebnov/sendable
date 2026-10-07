@@ -52,7 +52,11 @@ class ProfileSpec:
             if any(kd == dl or kd.endswith("." + dl) for kd in dkim_domains):
                 s = max(s, 0.75)
         for marker in self.unsubscribe_host_markers:
-            if any(marker in h for h in unsub_hosts):
+            # Label boundary, never a bare substring. "u.toolkit.com" contains
+            # "kit.com" and matched Kit, which is the same lookalike class as the
+            # PTR and SPF-alignment matches fixed earlier.
+            m = marker.lower().lstrip(".")
+            if any(h == m or h.endswith("." + m) for h in unsub_hosts):
                 s = max(s, 0.7)
         for marker in self.chrome_markers:
             if marker.lower() in body_lower:

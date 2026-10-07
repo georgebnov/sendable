@@ -163,22 +163,43 @@ def _ladder_index(rec: DmarcRecord) -> int:
     return same[0] if same else 0
 
 
-def _build_record(policy: str, pct: int, rua: str) -> str:
+def _build_record(policy: str, pct: int, rua: str, current: DmarcRecord | None = None) -> str:
     """The exact TXT record to publish.
+
+    This is the most consequential string the engine emits: SKILL.md tells the
+    agent to have the user paste it into DNS. Two things it must get right.
+
+    It carries forward every tag it is not deliberately changing. `current` is the
+    record the domain publishes now. Emitting only p, rua and pct meant a user at
+    `p=none; sp=reject; adkim=s; aspf=s` who followed ADVANCE pasted
+    `p=quarantine; rua=...; pct=25` and silently lost subdomain enforcement and
+    strict alignment, which is the opposite of advancing.
 
     `rua` may arrive with or without its scheme. Prepending a second one produced
     `rua=mailto:mailto:dmarc@example.com`, which is not a valid DMARC URI, so
-    receivers drop the tag and stop sending the aggregate reports this whole tool
-    reads. The CLI's own default carries the scheme, so every suggestion it made
-    without an explicit --rua was that broken string.
+    receivers drop the tag and stop sending the reports this tool reads.
     """
     address = rua.strip()
     if not address.lower().startswith("mailto:"):
         address = f"mailto:{address}"
-    base = f"v=DMARC1; p={policy}; rua={address}"
+    parts = ["v=DMARC1", f"p={policy}", f"rua={address}"]
+
     if policy != "none" and pct < 100:
-        base += f"; pct={pct}"
-    return base
+        parts.append(f"pct={pct}")
+
+    # Tags the caller is not changing. Kept in the order a reader expects, and
+    # only when the domain actually publishes them.
+    if current is not None:
+        if current.sp:
+            parts.append(f"sp={current.sp}")
+        # "r" is the default for both, so emitting it adds noise. "s" is a
+        # deliberate choice the user made and must survive.
+        if current.adkim and current.adkim != "r":
+            parts.append(f"adkim={current.adkim}")
+        if current.aspf and current.aspf != "r":
+            parts.append(f"aspf={current.aspf}")
+
+    return "; ".join(parts)
 
 
 # Classifier tags for hops the sender does NOT control — a recipient's
@@ -460,7 +481,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
             "No DMARC record yet",
             "You have no policy, so you get no visibility and no protection.",
             "Publish a monitoring record to start collecting reports.",
-            new_record=_build_record("none", 0, rua),
+            new_record=_build_record("none", 0, rua, current=rec),
         )
 
     idx = _ladder_index(rec)
@@ -485,7 +506,15 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
         names = ", ".join(s.name for s in primary)
         bleeding_volume = sum(s.volume for s in primary)
         share = bleeding_volume / max(window.total_volume, 1)
-        domain_wide = len(controllable) > 1 or share >= DOMAIN_WIDE_BLEED_SHARE
+        # `bool(controllable)` first. When every bleeding source is a hop on the
+        # recipient's side, `primary` falls back to that list and `share` is
+        # computed from it, so a single gateway carrying 20% of volume reached
+        # the domain-wide branch and returned ROLLBACK with a record weakening
+        # anti-spoofing, to fix something the sender cannot reach. The tag set's
+        # own comment says these must never produce a rollback.
+        domain_wide = bool(controllable) and (
+            len(controllable) > 1 or share >= DOMAIN_WIDE_BLEED_SHARE
+        )
         spoof_blocked = sum(s.volume for s in senders if s.legitimacy == "suspicious")
         spoof_note = (
             f" Meanwhile your policy is correctly blocking {spoof_blocked} "
@@ -557,7 +586,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
             f"({cur_label}) is quarantining/rejecting real mail across your "
             "domain.",
             f"Temporarily ease to {step_label} while you authenticate {names}, then climb back up.",
-            new_record=_build_record(step_p, step_pct, rua),
+            new_record=_build_record(step_p, step_pct, rua, current=rec),
         )
 
     # 2. BLOCKED: a legit/unconfirmed sender is unaligned (would break if advanced).
@@ -633,7 +662,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
         f"Ready to advance to {label}",
         f"{window.clean_streak_days} clean days, all senders aligned. Safe to tighten one step.",
         f"Update your DMARC record to {label}.",
-        new_record=_build_record(nxt_p, nxt_pct, rua),
+        new_record=_build_record(nxt_p, nxt_pct, rua, current=rec),
     )
 
 

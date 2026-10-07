@@ -23,7 +23,26 @@ from ...severity import Severity
 
 _BIDI_OVERRIDE = re.compile(r"[‭‮]")
 # U+00AD (soft hyphen) intentionally excluded — legitimate hyphenation hint.
-_ZERO_WIDTH = re.compile(r"[​-‏ -‬  ⁠⁤⁦-⁯﻿]")
+# Zero-width and invisible characters, written as escapes so the source stays
+# readable and no editor can silently normalise them away.
+#
+# U+200D ZERO WIDTH JOINER is deliberately excluded. It is the mandatory joiner
+# inside family, profession, flag, and skin-tone emoji, so including it scored
+# HIGH on any copy carrying one such emoji. HIGH is 15 points against a hygiene
+# budget of 20, which is roughly a fifth of the composite and enough to flip a
+# clean email from GO to REVIEW. U+200B, U+200C and U+FEFF still cover the
+# evasion this looks for: breaking a filtered word while it reads normally.
+_ZERO_WIDTH = re.compile(
+    "["
+    "\u200b"  # zero width space
+    "\u200c"  # zero width non-joiner
+    "\u200e\u200f"  # left-to-right and right-to-left marks
+    "\u2028-\u202c"  # line/paragraph separators and embedding controls
+    "\u205f\u2060\u2064"  # medium math space, word joiner, invisible plus
+    "\u2066-\u206f"  # isolate and deprecated formatting controls
+    "\ufeff"  # byte order mark
+    "]"
+)
 _HIDDEN_STYLE = re.compile(
     r"display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0(?:\.0+)?\b",
     re.IGNORECASE,

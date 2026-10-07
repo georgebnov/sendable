@@ -91,12 +91,21 @@ def is_forwarded(email: ParsedEmail) -> bool:
     which is what a forward stripped of its marker line looks like.
     """
     body = f"{email.plain_text or ''} {email.html or ''}"
-    if _FWD_BODY_MARKER_RX.search(body):
-        return True
+    has_marker = bool(_FWD_BODY_MARKER_RX.search(body))
+    has_prefix = bool(_FWD_SUBJECT_RX.match(email.subject or ""))
 
-    # No marker. A subject prefix counts only alongside a quoted header block,
-    # which is the shape of a forward whose marker a client rewrote or dropped.
-    return bool(_FWD_SUBJECT_RX.match(email.subject or "")) and _has_quoted_headers(body)
+    # Either signal counts only alongside the original's quoted header block.
+    #
+    # The marker line is typed by whoever wrote the message, exactly like the
+    # subject prefix closed earlier, and it can sit inside a display:none div
+    # where no reader will see it. On its own it cleared the DMARC alignment hard
+    # gate and muted the authentication-results and transport findings, for
+    # precisely the senders that gate exists to catch. A real forward carries the
+    # original's headers in its body, which is the thing a sender cannot fake
+    # without actually quoting a message.
+    if not (has_marker or has_prefix):
+        return False
+    return _has_quoted_headers(body)
 
 
 # A forwarded message carries the original's headers in its body. Three of these
