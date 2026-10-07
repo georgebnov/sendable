@@ -6,6 +6,10 @@ Entries describe user-visible behaviour. They land with the work, under
 
 ## Unreleased
 
+Version numbering restarts here. The SaaS reached 0.45.0, but that line described
+a hosted product with a different surface, so continuing it would imply a
+compatibility this shares none of.
+
 **Highlights:** First release as a skill. Audit an email, read your DMARC
 aggregate reports, and track both locally. No service, no account, no database.
 
