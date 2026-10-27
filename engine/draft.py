@@ -126,8 +126,8 @@ def _rewrite_required_headers(finding: Finding) -> Finding | None:
             severity=Severity.INFO,
             passed=True,
             message=(
-                "Every header the writer controls is present. Date and Message-ID "
-                "are added by your sending tool when the message goes out."
+                "The message carries every header you control. Your sending tool "
+                "adds the date and the message id when the message goes out."
             ),
             details={"missing_on_send": sorted(str(h) for h in missing)},
         )
@@ -175,9 +175,9 @@ def calibrate_for_draft(findings: list[Finding]) -> list[Finding]:
             severity=Severity.INFO,
             passed=True,
             message=(
-                "Graded as a draft. The checks that need a sent message were "
-                "skipped: whether SPF, DKIM, and DMARC passed and aligned, "
-                "transport encryption, and the headers your sending tool adds. "
+                "Graded as a draft. The audit skipped every check that needs a "
+                "sent message. Those are your authentication results, the "
+                "encryption in transit, and the headers your sending tool adds. "
                 "Those depend on how the message is sent, not on what you wrote. "
                 "Because they were skipped and not passed, the authentication and "
                 "hygiene sub-scores show only what a draft can show. They are not "

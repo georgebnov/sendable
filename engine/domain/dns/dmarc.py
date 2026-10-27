@@ -100,8 +100,9 @@ async def run(domain: str) -> list[Finding]:
                         severity=Severity.INFO,
                         passed=True,
                         message=(
-                            f"No DMARC at _dmarc.{domain}; inherited from "
-                            f"organizational domain {org_domain} per RFC 7489 §6.6.3."
+                            f"{domain} has no DMARC record of its own, so it inherits "
+                            f"the one on {org_domain}. That is how subdomains work and "
+                            "it is correct."
                         ),
                         details={"queried": domain, "found_at": org_domain},
                     )
@@ -268,8 +269,10 @@ async def run(domain: str) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f"External rua/ruf domain(s) without authorization TXT: "
-                    f"{external_failures[:3]}. Reports won't be delivered."
+                    f"You send DMARC reports to {external_failures[:3]}, which is not "
+                    "your domain, and that domain has not agreed to receive them. "
+                    "Receivers will send nothing. Ask that provider to publish the "
+                    "record that accepts reports for your domain."
                 ),
                 details={"failures": external_failures},
             )

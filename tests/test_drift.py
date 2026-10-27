@@ -353,7 +353,10 @@ async def test_d11_flags_a_new_freemail_reply_to(bulk_email: ParsedEmail) -> Non
     f = _one(await d11_reply_to_divergence.run(bulk_email, current, _rows(10)))
     assert f.passed is False
     assert f.severity == "CRITICAL"
-    assert "freemail" in f.message.lower()
+    # The message has to name the free mailbox, because that is what separates
+    # this from a plain new-domain change. It used to say "freemail", which is a
+    # filter's word, not a reader's.
+    assert "free personal mailbox" in f.message.lower()
 
 
 async def test_d11_flags_a_new_corporate_reply_to_less_loudly(
@@ -362,7 +365,7 @@ async def test_d11_flags_a_new_corporate_reply_to_less_loudly(
     current = _row(reply_to_domain="some-agency.com")
     f = _one(await d11_reply_to_divergence.run(bulk_email, current, _rows(10)))
     assert f.passed is False
-    assert "freemail" not in f.message.lower()
+    assert "free personal mailbox" not in f.message.lower()
 
 
 async def test_d11_accepts_a_reply_to_the_sender_has_used_before(

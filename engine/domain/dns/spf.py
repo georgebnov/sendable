@@ -167,8 +167,10 @@ async def run(domain: str) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"{len(spf_records)} SPF records found. RFC 7208 §3.2 forbids "
-                    "this; receivers will treat SPF as PermError."
+                    f"Your domain publishes {len(spf_records)} SPF records. A domain "
+                    "may publish only one. A receiver that finds two stops reading "
+                    "and treats your domain as having no SPF at all. Merge them into "
+                    "one record."
                 ),
                 details={"count": len(spf_records)},
             )
@@ -279,8 +281,10 @@ async def run(domain: str) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    "SPF uses the deprecated 'ptr' mechanism. RFC 7208 §5.5 says "
-                    "do not use; slow + unreliable."
+                    "Your SPF record uses the 'ptr' mechanism. It is slow, it is "
+                    "unreliable, and the standard tells senders not to use it. Some "
+                    "receivers ignore it. Replace it with the ip4, ip6, or include "
+                    "mechanism your provider gives you."
                 ),
             )
         )
@@ -301,8 +305,9 @@ async def run(domain: str) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    "SPF has both 'redirect=' modifier and 'all' mechanism. "
-                    "'all' wins: redirect is ignored. Pick one."
+                    "Your SPF record has both a 'redirect=' and an 'all'. A receiver "
+                    "obeys the 'all' and ignores the 'redirect=', so the redirect does "
+                    "nothing. Keep one of the two."
                 ),
             )
         )
@@ -324,8 +329,10 @@ async def run(domain: str) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"SPF requires {lookups} DNS lookups; RFC 7208 caps at "
-                    f"{_LOOKUP_LIMIT}. Receivers may PermError."
+                    f"Your SPF record costs {lookups} DNS lookups. The limit is "
+                    f"{_LOOKUP_LIMIT}. Over the limit, a receiver gives up and treats "
+                    "your mail as unauthenticated. Remove an include you no longer "
+                    "send from, or ask your provider to flatten the record."
                 ),
                 details={"count": lookups, "limit": _LOOKUP_LIMIT},
             )
@@ -347,8 +354,9 @@ async def run(domain: str) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f"{voids} void DNS lookups (NXDOMAIN/no-answer). RFC 7208 "
-                    f"caps at {_VOID_LIMIT}; over the cap forces PermError."
+                    f"Your SPF record points at {voids} names that do not exist. The "
+                    f"limit is {_VOID_LIMIT}. Over the limit, a receiver gives up and "
+                    "treats your mail as unauthenticated. Remove the dead include."
                 ),
                 details={"count": voids, "limit": _VOID_LIMIT},
             )

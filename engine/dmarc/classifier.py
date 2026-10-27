@@ -207,7 +207,7 @@ def classify_record(
         return ClassificationResult(
             classification="policy_override_arc",
             severity=Severity.INFO,
-            headline="Receiver trusted via ARC chain",
+            headline="The receiver trusted a forwarder on your behalf",
             explainer=(
                 "The receiver applied an ARC override: they trusted "
                 "the original authentication that came in before "
@@ -283,10 +283,9 @@ def classify_record(
             severity=Severity.INFO,
             headline="Transient DNS hiccup on the receiver",
             explainer=(
-                f"The receiver couldn't reach your DKIM TXT record at "
-                f"lookup time ({record.count} email). Temporary DNS "
-                f"timeout on their side, not a real DKIM failure. "
-                f"Delivered fine. No action."
+                f"The receiver could not read your signing key when it checked "
+                f"({record.count} email). Their lookup timed out. Your signature is "
+                "not broken. The mail was delivered. Do nothing."
             ),
             source_match=src,
             details=base,

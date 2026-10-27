@@ -142,7 +142,7 @@ async def test_a_new_freemail_reply_to_is_caught_once_history_exists(
     report = await _audit_through_store(store, _send(6, reply_to="janeokafor2026@gmail.com"))
     divergence = _drift(report)["drift.d11_reply_to_divergence"]
     assert divergence.passed is False
-    assert "freemail" in divergence.message.lower()
+    assert "free personal mailbox" in divergence.message.lower()
 
 
 async def test_re_auditing_the_same_send_does_not_inflate_the_history(

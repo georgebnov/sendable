@@ -60,10 +60,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    "No preheader / preview text detected. Inbox preview "
-                    "will fall back to whatever the body opens with: "
-                    "usually template chrome. Add a hidden preheader to "
-                    "control the second-line message."
+                    "The preview text field is empty. The inbox then shows the first "
+                    "words of your message instead, which is usually the template "
+                    "header. Write the preview text field in your sending tool. It "
+                    "controls the second line a reader sees before they open."
                 ),
                 details={"preview": None},
             )

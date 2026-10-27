@@ -105,10 +105,11 @@ async def run(headers: dict[str, list[str]]) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"FCrDNS mismatch: PTR for {sender_ip} is {ptr}, but {ptr} "
-                    f"forward-resolves to {forward_ips or '(no A record)'}. "
-                    "Gmail and Microsoft require the PTR to round-trip back to "
-                    "the same IP; mismatch is a deliverability hit."
+                    f"The address {sender_ip} says its name is {ptr}, but {ptr} "
+                    f"points back to {forward_ips or 'no address at all'}. The name "
+                    "and the address have to agree in both directions. Gmail and "
+                    "Microsoft both check this, and mail that fails it is penalised. "
+                    "Your sending provider owns this record."
                 ),
                 details={"ip": sender_ip, "ptr": ptr, "forward_ips": forward_ips},
             )

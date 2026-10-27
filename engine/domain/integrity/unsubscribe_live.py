@@ -152,7 +152,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check=f"{CHECK_PREFIX}.list_unsub_live_probe",
                 severity=Severity.INFO,
                 passed=True,
-                message=f"RFC 8058 one-click POST returned {final_status}. Endpoint reachable.",
+                message=f"The one-click unsubscribe link answered with {final_status}. It works.",
                 details={"hops": hops, "final_url": final_url},
             )
         ]
@@ -164,8 +164,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
             severity=severity,
             passed=False,
             message=(
-                f"RFC 8058 one-click POST failed: {final_status}. "
-                "Gmail / Apple Mail will fail the same way: sender penalty likely."
+                f"The one-click unsubscribe link answered with {final_status}, which "
+                "is a failure. Gmail and Apple Mail get the same answer when a reader "
+                "tries to leave. A reader who cannot leave marks the mail as spam "
+                "instead, and that costs you more."
             ),
             details={"hops": hops, "final_url": final_url, "final_status": final_status},
         )

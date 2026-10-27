@@ -394,12 +394,13 @@ async def _run_bimi(domain: str) -> list[Finding]:
                 severity=Severity.INFO,
                 passed=False,
                 message=(
-                    f"No BIMI record at {qname} (optional, a Gmail and Apple logo "
-                    f"bonus). You're at p={policy}, so you're eligible. Add a TXT "
-                    f"record at {qname} with this value: {suggested}. Point l= at a square "
-                    f"SVG (SVG Tiny PS profile) logo you host over HTTPS. To actually "
-                    f"display the logo, Gmail and Apple also require a Verified Mark "
-                    f"Certificate (VMC), added as a=https://your-host/vmc.pem."
+                    f"You have no logo record at {qname}. It is optional, and it is "
+                    "what puts your logo beside your name in Gmail and Apple Mail. "
+                    f"Your policy is p={policy}, which makes you eligible. Add a TXT "
+                    f"record at {qname} holding {suggested}, and point the l= part at "
+                    "a square logo you host over HTTPS. Gmail and Apple also require "
+                    "a Verified Mark Certificate before they show the logo. That "
+                    "certificate is bought, and it costs about 1000 USD a year."
                 ),
                 details={
                     "dns_error": ans.error,

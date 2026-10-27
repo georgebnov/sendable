@@ -120,9 +120,10 @@ def _check_empty_href(email: ParsedEmail) -> Finding:
             severity=Severity.HIGH,
             passed=False,
             message=(
-                f"{len(offenders)} anchor(s) have empty href. Recipients see a "
-                f"clickable button that goes nowhere; filters score this as "
-                f"phishing-shape."
+                f"{len(offenders)} link in this email points nowhere. The reader "
+                "sees a button, clicks it, and nothing happens. Filters read an "
+                "empty link as a sign of phishing. Paste the destination into each "
+                "one, or delete it."
             ),
             details={"offenders": offenders[:5], "count": len(offenders)},
         )
@@ -161,9 +162,10 @@ def _check_merge_tag_unfilled(email: ParsedEmail) -> Finding:
             severity=Severity.HIGH,
             passed=False,
             message=(
-                f"{len(hits)} unfilled merge field(s) detected. The recipient "
-                f"sees a placeholder or empty name where personalization was "
-                f"expected: filters treat this as broken/test mail."
+                f"{len(hits)} personalisation field did not fill in. The reader sees "
+                "a placeholder, or an empty space where their name should be. "
+                "Filters read that as broken mail or a test send. Check the field "
+                "names against your list before you send."
             ),
             details={"hits": hits[:5], "count": len(hits)},
         )

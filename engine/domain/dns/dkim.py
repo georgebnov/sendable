@@ -252,12 +252,12 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
                         severity=Severity.MEDIUM,
                         passed=False,
                         message=(
-                            f"This mail is DKIM-signed by {', '.join(signers)}, not by "
-                            f"{domain}. The signature authenticates the message, but the "
-                            f"key belongs to that provider, so you cannot rotate it and it "
-                            f"does not align with your From domain for DMARC. Ask your "
-                            f"sending tool for a branded or custom DKIM setup, which "
-                            f"publishes a key under {domain}."
+                            f"{', '.join(signers)} signs this mail, not {domain}. The "
+                            "signature does prove the message was not changed. But the "
+                            "key belongs to that provider, so you cannot replace it, and "
+                            "it does not match your From address. Ask your sending tool "
+                            f"for a branded or custom signing setup, which puts a key "
+                            f"under {domain}."
                         ),
                         details={
                             "third_party_signers": signers,
@@ -382,8 +382,10 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
                         severity=Severity.INFO,
                         passed=True,
                         message=(
-                            f"DKIM key at {qname} is Ed25519 (RFC 8463). Key size is "
-                            f"fixed and strong; the RSA size floor does not apply."
+                            f"The signing key at {qname} is the newer, shorter kind "
+                            "(Ed25519). Its length is fixed, and it is stronger than "
+                            "the older kind at four times the size, so the length "
+                            "rule does not apply to it."
                         ),
                         details={"selector": selector, "algorithm": "ed25519", "bits": bits},
                     )
@@ -490,10 +492,11 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
                         severity=Severity.HIGH,
                         passed=False,
                         message=(
-                            f"DKIM signature ({selector}._domainkey.{signing_domain}) "
-                            f"does not cover {missing}. RFC 8058 + Gmail/Yahoo "
-                            "bulk-sender rules require these headers to be DKIM-signed; "
-                            "without coverage the one-click endpoint is tamperable."
+                            f"The signature from {signing_domain} does not protect "
+                            f"{missing}. Gmail and Yahoo require the unsubscribe "
+                            "headers to be signed on bulk mail. Unsigned, anyone who "
+                            "handles the message on its way can change where the "
+                            "unsubscribe link points."
                         ),
                         details={
                             "selector": selector,
@@ -551,9 +554,9 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
                         severity=Severity.LOW,
                         passed=False,
                         message=(
-                            f"DKIM signature ({selector}._domainkey.{signing_domain}) "
-                            f"uses c={header_canon}/{body_canon}. Recommended: "
-                            f"c=relaxed/relaxed. " + " ".join(parts)
+                            f"The signature from {signing_domain} is set to break if "
+                            "a relay changes the spacing in transit, which relays do. "
+                            "Ask your sending provider for the tolerant setting. " + " ".join(parts)
                         ),
                         details={
                             "selector": selector,
@@ -571,7 +574,10 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
                         check=f"{CHECK_PREFIX}.canonicalization",
                         severity=Severity.INFO,
                         passed=True,
-                        message=f"DKIM canonicalization c=relaxed/relaxed at {qname}.",
+                        message=(
+                            f"The signature at {qname} tolerates the small spacing "
+                            "changes a relay makes in transit."
+                        ),
                         details={
                             "selector": selector,
                             "header_canon": header_canon,

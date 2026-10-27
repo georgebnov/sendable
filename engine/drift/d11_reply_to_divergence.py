@@ -94,8 +94,10 @@ async def run(email: ParsedEmail, current: EmailFacts, history: list[EmailFacts]
                 severity=Severity.CRITICAL,
                 passed=False,
                 message=(
-                    f"New Reply-To freemail domain '{cur_reply}' on bulk mail; "
-                    f"canonical scam pattern (SpamAssassin FREEMAIL_FORGED_REPLYTO)."
+                    f"Replies to this bulk send go to '{cur_reply}', a free personal "
+                    "mailbox, and you have never used it before. A business sending "
+                    "bulk mail that asks for replies at a free address is the shape "
+                    "of a scam, and filters score it that way."
                 ),
                 details={"current": cur_reply, "prior": sorted(prior)[:10]},
             )

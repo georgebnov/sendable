@@ -118,9 +118,11 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.CRITICAL,
                 passed=False,
                 message=(
-                    f"Bidirectional override characters detected "
-                    f"({len(bidi_hits)} in {_source_summary(bidi_hits)}). "
-                    f"Prompt-injection / spoofing risk."
+                    f"The message holds {len(bidi_hits)} invisible character that "
+                    f"reverses reading direction, in {_source_summary(bidi_hits)}. "
+                    "These let text display in one order and read in another, which "
+                    "is how a link is disguised. Paste your copy into a plain text "
+                    "editor and retype it to clear them."
                 ),
                 details={
                     "count": len(bidi_hits),

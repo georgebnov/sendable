@@ -123,8 +123,11 @@ async def run(email: ParsedEmail) -> list[Finding]:
             severity=Severity.HIGH,
             passed=False,
             message=(
-                f"Subject does not accurately describe body content: "
-                f"CAN-SPAM §5(a)(2) deceptive-subject risk. {verdict.reason}"
+                f"The subject does not describe what the email says. "
+                f"{verdict.reason} Rewrite the subject to name what is in the "
+                f"message. A subject that misleads the reader is illegal for "
+                f"commercial mail in the United States, and filters score it "
+                f"as deception."
             ),
             details={
                 "reason": verdict.reason,
