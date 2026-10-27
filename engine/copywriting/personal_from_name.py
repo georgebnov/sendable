@@ -6,8 +6,8 @@ From: lines visually cluster with one-to-one mail; brand/team names
 cluster with promo.
 
 Check: parse From: into (display_name, address). Scan display name for
-brokerage / team / corporate tokens (Realty, Group, Properties, LLC, …)
-and for impersonal handle words (Info, Support, NoReply, …). Either hit
+collective and legal-entity tokens (Team, Group, Partners, LLC, …) and
+for impersonal handle words (Info, Support, NoReply, …). Either hit
 fires LOW advisory.
 
 Placeholder handling: if the display name is *entirely* an unsubstituted
@@ -29,17 +29,16 @@ from ..severity import Severity
 
 _FLAG_TOKENS = (
     "team",
-    "realty",
     "group",
-    "properties",
-    "homes",
     "associates",
     "partners",
     "inc",
     "llc",
+    "ltd",
     "corp",
+    "plc",
+    "gmbh",
 )
-_FLAG_PHRASES = ("real estate",)
 # `co.` carries a literal `.` so word-boundary handling needs a custom
 # pattern — match `co.` followed by end-of-string or whitespace.
 _CO_DOT_RX = re.compile(r"\bco\.(?=\s|$)", re.IGNORECASE)
@@ -118,9 +117,6 @@ async def run(email: ParsedEmail) -> list[Finding]:
         for token in _FLAG_TOKENS:
             if _matches_token(display, token):
                 hits.append(token)
-        for phrase in _FLAG_PHRASES:
-            if _matches_token(display, phrase):
-                hits.append(phrase)
         if _CO_DOT_RX.search(display):
             hits.append("co.")
         if display.lower() in _HANDLE_WORDS:

@@ -8,7 +8,7 @@ collide with outbound `copygen.*` findings.
 Checks run:
  - Subject heuristics (length, word count, Title Case, ALL CAPS, !/?
    counts, Re:/Fwd: prefix, newsletter word, emoji count, $-opener).
- - Spam-trigger substring scan (real-estate compounding vocabulary).
+ - Spam-trigger substring scan (promotional compounding vocabulary).
  - Compound-signal score (3+ promotional categories = MEDIUM, 4+ = HIGH,
    5+ = CRITICAL) — the research-backed insight that stacked signals are
    the real deliverability killer.

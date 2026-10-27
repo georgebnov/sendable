@@ -55,8 +55,13 @@ _FAKE_FULL_NAMES = tuple(
     f"{first} {last}" for first in _FAKE_FIRST_NAMES[:4] for last in _FAKE_LAST_NAMES[:2]
 )
 _FAKE_EMAIL = "sarah.chen@example-recipient.com"
-_FAKE_COMPANY = "Northwind Realty"
-_FAKE_CITY = "Toronto"
+# Must match a token in `copywriting.personal_from_name`, because cleanup
+# substitutes this into the From display name before the checks run. A value
+# that reads as a personal name makes that check pass on a test send whose
+# composer put a company field in the From line. "Co" alone does not match:
+# the pattern for `co.` requires the dot.
+_FAKE_COMPANY = "Northwind Supply Group"
+_FAKE_CITY = "Springfield"
 _FAKE_UNSUB_URL = "https://list.example.com/unsubscribe?token=fakeUnsub123"
 _FAKE_LINK_URL = "https://www.example.com/landing?utm_source=audit"
 

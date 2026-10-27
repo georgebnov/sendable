@@ -1,4 +1,4 @@
-# Spam-trigger blocklist (real-estate compounding vocabulary)
+# Spam-trigger blocklist (promotional compounding vocabulary)
 #
 # One phrase per line. Case-insensitive substring match across subject,
 # preview, and body. Empty lines and lines starting with `#` are ignored.
@@ -26,6 +26,7 @@ sales event this weekend
 # ─── fomo ────────────────────────────────────────────────
 vip access
 platinum access
+insider access
 priority registration
 exclusive offer
 members only
@@ -62,6 +63,7 @@ save up to
 exclusive savings
 price adjustments
 save $
+investment opportunity
 
 # ─── formatting ──────────────────────────────────────────
 # These strings are literal; ALL-CAPS / multi-! / multi-? patterns are
@@ -82,14 +84,3 @@ to whom it may concern
 # (Zippia). Critic flags it as LOW; not elevated higher because it also
 # appears in legitimate "weekly newsletter" mailer contexts.
 newsletter
-
-# ─── pre-construction-specific ───────────────────────────
-# These are the ones Toronto buyers now actively distrust post-2024.
-prices and floorplans attached
-floorplans attached
-platinum agent
-insider access
-builder direct
-investment opportunity
-guaranteed rental
-guaranteed roi

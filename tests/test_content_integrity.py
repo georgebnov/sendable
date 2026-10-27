@@ -37,7 +37,7 @@ def _with_attachment(*files: tuple[str, bytes, str]) -> ParsedEmail:
 def _html(body: str) -> ParsedEmail:
     raw = (
         "From: Jane <jane@example.com>\r\nTo: reader@example.com\r\n"
-        "Subject: Open house Saturday\r\n"
+        "Subject: Office hours Saturday\r\n"
         "Content-Type: text/html; charset=utf-8\r\n\r\n"
         f"<html><body>{body}</body></html>"
     ).encode()
@@ -121,7 +121,7 @@ def test_an_uppercase_extension_is_still_matched() -> None:
 
 
 def test_plain_text_passes() -> None:
-    findings = asyncio.run(invisible_chars.run(_html("<p>The open house runs from noon.</p>")))
+    findings = asyncio.run(invisible_chars.run(_html("<p>The office hours run from noon.</p>")))
     assert not _failing(findings)
 
 
@@ -155,7 +155,7 @@ def test_a_zero_width_joiner_in_an_emoji_is_not_reported() -> None:
 
 
 def test_an_email_with_no_hidden_text_passes() -> None:
-    findings = asyncio.run(hidden_css.run(_html("<p>The open house runs from noon.</p>")))
+    findings = asyncio.run(hidden_css.run(_html("<p>The office hours run from noon.</p>")))
     assert not _failing(findings)
 
 

@@ -78,13 +78,35 @@ aggregate reports, and track both locally. No service, no account, no database.
   sender, which on a shared ESP pool is the ESP's own domain. The message now
   names the mechanism and both actions.
 
+### Changed
+
+- Take the industry vocabulary out of the two checks that carried it. The tool
+  grades any sender, and a word list built around one trade graded that trade and
+  said nothing about the rest.
+  - The From display-name check no longer flags `realty`, `properties`, or
+    `homes`. It now flags `ltd`, `plc`, and `gmbh` next to the `inc`, `llc`, and
+    `corp` it already read. The words that remain name a group or a legal entity
+    in any trade.
+  - The spam-trigger list loses its one trade-specific category. `insider access`
+    moves into `fomo` and `investment opportunity` into `financial-promise`, so
+    both still fire. `prices and floorplans attached`, `floorplans attached`,
+    `platinum agent`, and `builder direct` are gone. `guaranteed roi` and
+    `guaranteed rental` are gone as separate entries, because `guaranteed` in
+    `financial-promise` already matches both.
+  - **This changes a judgement.** An email that fired only the deleted phrases
+    now reports one fewer promotional category, so its `compound_signal`
+    severity can fall by one step. The list holds 5 promotional categories
+    instead of 6, and `compound_signal` reports CRITICAL at 5, so CRITICAL now
+    needs every one of them. An email reaches it only if it also carries a
+    generic greeting such as "dear valued customer".
+
 ### Removed
 
 - The `VERSION` file. Nothing read it, and it still said `0.45.0` from the SaaS
   while `pyproject.toml` said `0.1.0`. The version has one home now.
 
 - The hardcoded industry check registry. It was unreachable: no caller ever passed
-  an industry, so its three real-estate checks never ran.
+  an industry, so its three vertical checks never ran.
 - The LLM humanization layer. It could not be imported at all, because it used
   `python-dotenv` without declaring it, and nothing imported it so nothing noticed.
   In a skill the host agent does that translation, which `SKILL.md` specifies.

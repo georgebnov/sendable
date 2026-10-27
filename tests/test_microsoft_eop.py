@@ -29,9 +29,9 @@ from engine.report import Finding
 def _email(*header_lines: str) -> ParsedEmail:
     raw = (
         "From: Jane <jane@example.com>\r\nTo: reader@example.com\r\n"
-        "Subject: Open house Saturday\r\n"
+        "Subject: Office hours Saturday\r\n"
         + "".join(f"{line}\r\n" for line in header_lines)
-        + "\r\nThe open house runs from noon.\r\n"
+        + "\r\nThe office hours run from noon.\r\n"
     ).encode()
     return parse_eml(raw)
 

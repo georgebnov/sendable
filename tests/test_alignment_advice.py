@@ -23,7 +23,7 @@ def _unaligned_spf() -> ParsedEmail:
         b"Return-Path: <bounces-1=jane=example.com@pool.esp.example>\r\n"
         b"From: Jane <jane@example.com>\r\n"
         b"To: reader@gmail.com\r\n"
-        b"Subject: Open house\r\n"
+        b"Subject: Office hours\r\n"
         b"Authentication-Results: mx.google.com; spf=pass; dkim=pass "
         b"header.i=@example.com; dmarc=pass (p=NONE)\r\n"
         b"Content-Type: text/plain\r\n\r\nHello.\r\n"

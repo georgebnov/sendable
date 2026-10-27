@@ -317,10 +317,10 @@ def _peel_footer(paragraphs: list[str]) -> tuple[str | None, list[str]]:
     stopping, so it settled on the EARLIEST paragraph carrying a hint and swept
     everything after it away. `_FOOTER_HINT_RX` matches a bare street address,
     the word "unsubscribe", "copyright", or "all rights reserved" anywhere in a
-    paragraph, so a listing email naming "45 Oak Street" in its second paragraph
-    lost the rest of its content, and roughly a dozen copywriting checks then
-    graded what was left. Property addresses in the body are normal in exactly
-    the mail this tool is pointed at.
+    paragraph, so an email naming "45 Oak Street" in its second paragraph lost
+    the rest of its content, and roughly a dozen copywriting checks then graded
+    what was left. A street address in the body is normal in exactly the mail
+    this tool is pointed at.
     """
     if not paragraphs:
         return None, paragraphs
