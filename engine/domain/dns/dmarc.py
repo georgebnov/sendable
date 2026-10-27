@@ -263,14 +263,19 @@ async def run(domain: str) -> list[Finding]:
         )
 
     if external_failures:
+        # A finding a user reads must not carry a Python list.
+        shown = ", ".join(external_failures[:3])
+        hidden = len(external_failures) - 3
+        named = shown if hidden <= 0 else f"{shown}, and {hidden} more"
         findings.append(
             Finding(
                 check=f"{CHECK_PREFIX}.external_validation",
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f"You send DMARC reports to {external_failures[:3]}, which is not "
-                    "your domain, and that domain has not agreed to receive them. "
+                    f"You send DMARC reports to {named}, which "
+                    "is not your domain, and that domain has not agreed to receive "
+                    "them. "
                     "Receivers will send nothing. Ask that provider to publish the "
                     "record that accepts reports for your domain."
                 ),

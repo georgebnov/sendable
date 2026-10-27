@@ -107,7 +107,7 @@ sentence saying what to fix is help.
 
 ## Playbooks
 
-Three questions arrive more than any others. Each one needs an order of steps,
+Four questions arrive more than any others. Each one needs an order of steps,
 not a single command. `references/PLAYBOOKS.md` holds them:
 
 1. **One email landed in three different folders.** Some recipients got the
@@ -119,6 +119,9 @@ not a single command. `references/PLAYBOOKS.md` holds them:
    ramp by segment, not by volume.
 3. **Everything was fine, and now it is not.** What to compare, and which causes
    you can fix today against which take weeks.
+4. **The message bounced, and the code means nothing to me.** A bounce string is
+   the receiving provider saying why, in writing. The playbook maps every code
+   Gmail and Microsoft send to its cause and to the check that names it.
 
 ## Connect more data
 

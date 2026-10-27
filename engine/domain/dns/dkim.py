@@ -384,7 +384,7 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
                         message=(
                             f"The signing key at {qname} is the newer, shorter kind "
                             "(Ed25519). Its length is fixed, and it is stronger than "
-                            "the older kind at four times the size, so the length "
+                            "the older kind at eight times the size, so the length "
                             "rule does not apply to it."
                         ),
                         details={"selector": selector, "algorithm": "ed25519", "bits": bits},

@@ -7,6 +7,12 @@ the receiver's MX, not on the sender domain's MX server — those are
 two different machines whenever an ESP (SendGrid / Mailchimp / Brevo /
 Klaviyo / etc.) is in the path.
 
+Gmail's own sender FAQ puts broken forward/reverse DNS in the row that
+earns "Temporary or Permanent Failure codes, or spam foldering", and
+the code it sends is 550 5.7.25. The finding says "refused", not
+"penalised", because a refused message never reaches any folder and a
+penalised one does.
+
 The sending IP is extracted from the Received chain (same logic as the
 RBL scan in `blacklist.py`).
 
@@ -64,9 +70,11 @@ async def run(headers: dict[str, list[str]]) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"No PTR record for sending IP {sender_ip}. Gmail and "
-                    "Microsoft require a valid PTR on the IP that delivered "
-                    "the message; missing PTR is a hard deliverability hit."
+                    f"The address {sender_ip} that delivered this message has "
+                    "no name. Gmail and Microsoft both require one. Gmail can "
+                    "refuse the message outright for this, with the code "
+                    "550 5.7.25, so it never reaches the folder at all. Your "
+                    "sending provider owns this record."
                 ),
                 details={"ip": sender_ip, "dns_error": ptr_ans.error},
             )
@@ -106,10 +114,12 @@ async def run(headers: dict[str, list[str]]) -> list[Finding]:
                 passed=False,
                 message=(
                     f"The address {sender_ip} says its name is {ptr}, but {ptr} "
-                    f"points back to {forward_ips or 'no address at all'}. The name "
-                    "and the address have to agree in both directions. Gmail and "
-                    "Microsoft both check this, and mail that fails it is penalised. "
-                    "Your sending provider owns this record."
+                    f"points back to {', '.join(forward_ips) or 'no address at all'}. "
+                    "The name and the address have to agree in both directions. "
+                    "Gmail can refuse the message outright for this, with the "
+                    "code 550 5.7.25, so it never reaches the folder at all. "
+                    "Microsoft checks it too. Your sending provider owns this "
+                    "record."
                 ),
                 details={"ip": sender_ip, "ptr": ptr, "forward_ips": forward_ips},
             )

@@ -166,18 +166,53 @@ empty chart at low volume means no data, not bad reputation.
 **Keep the verification record.** If the TXT record is removed or changed,
 Postmaster Tools stops collecting.
 
+**The Domain reputation panel is gone.** The first version of Postmaster Tools
+showed a Bad / Low / Medium / High rating for your domain and your IP. Google
+retired that version at the end of September 2025, and the second version does
+not carry those two panels. Advice that tells you to read your domain reputation
+rating is advice written before that date. Nothing replaced it with another
+rating.
+
 **Read it in this order.**
 
 | Panel | Target |
 |---|---|
 | Spam rate | under 0.10%. Google's bulk sender rules treat 0.30% as the limit. |
-| Domain reputation | High or Medium. Low or Bad means stop and fix the list. |
+| Deliverability analysis | one verdict in plain words. See the table below. |
+| Compliance status | every row passing. 11 rows, one per bulk sender requirement. |
 | Authentication | SPF, DKIM, and DMARC pass rates across every recipient |
 | Delivery errors | near zero |
 
 The Authentication panel is the wide version of what the audit measures on one
 message. Use both. The audit tells you why one message failed. This tells you
 what fraction of all your mail failed.
+
+**Deliverability analysis is the panel that replaced the rating.** It appeared in
+June 2026. Instead of a grade it gives one verdict, and the verdict is about what
+recipients did, not about how clean your setup is. Google published no
+announcement, the names below come from the API reference, and senders report
+that it reaches accounts unevenly. So treat an absent panel as not yet arrived.
+
+| Verdict | What it says |
+|---|---|
+| `USER_FEEDBACK_POSITIVE` | recipients signal they want the mail. This is the target. |
+| `USER_FEEDBACK_LOW` | recipients neither complain nor act. See below. |
+| `MESSAGE_VOLUME_LOW` | too little mail to judge |
+| `USER_FEEDBACK_NEGATIVE` | recipients signal they do not want the mail |
+| `SPAM_RATE_HIGH` | spam rate above 0.1% |
+| `SENDER_NOT_COMPLIANT` | a bulk sender requirement is failing |
+| `SMTP_ERRORS_HIGH` | too many messages are being refused |
+
+**`USER_FEEDBACK_LOW` is the one to understand.** It is not a complaint. It says
+recipients open nothing, click nothing, and report nothing. Indifference used to
+be invisible, and senders argued about whether it counted. Google now names it as
+a state of its own, between wanted and unwanted. A domain can pass all 11
+compliance rows and still sit here.
+
+The fix for it is subtraction, not addition. Stop sending to addresses that have
+not clicked or replied in 90 to 180 days. Measure clicks and replies rather than
+opens, because Apple Mail Privacy Protection and Gmail's image proxy load the
+tracking pixel whether or not a person read anything.
 
 ---
 
