@@ -1,0 +1,75 @@
+# Pre-commit hooks. The same gate `just check` runs, wired to run before a commit.
+#
+#   uv tool install pre-commit     once per machine
+#   pre-commit install             once per clone
+#
+# The ruff rev is pinned to the version pyproject.toml resolves, so the hook and
+# `just check` cannot disagree about what passes. Bump both together.
+#
+# If you would rather not install pre-commit, `git config core.hooksPath .githooks`
+# runs the same checks through a plain shell hook.
+
+default_install_hook_types: [pre-commit]
+exclude: |
+  (?x)^(
+    production/     # the SaaS this repo was refactored from, pending removal
+    |tests/fixtures/  # raw .eml files, deliberately malformed in places
+  )
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      # A real .env must never be committed. .env.example is fine.
+      - id: detect-private-key
+
+  # Security audit for the GitHub Actions workflows: unpinned actions, overly broad
+  # token permissions, credential persistence, and script injection. Adding a
+  # workflow without this is how a public repo grows a supply-chain hole.
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.30.1
+    hooks:
+      - id: zizmor
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      # The linter runs before the formatter, because --fix changes the code the
+      # formatter then lays out.
+      - id: ruff-check
+        args: [--fix]
+      # ruff formats Python inside a Markdown fence too, and `just check` runs it
+      # over the whole tree. Without markdown here, a mis-formatted example in a
+      # document passes the hook and then fails CI.
+      - id: ruff-format
+        types_or: [python, pyi, markdown]
+
+  # mypy and pytest run through uv rather than through a mirrored hook, because
+  # both need this project's own environment to resolve its imports. A mirrored
+  # mypy hook builds its own environment and reports errors the real run does not.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run --quiet mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: pytest
+        name: pytest with the coverage floor
+        # `just test` reads the floor from the justfile, which owns the value.
+        # Restating it here is how the last bump left the shell hook at 69 while
+        # everything else moved to 70.
+        entry: just test
+        language: system
+        types: [python]
+        pass_filenames: false

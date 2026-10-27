@@ -1,0 +1,127 @@
+# The gate for the Sendable skill. Exactly what `just check` runs locally, so a
+# green local run means a green run here.
+#
+# Actions are pinned to a commit hash, not a tag, because a tag can be moved to
+# point at different code. The trailing comment is the human-readable version, and
+# Dependabot reads it to propose a bump.
+
+name: Skill
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "production/**"
+      - "docs/**"
+      - "**.md"
+  pull_request:
+    paths-ignore:
+      - "production/**"
+      - "docs/**"
+      - "**.md"
+
+# Read-only. Nothing here publishes, comments, or writes to the repository, so the
+# default token permissions are more than it needs.
+permissions:
+  contents: read
+
+concurrency:
+  group: skill-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: lint, types, tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is the floor the project declares, and the code depends on it:
+        # StrEnum and typing.NotRequired both arrived in 3.11. 3.14 is what a user
+        # with a current uv will resolve to.
+        python: ["3.11", "3.14"]
+    steps:
+      # persist-credentials: false keeps the checkout token out of .git/config,
+      # where a later step or a cached artifact could pick it up.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Sync the environment
+        run: uv sync --python ${{ matrix.python }}
+
+      - name: Lint
+        run: uv run --python ${{ matrix.python }} ruff check .
+
+      - name: Format
+        run: uv run --python ${{ matrix.python }} ruff format --check .
+
+      - name: Types
+        run: uv run --python ${{ matrix.python }} mypy
+
+      # No network and no model: the suite must be deterministic. OPENAI_API_KEY is
+      # deliberately absent, which is also what tests/conftest.py enforces.
+      - name: Tests
+        run: |
+          # The floor lives in the justfile, which owns it. Reading it here keeps
+          # CI and `just check` from drifting apart, which they already did once.
+          floor="$(sed -n 's/^coverage_floor := "\([0-9]*\)"/\1/p' justfile)"
+          uv run --python ${{ matrix.python }} pytest -q --cov --cov-report=term \
+            --cov-fail-under="${floor:-80}"
+
+  packaged-script:
+    name: the script a user actually runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+
+      # This job never runs `uv sync`. It proves the published entry point works
+      # from a bare checkout with no project environment, which is how someone who
+      # downloads the skill invokes it. The gate job cannot catch a dependency
+      # missing from a PEP 723 header, because `uv sync` installs the dev group.
+      - name: Audit an email with no project environment
+        run: |
+          mkdir -p /tmp/bare && cp tests/fixtures/clean_bulk.eml /tmp/bare/mail.eml
+          cd /tmp/bare
+          uv run --quiet "$GITHUB_WORKSPACE/scripts/audit.py" mail.eml --offline > report.json
+          python - <<'PY'
+          import json
+          r = json.load(open("report.json"))
+          assert 0 <= r["score"] <= 100, r["score"]
+          assert r["verdict"] in {"GO", "REVIEW", "NO_GO"}, r["verdict"]
+          assert r["findings"], "no findings means the fan-out did not run"
+          print(f'ok: score={r["score"]} verdict={r["verdict"]} findings={len(r["findings"])}')
+          PY
+
+      - name: Confirm it wrote a report to the store
+        run: test -d /tmp/bare/.sendable/audits && ls -1 /tmp/bare/.sendable/audits
+
+      - name: Read the stored report back
+        run: |
+          cd /tmp/bare
+          uv run --quiet "$GITHUB_WORKSPACE/scripts/reports.py" list
+          uv run --quiet "$GITHUB_WORKSPACE/scripts/reports.py" trend
+
+      # dmarc.py was the one entry point this job never drove, so a dependency
+      # missing from its header alone would have shipped. It needs no network:
+      # ingesting a report and then asking for a domain with none exits 1.
+      - name: Drive the DMARC entry point
+        run: |
+          cd /tmp/bare
+          uv run --quiet "$GITHUB_WORKSPACE/scripts/dmarc.py" --help > /dev/null
+          if uv run --quiet "$GITHUB_WORKSPACE/scripts/dmarc.py" status --domain nothing.invalid; then
+            echo "expected a non-zero exit for a domain with no stored reports" >&2
+            exit 1
+          fi
