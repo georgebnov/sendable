@@ -1,0 +1,33 @@
+name: Feature request
+description: A check that should exist, or a command that should do more.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The deliverability problem it would catch
+      description: >
+        Describe the real failure, not the feature. What lands in spam, or what
+        does a sender get wrong, that this would surface.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence that it matters
+      description: >
+        A receiver's published requirement, an RFC, or a measured result. A check
+        that fires on correct configuration is worse than no check, so the
+        threshold has to come from somewhere.
+    validations:
+      required: true
+
+  - type: textarea
+    id: message
+    attributes:
+      label: What the finding would say
+      description: >
+        Write it for someone looking at their email composer: the subject line,
+        the preview-text field, the link they pasted. No HTML tags, no CSS, no RFC
+        numbers, no dashes.

@@ -1,0 +1,35 @@
+# Editor defaults, so a contributor's editor agrees with ruff before the hook runs.
+# https://editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+# Matches line-length in pyproject.toml.
+max_line_length = 100
+
+[*.{yml,yaml,json,toml,md}]
+indent_size = 2
+
+[*.md]
+# Two trailing spaces are a hard line break in Markdown.
+trim_trailing_whitespace = false
+
+[justfile]
+indent_size = 4
+
+[Makefile]
+indent_style = tab
+
+# Raw email fixtures are byte-exact on purpose. CRLF line endings are what RFC 5322
+# specifies, and several fixtures carry deliberately malformed whitespace, so no
+# editor may normalise them.
+[tests/fixtures/*.eml]
+end_of_line = unset
+insert_final_newline = false
+trim_trailing_whitespace = false

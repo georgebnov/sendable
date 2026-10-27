@@ -1,0 +1,115 @@
+# Sendable — an email deliverability audit skill for agents.
+#
+# Two ways to run the code:
+#   1. `uv run scripts/audit.py mail.eml` — the user-facing path. The script
+#      carries its own dependency list in a PEP 723 header, so a caller needs
+#      only `uv` on the machine. No virtualenv, no install step.
+#   2. This file — the development path. `uv sync` builds an environment with
+#      the test and lint tools, then `just check` runs every gate.
+#
+# Every directory is gated. Nothing is excluded from ruff or mypy.
+
+[project]
+name = "sendable"
+version = "0.1.0"
+description = "Audit an email for deliverability, inbox placement, and copy problems."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "beautifulsoup4>=4.15",
+    "lxml>=6.1",
+    "dnspython>=2.8",
+    "defusedxml>=0.7.1",
+    "confusable-homoglyphs>=3.3.1",
+    "publicsuffixlist>=1.0.2",
+    "pydantic>=2.13",
+    # DKIM public-key size. engine/domain/dns/dkim.py parses the p= tag to report
+    # a weak key, and a 1024-bit key is a real finding. Without these it falls
+    # back to guessing the size from the DER byte length.
+    "cryptography>=46.0",
+    "pyasn1>=0.6",
+]
+
+[project.optional-dependencies]
+# The checks that ask a model a question. Without this the audit still runs;
+# those checks report INFO and pass.
+llm = ["openai>=2.41"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=7.0",
+    "mypy>=2.1",
+    "ruff>=0.14",
+    "types-beautifulsoup4",
+    "openai>=2.41",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+# production/ holds the SaaS this repo is being refactored away from. It carries
+# its own pyproject and its own gates, and it is removed at the end of this work.
+extend-exclude = ["production"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RET", "RUF", "PIE", "PLE"]
+ignore = [
+    "RUF002",  # ambiguous unicode in docstrings — the prose uses × ≤ ─ on purpose
+    "RUF003",  # ambiguous unicode in comments — same
+    # Each if/else this rule flags carries a comment on one branch that records
+    # the rule behind the value, for example "bare 'all' = +all by RFC". A
+    # ternary has nowhere to put that comment, so the rewrite loses the reason.
+    "SIM108",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# These two checks detect homoglyph and zero-width attacks. Their pattern
+# tables must contain the exact characters they look for, so the linter's
+# "suspicious unicode" rules fire on correct code.
+"engine/domain/integrity/homoglyph.py" = ["RUF001", "PLE2502", "PLE2515"]
+"engine/domain/integrity/invisible_chars.py" = ["RUF001", "PLE2502", "PLE2515"]
+"engine/cleanup.py" = ["RUF001"]
+# The en dash is pattern data, not prose: these regexes must match an en dash
+# as it appears in real email text, and the .strip() calls take a character
+# set that deliberately includes hyphen, en dash, and em dash.
+"engine/copywriting/extract.py" = ["RUF001"]
+"engine/copywriting/from_name_body_consistency.py" = ["RUF001"]
+"engine/copywriting/personal_from_name.py" = ["RUF001"]
+# The Cyrillic letter is the example in an LLM prompt that teaches the model to
+# spot a Cyrillic homoglyph. Replacing it with Latin would void the example.
+"engine/report.py" = ["RUF001"]
+"tests/*" = [
+    "E501",    # raw .eml fixtures are long byte strings
+    "RUF012",  # mutable class attributes on throwaway test doubles
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["engine", "store"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+files = ["engine", "store", "scripts", "tests"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+source = ["engine", "store"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

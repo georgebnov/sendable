@@ -1,130 +1,121 @@
-READ ~/Projects/agent-scripts/AGENTS.md BEFORE ANYTHING (skip if missing).
+# Agent guide: Sendable
 
-# Agent guide — Sendable
+Sendable is an email deliverability audit tool. It ships as a skill that an agent
+downloads and runs. It has no service, no account, and no database. `SKILL.md` is
+the contract that an agent reads. This file is the contract for work on the code.
 
-An email-deliverability SaaS. The FastAPI backend (`api.sndbl.com`) runs the audit
-pipeline and DMARC ingestion; the Next.js app (`app.sndbl.com`) is the product UI;
-the Astro site (`sndbl.com`) is the marketing surface. All work lives under
-`production/{backend,frontend,website}/`. `CLAUDE.md` in this directory is the
-long-form reference; this file is the operational contract.
+`production/` still holds the SaaS that this tool came from: a FastAPI backend on
+Fargate, a Next.js app on Vercel, and an Astro marketing site. The AWS account is
+closed, and none of it runs. Every gate excludes it, and it will be removed. The
+tag `saas-final` marks the state before the refactor. To recover a file from it,
+run `git show saas-final:<path>`.
+
+## Layout
+
+```
+SKILL.md          the contract for agents. Update it when a flag or an output changes.
+scripts/          the three entry points. Each script declares its own dependencies.
+  audit.py          grades one email
+  dmarc.py          reads aggregate reports and reports the next step
+  reports.py        reads what the store already holds
+engine/           every check. No database, no network state, and no globals that it owns.
+store/            JSON files on disk. One file for each audit and for each DMARC report.
+tests/            the suite. No network, no model call, and no database.
+references/       what an agent loads on demand. CONNECTIONS.md (the data sources
+                  a sender can connect), PLAYBOOKS.md (the questions one audit
+                  cannot answer), CHECKS.md (every check and its thresholds),
+                  MECHANISMS.md (how the subtle checks decide).
+docs/             maintainer docs. RELEASING.md only.
+```
 
 ## Toolchain
 
-Backend: Python 3.12, `.venv` + pip, `ruff` (lint/format), `mypy` (gated paths),
-`pytest` against a real Postgres 16, `alembic` for migrations. Frontend/website: Node
-+ `npx`. Deployed to AWS Fargate via the Copilot CLI (backend) and Vercel (frontend);
-the website is static.
+Python 3.11 or newer, `uv`, `ruff` for lint and format, `mypy`, and `pytest`.
 
 ```bash
-# Backend — from production/backend/ (tests need DATABASE_URL; .env has it)
-set -a; source .env; set +a
-.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy
-.venv/bin/pytest -q
-.venv/bin/alembic -c db/alembic.ini upgrade head          # apply migrations locally
-
-# Frontend — from production/frontend/
-npx next lint --max-warnings=0 && npx tsc --noEmit
-
-# Website — from production/website/
-npm run build
+just check        # lint, format, types, tests, and the coverage floor. CI runs the same.
+just test-fast    # the suite without coverage measurement
+just coverage     # coverage for each file, worst first, to select the next test
+just fix          # every fix that ruff can make alone, then format
+just smoke        # run the packaged script without the project environment
+just audit <file> # run the real entry point
 ```
-
-## Python
-
-- Keep code passing `mypy` on the gated paths (`app/{core,auth,services,api}` and the
-  rest configured in `pyproject.toml`). Prefer explicit SQLModel/pydantic models and
-  concrete field types over `Any`, bare `dict`, or untyped `**kwargs`.
-- `app/domain/*` is **frozen** ported PoC code, deliberately excluded from ruff, mypy,
-  and CI. Lint passes even on obviously-broken code there, so the linter will not catch
-  your mistake. Touch it only when asked, and never restyle it in passing.
 
 ## Rules
 
-1. **Clean tree before every commit.** Run the net for every stack you touched and fix
-   **every** error before committing — including ones you don't think you introduced.
-   Backend: `ruff check . && ruff format --check . && mypy && pytest -q`. Frontend:
-   `next lint --max-warnings=0 && tsc --noEmit`. Website: `npm run build`. Never silence
-   a check (`# type: ignore`, `eslint-disable`, `# noqa`) to go green — fix the cause or
-   surface it. A red check is an unfinished task, not a known issue to file.
+The global rules in `~/Projects/agent-scripts/AGENTS.md` now cover some of the
+old rules. Each of these rules keeps its number as a short stub, because code
+and docs cite the rules by number.
 
-2. **Tests live in `production/backend/tests/`, called at the service level.** There is
-   no FastAPI TestClient; async tests call handlers/services directly with the
-   `db_session` fixture from `tests/conftest.py`. New behavior ships with tests covering
-   the happy path plus at least one failure/edge case. A red suite is an unfinished task.
+1. **Keep the tree clean before each commit.** `just check` must pass. The
+   global rules (Project Defaults) say to fix forward. In this repo, do not add
+   `# type: ignore` or `# noqa`, and do not lower the coverage floor. If the
+   suggestion of a lint rule makes the code worse, disable the rule in
+   `pyproject.toml` and write the reason there. `SIM108` is the example.
 
-3. **The schema is strict and typed.** 24 tables, **zero JSONB**, all PKs `uuid`, every
-   timestamp `TIMESTAMPTZ` via `sa_type=TZ`. No native ENUMs — closed sets are `TEXT` +
-   a `CheckConstraint`. `ON DELETE CASCADE` on every child FK; nullable links `SET NULL`.
-   Model new data the same way; don't reach for a JSON blob or an untyped column.
+2. **Nothing is excluded from the gates.** `engine/` came from a tree that lint
+   and the type check excluded. When the gates covered it, they found two real
+   bugs. Do not add an exclusion. `production/` is the only exception, and it
+   will be removed.
 
-4. **Services own DB writes; handlers orchestrate.** An API handler mutating rows
-   directly is refactor debt. The frontend never touches the DB — all data goes through
-   `production/frontend/lib/api.ts` (`api<T>(path, init)`), which handles credentials and
-   the 401 redirect.
+3. *The global rules (Project Defaults) cover this.* The rule was: tests come
+   first, and you never weaken a test.
 
-5. **No new table or column without a migration in the same change.** CI catches it, but
-   commit them together. Alembic autogenerate produces noise (index renames, AutoString↔
-   TEXT churn) — read the generated file and strip everything that isn't your change
-   before committing.
+4. **The suite is deterministic.** It has no network, no model call, and no
+   dependency on the clock. `tests/conftest.py` enforces this with 2 autouse
+   fixtures. It clears `OPENAI_API_KEY`, and it blocks `socket.gethostbyaddr`.
+   Use the `dns` fixture for DNS and the `ptr` fixture for a reverse lookup. A
+   test that uses the network fails for reasons that the code did not cause.
 
-6. **Interpretation changes are data-gated.** New logic reading old rows silently skews
-   the prior dataset. Any change under `app/services/`, `app/domain/audit/`, or
-   `app/domain/ingest/` must either add a backfill script under
-   `app/scripts/backfill/` (named `bf_<YYYYMMDD>_<slug>.py`) **or** carry the
-   `no-data-impact` label set **at PR-create time** (labeling later doesn't trigger the
-   gate). Make the conscious choice; ship a backwards-compat test proving old inputs
-   still load correctly.
+5. **Run the real command on a real file.** The global rules (Project Defaults)
+   hold the general rule. In this repo, only a real run found these defects:
+   - The CLI refused `--pretty` after the subcommand.
+   - A draft got NO_GO because of eight findings that nobody could act on.
+   - A check called a correct Ed25519 key weak.
 
-7. **Ask first before quietly changing how core logic interprets data.** The audit
-   pipeline (`app/services/audit_service.py` + `app/domain/audit/`), the DMARC
-   classification chain (`app/domain/audit/dmarc/`), and the iteration fuzzy match
-   (`app/services/iteration_service.py`) all leave the prior dataset misaligned if their
-   interpretation shifts. Surface what you're about to change before editing.
+   Paste the output that you saw into the commit message.
 
-8. **Keep imports explicit and fail-fast.** Imports at module scope unless breaking a
-   real circular dependency. No lazy imports for convenience, and don't catch
-   `ImportError` to silently fall back to alternate behavior.
+6. **Tune each automated part against its real output.** The global rules
+   (Project Defaults) hold the general rule. In this repo, the automated parts
+   are the scorer, the LLM checks, and the DMARC advice.
 
-9. **Design every surface from the caller's side.** Before building a feature, write the
-   call site first — the API response an app screen consumes, the `api.ts` call, the
-   pydantic model — and judge it: obvious, minimal, hard to misuse? Error messages are
-   part of the interface: a failure a user can hit must say what went wrong *and* what to
-   do about it.
+7. **Stored data stays readable.** `.sendable/` holds the history of a user. A
+   record that an older version wrote must still load. Add a field. Do not change
+   the meaning of a field. Increase `SCHEMA_VERSION` only for a change that an
+   older reader cannot read. The store validates each record when it reads it.
+   It treats a bad field as absent and does not raise an error. Thus 1 file that
+   a person edited by hand cannot block every later audit.
 
-10. **Tests come before functionality.** Write the failing test first, then implement
-    until it passes. Bug fixes are no exception: reproduce the bug with a failing test,
-    then fix it — a fix without a captured repro can silently regress. Never weaken an
-    existing test to get green; if a test encodes outdated behavior, fix or delete it and
-    say why. New behavior without a test that would catch its regression is not done.
+8. **Say so first, before you change how a check reads data.** The audit
+   scorer, the DMARC classification chain, and the drift family read the stored
+   history of a user again when their judgement changes. A false finding is the
+   exception. Fix it, and say clearly in the commit that the interpretation
+   changed.
 
-11. **Verify end-to-end before claiming done.** Unit tests passing is necessary, not
-    sufficient. Deploys silently fail behind ALB health checks more often than you'd hope
-    — drive the real surface (hit the endpoint, load the page, paste the CLI output) and
-    confirm observed behavior, not just an exit code. When a task spans code + Fargate
-    deploy + DNS/SES/RDS, verify each substep; don't assume success.
+9. **Design from the side of the caller.** Write the call site first, and judge
+   it. Error messages are part of the interface. A failure that a user can see
+   says what went wrong **and** what to do next. Example: `dmarc.py status` with
+   no reports gives the ingest command to run.
 
-12. **Tune automated components against their real outputs.** Anything automated — the
-    audit scorer, the LLM persona rebuild, the `generate` copy, an LLM judge — is tuned on
-    real data, not intuition. Pull a sample of actual inputs and outputs, read them, ask
-    "do I agree with what it did here?", and adjust on the disagreements. Never declare an
-    automated component improved without concrete before/after examples.
+10. **Build for now.** Do not add speculative general code, unused hooks, or an
+    abstraction for a single caller. The best codebase has the least code. The
+    global rules (Project Defaults) say to delete the old code path.
 
-13. **Build for now, not for the future — but never break existing data.** No speculative
-    generality, no unused hooks, no abstractions for single-use code; the cleanest codebase
-    is the one with the least code, so delete dead paths outright and migrate every caller
-    in the same change. The one thing you may *not* break is stored data: this is
-    production, so schema/interpretation changes keep old rows valid (see rules 5–6) rather
-    than silently reinterpreting them.
+11. **Put imports at module scope.** Do not import lazily for convenience. Never
+    catch `ImportError` to fall back silently. The exception is a dependency that
+    is really optional, such as `openai`. Its skip path is documented behavior.
 
-14. **Deploy from a current `main`.** The frontend auto-deploys on push to `main` (Vercel);
-    the backend does not. `copilot svc deploy` builds the **local working tree**, not git
-    `main` — `git checkout main && git pull` first or you ship stale code. Migrations run
-    inside the container, not on deploy: a code change that reads a new column without its
-    migration 500s every request, so run the migration with (or right after) the deploy.
+12. **Public text follows the brand.** The name is **Sendable**. Do not use
+    dashes in text that a user reads. Use a comma, a colon, or a period. Describe
+    each finding in the part of the composer that the user sees: the subject
+    line, the preview text field, or the link URL. Never name an HTML tag, a CSS
+    property, or an RFC number.
 
-15. **Public copy and visuals follow the brand.** The product name is **Sendable**
-    (`inboxhealth` survives only as internal infra — don't rename it). Frontend styling is
-    plain CSS tokens, **no Tailwind**. LLM advice and marketing copy are marketer-facing:
-    frame fixes in composer-UI terms (subject line, preview-text field, link URL), never
-    HTML tags, CSS properties, or RFC jargon. **No em dashes in public copy** — use commas
-    or periods. Follow Conventional Commits; bump the version only via `ops/bump.sh`.
+13. **Each script carries its own dependencies.** Each file in `scripts/*.py` has
+    a PEP 723 header, so a user needs only `uv`. Add each dependency to that
+    header and to `pyproject.toml`. If you add it to only 1 place, the packaged
+    path breaks while the development path passes. The `packaged-script` CI job
+    finds this error.
+
+14. *The global rules (Git) cover this.* The rule held the commit format and the
+    ban on amended commits. Rule 5 holds the proof that goes in the commit.
