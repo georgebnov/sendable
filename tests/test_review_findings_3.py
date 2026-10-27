@@ -70,7 +70,7 @@ _INJECTION = (
 )
 
 
-def _audit(body: bytes, subject: bytes = b"Open house Saturday") -> Report:
+def _audit(body: bytes, subject: bytes = b"Office hours Saturday") -> Report:
     raw = (
         b"From: Jane <jane@example.com>\r\nTo: r@gmail.com\r\nSubject: "
         + subject
@@ -119,10 +119,10 @@ def test_a_genuine_forward_still_mutes_the_transport_findings() -> None:
     # Muting is right for signals a forward genuinely destroys. It is wrong only
     # for hidden content, which survives a forward intact.
     raw = (
-        b"From: Sam <sam@example.net>\r\nTo: r@gmail.com\r\nSubject: Fwd: Open house\r\n\r\n"
+        b"From: Sam <sam@example.net>\r\nTo: r@gmail.com\r\nSubject: Fwd: Office hours\r\n\r\n"
         b"Have a look.\r\n\r\n---------- Forwarded message ---------\r\n"
         b"From: Jane <jane@example.com>\r\nDate: Mon, 1 Sep 2026 10:00:00 +0000\r\n"
-        b"Subject: Open house\r\n\r\nThe open house runs from noon.\r\n"
+        b"Subject: Office hours\r\n\r\nThe office hours run from noon.\r\n"
     )
     report = asyncio.run(audit(parse_eml(raw), domain_health=False))
     tls = next((f for f in report.findings if f.check == "auth.tls_transport"), None)
@@ -142,7 +142,7 @@ def test_a_bare_greeting_is_not_reported_as_an_unfilled_merge_field(greeting: st
     report = _audit(
         b"<html><body><p>"
         + greeting.encode()
-        + b"</p><p>The open house runs from noon until four on Saturday.</p>"
+        + b"</p><p>The office hours run from noon until four on Saturday.</p>"
         b'<p><a href="https://example.com/u">Unsubscribe</a></p></body></html>'
     )
     finding = next((f for f in report.findings if f.check == "content.merge_tag_unfilled"), None)
@@ -163,7 +163,7 @@ def test_the_word_hello_in_prose_is_not_flagged() -> None:
 def test_a_real_empty_greeting_is_still_caught() -> None:
     # The actual defect: a merge tag that resolved to nothing, leaving a gap.
     report = _audit(
-        b"<html><body><p>Hi ,</p><p>The open house runs from noon until four.</p>"
+        b"<html><body><p>Hi ,</p><p>The office hours run from noon until four.</p>"
         b'<p><a href="https://example.com/u">Unsubscribe</a></p></body></html>'
     )
     finding = next((f for f in report.findings if f.check == "content.merge_tag_unfilled"), None)
@@ -178,8 +178,8 @@ def test_a_real_unfilled_merge_tag_is_still_caught() -> None:
     # production mode reproduces.
     raw = (
         b"From: Jane <jane@example.com>\r\nTo: r@gmail.com\r\n"
-        b"Subject: Open house Saturday\r\nContent-Type: text/html\r\n\r\n"
-        b"<html><body><p>Hi {{FIRST_NAME}},</p><p>The open house runs from noon.</p>"
+        b"Subject: Office hours Saturday\r\nContent-Type: text/html\r\n\r\n"
+        b"<html><body><p>Hi {{FIRST_NAME}},</p><p>The office hours run from noon.</p>"
         b'<p><a href="https://example.com/u">Unsubscribe</a></p></body></html>'
     )
     report = asyncio.run(audit(parse_eml(raw), domain_health=False, force_mode="production"))
@@ -192,7 +192,7 @@ def test_a_merge_tag_puts_the_audit_in_test_mode_and_is_substituted() -> None:
     # The path the previous test deliberately bypasses, asserted on its own so the
     # relationship between the two is recorded rather than implied.
     report = _audit(
-        b"<html><body><p>Hi {{FIRST_NAME}},</p><p>The open house runs from noon.</p>"
+        b"<html><body><p>Hi {{FIRST_NAME}},</p><p>The office hours run from noon.</p>"
         b'<p><a href="https://example.com/u">Unsubscribe</a></p></body></html>'
     )
     assert report.mode.label == "TEST"

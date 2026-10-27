@@ -150,7 +150,7 @@ def test_forward_dkim_alignment_reframed_as_forwarder_note():
             passed=False,
             message="DKIM not aligned: signed by gappssmtp.com...",
             hard_gate=True,
-            details={"dkim_d": ["gappssmtp.com"], "from_org": "moralespropertygroup.com"},
+            details={"dkim_d": ["gappssmtp.com"], "from_org": "moraleswholesale.com"},
         ),
     ]
     out = calibrate_for_forward(findings)
@@ -158,7 +158,7 @@ def test_forward_dkim_alignment_reframed_as_forwarder_note():
     assert f.severity is Severity.INFO  # off the campaign score
     assert f.hard_gate is False
     assert "gappssmtp.com" in f.message  # the real signer surfaces
-    assert "moralespropertygroup.com" in f.message  # their domain
+    assert "moraleswholesale.com" in f.message  # their domain
     assert "Muted" not in f.message  # reframed, not buried as generic noise
 
 

@@ -28,7 +28,7 @@ def _fixed_random() -> None:
 
 
 def _email(
-    subject: str = "Open house Saturday",
+    subject: str = "Office hours Saturday",
     *,
     html: str = "<html><body><p>Hello.</p></body></html>",
     plain: str = "Hello.",
@@ -64,16 +64,16 @@ def _email(
 @pytest.mark.parametrize(
     "subject",
     [
-        "[TEST] Open house Saturday",
-        "TEST: Open house Saturday",
-        "[Preview] Open house Saturday",
-        "[STAGING] - Open house Saturday",
-        "[test][preview] Open house Saturday",
+        "[TEST] Office hours Saturday",
+        "TEST: Office hours Saturday",
+        "[Preview] Office hours Saturday",
+        "[STAGING] - Office hours Saturday",
+        "[test][preview] Office hours Saturday",
     ],
 )
 def test_a_test_prefix_is_stripped(subject: str) -> None:
     cleaned, report = cleanup(_email(subject))
-    assert cleaned.subject == "Open house Saturday"
+    assert cleaned.subject == "Office hours Saturday"
     assert report.subject_prefix_stripped is not None
 
 
@@ -138,7 +138,7 @@ def test_an_outlook_conditional_comment_is_not_substituted() -> None:
 
 
 def test_a_merge_tag_in_the_subject_is_replaced() -> None:
-    cleaned, _ = cleanup(_email("Hi {{FIRST_NAME}}, open house Saturday"))
+    cleaned, _ = cleanup(_email("Hi {{FIRST_NAME}}, office hours Saturday"))
     assert "{{FIRST_NAME}}" not in (cleaned.subject or "")
 
 
@@ -184,7 +184,7 @@ def test_a_production_email_passes_through_unchanged() -> None:
 
 
 def test_the_original_email_is_not_mutated() -> None:
-    original = _email("[TEST] Open house", headers={"x-test": ["1"]})
+    original = _email("[TEST] Office hours", headers={"x-test": ["1"]})
     before = original.subject
     cleanup(original)
     assert original.subject == before

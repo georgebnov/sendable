@@ -27,7 +27,7 @@ from engine.parse import ParsedEmail, parse_eml
 from engine.runner import audit
 
 
-def _email(body: bytes, *, headers: bytes = b"", subject: bytes = b"Open house") -> ParsedEmail:
+def _email(body: bytes, *, headers: bytes = b"", subject: bytes = b"Office hours") -> ParsedEmail:
     return parse_eml(
         b"From: Jane <jane@example.com>\r\nTo: r@gmail.com\r\nSubject: "
         + subject
@@ -93,10 +93,10 @@ def test_a_genuine_forward_still_reframes_the_alignment_finding() -> None:
     # A real forward carries the original's quoted headers. There the note about
     # the forwarding account is correct and useful.
     raw = (
-        b"From: Sam <sam@example.net>\r\nTo: r@gmail.com\r\nSubject: Fwd: Open house\r\n\r\n"
+        b"From: Sam <sam@example.net>\r\nTo: r@gmail.com\r\nSubject: Fwd: Office hours\r\n\r\n"
         b"Have a look.\r\n\r\n---------- Forwarded message ---------\r\n"
         b"From: Jane <jane@example.com>\r\nDate: Mon, 1 Sep 2026 10:00:00 +0000\r\n"
-        b"Subject: Open house\r\nTo: sam@example.net\r\n\r\nThe open house runs from noon.\r\n"
+        b"Subject: Office hours\r\nTo: sam@example.net\r\n\r\nThe office hours run from noon.\r\n"
     )
     report = asyncio.run(audit(parse_eml(raw), domain_health=False))
     assert "auth.dmarc_alignment_overall" not in report.hard_gates_failed

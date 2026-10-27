@@ -280,7 +280,7 @@ async def test_d10_does_not_flag_a_single_rename_as_rotation(
 ) -> None:
     # A sender who always used one name and now uses another has rebranded. This
     # check reports rotation, so it must stay quiet rather than overclaim.
-    current = _row(display_name="jane okafor realty")
+    current = _row(display_name="jane okafor partners")
     findings = await d10_display_name_rotation.run(bulk_email, current, _rows(10))
     assert all(f.passed for f in findings)
 

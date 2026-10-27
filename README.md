@@ -52,16 +52,16 @@ Read `hard_gates_failed` first, then the failing findings worst-severity first.
 
 ## Where this came from
 
-I was going back and forth over email with a real estate agent in Canada, top 20
-in the country, and one day I went looking for his reply and found it sitting in
-my spam folder. And it wasn't a cold email or a newsletter, it was just a guy
+I was going back and forth over email with a salesperson in Canada, top 20 in
+his field, and one day I went looking for his reply and found it sitting in my
+spam folder. And it wasn't a cold email or a newsletter, it was just a guy
 answering a conversation we were already in the middle of, and what got me is
 that he had no idea it was happening. If his mail does that to me it does that to
 his clients too, and nobody tells you, you just stop hearing back and you assume
 people aren't interested.
 
 So I started digging into why, and it turned into a project with him and with a
-top brokerage consultant in Canada, both of them selling for a living and both of
+top sales consultant in Canada, both of them selling for a living and both of
 them losing deals to a folder nobody opens. We built the whole thing out. A
 website, accounts, a backend, a real platform. Over 20 companies used it in beta,
 we audited over 300 emails, and we tracked over 2k DMARC reports to pull sending
