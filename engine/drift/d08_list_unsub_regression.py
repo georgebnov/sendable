@@ -72,9 +72,9 @@ async def run(email: ParsedEmail, current: EmailFacts, history: list[EmailFacts]
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"RFC 8058 one-click compliance lost: history "
-                    f"{oneclick_rate:.0%} of last 10 had List-Unsubscribe-Post=One-Click, "
-                    f"current is missing."
+                    f"This send lost one-click unsubscribe. {oneclick_rate:.0%} of your "
+                    "last 10 sends had it and this one does not. Something changed in "
+                    "your sending tool. Turn it back on before the next send."
                 ),
                 details={"history_oneclick_rate": oneclick_rate, "current": cur_oneclick},
             )

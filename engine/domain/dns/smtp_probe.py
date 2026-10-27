@@ -153,8 +153,9 @@ async def run(domain: str) -> list[Finding]:
                 severity=Severity.INFO,
                 passed=True,
                 message=(
-                    f"Null MX record (RFC 7505) at {domain}: domain explicitly "
-                    "accepts no mail. SMTP probe skipped."
+                    f"{domain} declares that it accepts no mail at all. That is a "
+                    "deliberate setting, not a fault. The audit skipped the inbound "
+                    "mail server checks."
                 ),
                 details={"mx": mx_ans.records[0]},
             )
@@ -190,8 +191,10 @@ async def _audit_mx_host(mx_host: str) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"MX target {mx_host!r} is a bare IP literal. RFC 1035/5321 "
-                    "forbid IP literals in MX records. Many strict receivers reject."
+                    f"Your mail server record points at the raw address {mx_host!r} "
+                    "instead of a hostname. The standard forbids this, and strict "
+                    "receivers reject mail from a domain that does it. Give your DNS "
+                    "provider a hostname."
                 ),
                 details={"mx_host": mx_host},
             )
@@ -215,9 +218,10 @@ async def _audit_mx_host(mx_host: str) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f"MX target {mx_host} is a CNAME → {cname_ans.records[0]!r}. "
-                    "RFC 2181 §10.3 forbids CNAMEs as MX targets; some receivers "
-                    "reject (defer the alias chain instead)."
+                    f"Your mail server record points at {mx_host}, which is an alias "
+                    f"for {cname_ans.records[0]!r}. A mail server record must name the "
+                    "server directly, never an alias. Some receivers reject or delay "
+                    "mail because of it. Point the record at the real hostname."
                 ),
                 details={"mx_host": mx_host, "cname_to": list(cname_ans.records)},
             )

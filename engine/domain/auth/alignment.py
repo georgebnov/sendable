@@ -266,10 +266,11 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.CRITICAL,
                 passed=False,
                 message=(
-                    f"Neither DKIM nor SPF aligns with From organizational domain "
-                    f"({from_org}). DMARC will fail alignment regardless of "
-                    "individual SPF/DKIM pass results. Gmail returns 5.7.26, "
-                    "Microsoft 5.7.509."
+                    f"Neither your signature nor your sending record matches the "
+                    f"domain in your From address ({from_org}). Your anti-spoofing "
+                    "policy therefore fails, even though each check passed on its "
+                    "own. Gmail bounces this with the code 5.7.26 and Microsoft "
+                    "with 5.7.509."
                 ),
                 details={
                     "from_org": from_org,

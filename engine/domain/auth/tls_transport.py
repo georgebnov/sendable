@@ -133,11 +133,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
             severity=Severity.HIGH,
             passed=False,
             message=(
-                "Last external SMTP hop appears to be plain SMTP: no "
-                "ESMTPS / STARTTLS / TLS marker found in the Received "
-                "header. Gmail (2024+) and Microsoft (May 2025+) both "
-                "require outbound mail to land over TLS; plain-text "
-                "submission is bulk-rejected."
+                "This message travelled its last step unencrypted. Gmail has "
+                "required encryption on bulk mail since 2024 and Microsoft since "
+                "May 2025, and both reject mail that arrives without it. Ask your "
+                "sending provider why encryption was off."
             ),
             details={"hop": hop[:240]},
         )

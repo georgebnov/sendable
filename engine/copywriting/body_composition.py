@@ -42,8 +42,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f"text/plain alternative missing or too short ({len(plain)} chars). "
-                    f"A non-empty plain-text part is a filter-legitimacy signal."
+                    f"This email has no plain text version, or it holds only "
+                    f"{len(plain)} characters. Every real email tool sends one "
+                    "beside the designed version, for readers whose client blocks "
+                    "images. Filters read a missing one as a sign of bulk mail."
                 ),
                 details={"chars": len(plain), "min": _PLAIN_MIN_CHARS},
             )

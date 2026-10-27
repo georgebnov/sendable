@@ -193,10 +193,10 @@ async def _check_one(
         severity=severity,
         passed=False,
         message=(
-            f"Linked domain '{domain}' is listed on {label} ({dbl_host}). "
-            f"{blurb} Receivers may chain `554 5.7.1` (SURBL) or `550 5.7.350` "
-            f"NDRs. Action: remove the link or confirm the destination "
-            "domain's reputation with the owner."
+            f"A domain you link to, '{domain}', is on the {label} blocklist "
+            f"({dbl_host}). {blurb} A receiver can bounce the whole message because "
+            "of that one link. The bounce reads 554 5.7.1 or 550 5.7.350. Remove the "
+            "link, or ask the owner of that domain to clear the listing."
         ),
         details={
             "domain": domain,

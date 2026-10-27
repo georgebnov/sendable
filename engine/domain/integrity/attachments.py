@@ -131,9 +131,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.CRITICAL,
                 passed=False,
                 message=(
-                    f"Executable attachment(s): {[h['name'] for h in executable_hits]}. "
-                    "Universally blocked by Gmail and Microsoft Defender: message "
-                    "will be quarantined or rejected."
+                    f"The message carries a program as an attachment: "
+                    f"{[h['name'] for h in executable_hits]}. Gmail and Microsoft "
+                    "Defender block these on sight. The whole message goes to the "
+                    "junk folder or bounces. Send a link instead."
                 ),
                 details={"hits": executable_hits},
             )
@@ -146,9 +147,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"High-risk archive attachment(s): {[h['name'] for h in archive_hits]}. "
-                    "ISO/IMG/7z/RAR commonly used to bypass mark-of-the-web; modern "
-                    "filters score these as malware-shape."
+                    f"The message carries an archive: {[h['name'] for h in archive_hits]}. "
+                    "These file types strip the warning a computer normally shows "
+                    "before opening a download, so malware uses them. Filters treat "
+                    "them as malware whatever is inside. Send a link instead."
                 ),
                 details={"hits": archive_hits},
             )

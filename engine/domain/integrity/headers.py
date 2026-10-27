@@ -66,8 +66,9 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"Required RFC 5322 header(s) missing: {missing}. "
-                    "Filters add ~1.5 spam-points per missing header."
+                    f"The message is missing {missing}. Every email needs these, and "
+                    "your sending tool normally adds them. Filters add about 1.5 spam "
+                    "points for each one that is absent."
                 ),
                 details={"missing": missing},
             )
@@ -78,7 +79,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check=f"{CHECK_PREFIX}.required_headers",
                 severity=Severity.INFO,
                 passed=True,
-                message="All required RFC 5322 headers present.",
+                message="The message carries every header an email needs.",
             )
         )
 
@@ -115,7 +116,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check=f"{CHECK_PREFIX}.date_sanity",
                 severity=Severity.LOW,
                 passed=False,
-                message="No Date header: covered by required_headers above.",
+                message="The message has no date. The missing-header finding above covers it.",
             )
         )
     else:
@@ -148,9 +149,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
                         severity=Severity.MEDIUM,
                         passed=False,
                         message=(
-                            f"Date is {drift_days:.1f} days in the {direction} "
-                            f"vs receive time. SpamAssassin DATE_IN_{direction.upper()} "
-                            "fires above 6h drift; >7d is heavily weighted."
+                            f"The date on this message is {drift_days:.1f} days in "
+                            f"the {direction} of when it arrived. Filters score a gap "
+                            "over 6 hours, and a gap over 7 days heavily. Check the "
+                            "clock on the machine that sent it."
                         ),
                         details={
                             "drift_days": round(drift_days, 1),
@@ -177,7 +179,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check=f"{CHECK_PREFIX}.message_id",
                 severity=Severity.LOW,
                 passed=False,
-                message="No Message-ID: covered by required_headers above.",
+                message="The message has no id. The missing-header finding above covers it.",
             )
         )
     elif not _MSG_ID_RX.match(mid[0]):
@@ -187,8 +189,9 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f"Message-ID malformed: {mid[0][:120]!r}. RFC 5322 requires "
-                    "<localpart@domain> shape."
+                    f"The message id {mid[0][:120]!r} is the wrong shape. It must "
+                    "read as a name, an @ sign, and a domain, inside angle brackets. "
+                    "Your sending tool builds this, so report it to your provider."
                 ),
                 details={"raw": mid[0][:200]},
             )

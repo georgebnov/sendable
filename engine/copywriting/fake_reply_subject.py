@@ -98,11 +98,11 @@ async def run(email: ParsedEmail) -> list[Finding]:
             passed=False,
             hard_gate=True,
             message=(
-                f'Subject opens with "{prefix.title()}:" but no '
-                f"In-Reply-To or References header is present: the "
-                f"thread cue is spoofed. CAN-SPAM §5(a)(2) deceptive-"
-                f"subject violation and an explicit Gmail/Outlook spam "
-                f"signal."
+                f'The subject starts with "{prefix.title()}:" but this message '
+                f"replies to nothing. The reply mark is false. Remove it. Gmail "
+                f"and Outlook both score a false reply mark as spam. A subject "
+                f"that misleads the reader is also illegal for commercial mail "
+                f"in the United States."
             ),
             details={
                 "prefix": prefix,

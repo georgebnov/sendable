@@ -149,9 +149,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.CRITICAL,
                 passed=False,
                 message=(
-                    "Missing List-Unsubscribe header on bulk mail. "
-                    "Gmail/Yahoo/Microsoft bulk-reject without it (RFC 8058, "
-                    "enforced since 2024)."
+                    "This is bulk mail with no one-click unsubscribe. Gmail, Yahoo, "
+                    "and Microsoft have rejected bulk mail without it since 2024. "
+                    "Turn on one-click unsubscribe in your sending tool. It is "
+                    "sometimes labelled List-Unsubscribe."
                 ),
                 details={"is_bulk": True},
             )
@@ -163,7 +164,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="content.list_unsubscribe_post",
                 severity=Severity.INFO,
                 passed=True,
-                message="List-Unsubscribe-Post: List-Unsubscribe=One-Click present (RFC 8058).",
+                message="One-click unsubscribe is on, and a reader can leave in one click.",
             )
         )
     elif not bulk:
@@ -183,8 +184,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.CRITICAL,
                 passed=False,
                 message=(
-                    "Missing 'List-Unsubscribe-Post: List-Unsubscribe=One-Click' header. "
-                    "Required alongside List-Unsubscribe for RFC 8058 compliance."
+                    "Your unsubscribe link works, but a reader cannot leave in one "
+                    "click. Gmail and Yahoo require the one-click form on bulk mail. "
+                    "Your sending tool labels this List-Unsubscribe-Post, or simply "
+                    "one-click unsubscribe."
                 ),
                 details={"is_bulk": True, "raw": (lu_post[0] if lu_post else None)},
             )

@@ -51,7 +51,12 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="content.homoglyphs",
                 severity=severity,
                 passed=False,
-                message=f"Homoglyph characters detected ({len(hits)}).",
+                message=(
+                    f"The message holds {len(hits)} character that looks like a "
+                    "Latin letter but is not one. Scammers use these to fake a "
+                    "brand name. If you did not do it on purpose, retype the "
+                    "affected words."
+                ),
                 details={"hits": hits[:20]},
             )
         ]

@@ -97,8 +97,11 @@ async def run(email: ParsedEmail, current: EmailFacts, history: list[EmailFacts]
                         severity=Severity.HIGH,
                         passed=False,
                         message=(
-                            f"Display name '{cur_name}' contains a TLD-like token "
-                            f"unrelated to From domain '{cur_domain}'; friendly-from spoof pattern."
+                            f"The From name '{cur_name}' contains what looks like a "
+                            f"web address, and it is not yours. You send from "
+                            f"'{cur_domain}'. Putting another company's address in "
+                            "the From name is how a scammer borrows a brand, and "
+                            "filters know the shape."
                         ),
                         details={"display_name": cur_name, "from_domain": cur_domain},
                     )
