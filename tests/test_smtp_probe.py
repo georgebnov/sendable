@@ -163,8 +163,18 @@ def test_a_well_formed_mx_passes_both_rules(no_smtp: list[str]) -> None:
 def test_every_mx_target_is_audited_in_preference_order(no_smtp: list[str]) -> None:
     # Each MX is a delivery path a sender may actually be routed through, so each
     # is checked. Lower preference first, which is the order mail takes.
-    _run({("MX", "example.com"): ("50 backup.example.com", "10 primary.example.com")})
-    assert no_smtp == ["primary.example.com", "backup.example.com"]
+    findings = _run({("MX", "example.com"): ("50 backup.example.com", "10 primary.example.com")})
+
+    # Assert on the order of the findings, not on the order the probes ran.
+    # The hosts are audited with `asyncio.gather`, which orders its results but
+    # not its scheduling, so `no_smtp` records whichever task the loop happened
+    # to start first. Python 3.14 changed that order and this test began failing
+    # for a reason the code did not cause, which breaks AGENTS.md rule 4.
+    audited = [f.message.split(":", 1)[0] for f in findings if f.check == "smtp.mx_bare_ip"]
+    assert audited == ["primary.example.com", "backup.example.com"]
+
+    # Both were still reached, whatever order the event loop chose.
+    assert sorted(no_smtp) == ["backup.example.com", "primary.example.com"]
 
 
 # ── the open-relay probe ───────────────────────────────────────────────────

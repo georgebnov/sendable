@@ -8,6 +8,8 @@ narrower tests; this one proves the pieces connect.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+from email.utils import format_datetime
 from pathlib import Path
 
 import pytest
@@ -16,6 +18,17 @@ from engine.parse import ParsedEmail, parse_eml
 from engine.report import Finding, Report
 from engine.runner import audit
 from store import Store
+
+
+def _sent_at(n: int) -> str:
+    """An RFC 5322 date for send `n`, placed inside the 30-day drift window.
+
+    The drift checks compare a stored row's `received_at` against `now`, so a
+    hard-coded calendar date silently leaves the window as real time passes and
+    the test starts failing for a reason the code did not cause. Send 1 is the
+    oldest; each later send is one day newer.
+    """
+    return format_datetime(datetime.now(UTC) - timedelta(days=20 - n))
 
 
 def _send(
@@ -35,7 +48,7 @@ def _send(
         f"To: reader@gmail.com\r\n"
         f"{reply}"
         f"Subject: Meter report number {n}\r\n"
-        f"Date: Tue, {n + 10:02d} Sep 2026 09:14:02 -0700\r\n"
+        f"Date: {_sent_at(n)}\r\n"
         f"Message-ID: <m{n}@example.com>\r\n"
         f"List-Id: <news.example.com>\r\n"
         f"List-Unsubscribe: <https://example.com/u/{n}>\r\n"
