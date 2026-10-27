@@ -398,9 +398,11 @@ async def _run_bimi(domain: str) -> list[Finding]:
                     "what puts your logo beside your name in Gmail and Apple Mail. "
                     f"Your policy is p={policy}, which makes you eligible. Add a TXT "
                     f"record at {qname} holding {suggested}, and point the l= part at "
-                    "a square logo you host over HTTPS. Gmail and Apple also require "
-                    "a Verified Mark Certificate before they show the logo. That "
-                    "certificate is bought, and it costs about 1000 USD a year."
+                    "a square logo you host over HTTPS. The logo has to be an SVG in "
+                    "the SVG Tiny PS profile. No other format works. Gmail and Apple "
+                    "also require a Verified Mark Certificate before they show the "
+                    "logo. You buy that certificate, and you add it to the same "
+                    "record as a=https://your-host/vmc.pem."
                 ),
                 details={
                     "dns_error": ans.error,

@@ -15,6 +15,13 @@ from ...report import Finding
 from ...severity import Severity
 
 
+def _plural_clause(n: int) -> str:
+    """The count and its clause, agreeing in number."""
+    if n == 1:
+        return "1 character that looks like a Latin letter but is not one"
+    return f"{n} characters that look like Latin letters but are not"
+
+
 async def run(email: ParsedEmail) -> list[Finding]:
     samples: list[tuple[str, str]] = []
     if email.subject:
@@ -52,8 +59,8 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=severity,
                 passed=False,
                 message=(
-                    f"The message holds {len(hits)} character that looks like a "
-                    "Latin letter but is not one. Scammers use these to fake a "
+                    f"The message holds {_plural_clause(len(hits))}. "
+                    "Scammers use these to fake a "
                     "brand name. If you did not do it on purpose, retype the "
                     "affected words."
                 ),

@@ -118,8 +118,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.CRITICAL,
                 passed=False,
                 message=(
-                    f"The message holds {len(bidi_hits)} invisible character that "
-                    f"reverses reading direction, in {_source_summary(bidi_hits)}. "
+                    f"The message holds {len(bidi_hits)} invisible character"
+                    f"{'' if len(bidi_hits) == 1 else 's'} that reverse"
+                    f"{'s' if len(bidi_hits) == 1 else ''} reading direction, in "
+                    f"{_source_summary(bidi_hits)}. "
                     "These let text display in one order and read in another, which "
                     "is how a link is disguised. Paste your copy into a plain text "
                     "editor and retype it to clear them."

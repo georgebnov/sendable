@@ -132,9 +132,9 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 passed=False,
                 message=(
                     f"The message carries a program as an attachment: "
-                    f"{[h['name'] for h in executable_hits]}. Gmail and Microsoft "
-                    "Defender block these on sight. The whole message goes to the "
-                    "junk folder or bounces. Send a link instead."
+                    f"{', '.join(str(h['name']) for h in executable_hits)}. Gmail "
+                    "and Microsoft Defender block these on sight. The whole message "
+                    "goes to the junk folder or bounces. Send a link instead."
                 ),
                 details={"hits": executable_hits},
             )
@@ -147,7 +147,8 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"The message carries an archive: {[h['name'] for h in archive_hits]}. "
+                    f"The message carries an archive: "
+                    f"{', '.join(str(h['name']) for h in archive_hits)}. "
                     "These file types strip the warning a computer normally shows "
                     "before opening a download, so malware uses them. Filters treat "
                     "them as malware whatever is inside. Send a link instead."

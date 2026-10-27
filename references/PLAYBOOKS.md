@@ -6,6 +6,7 @@ with the order of steps that does answer them.
 1. [One email landed in three different folders](#1-one-email-landed-in-three-different-folders)
 2. [Warm up a new domain](#2-warm-up-a-new-domain)
 3. [Everything was fine, and now it is not](#3-everything-was-fine-and-now-it-is-not)
+4. [The message bounced, and the code means nothing to me](#4-the-message-bounced-and-the-code-means-nothing-to-me)
 
 ---
 
@@ -54,8 +55,11 @@ Check whether you are in this state:
   reputation.
 - Is your sending IP shared with other customers of your ESP? Then its
   reputation is not yours to build.
-- Does Google Postmaster Tools show a domain reputation yet? Empty means the
-  receiver has not formed one. See [CONNECTIONS.md](CONNECTIONS.md).
+- Does Google Postmaster Tools show anything yet? Empty panels mean the receiver
+  has not formed an opinion. Do not go looking for a domain reputation rating:
+  Google retired that panel with the first version of Postmaster Tools. Read the
+  spam rate and the Deliverability analysis verdict instead. See
+  [CONNECTIONS.md](CONNECTIONS.md).
 
 If you are in this state, go to [playbook 2](#2-warm-up-a-new-domain). There is
 no fix in the message.
@@ -92,6 +96,50 @@ pointing at a shared vendor domain, and remove a free-plan badge. See
 
 A message with zero links to your own domain and two links to your ESP's
 redirector reads as vendor mail, whatever the copy says.
+
+**Do not expect to escape Promotions by stripping the message down.** Senders
+report that plain-text messages with no images and no tracking still sort into
+Promotions. Treat the markers above as a lever that can move a borderline
+message, not as a switch.
+
+**Two things changed about Promotions, and both make escaping it the wrong
+goal.**
+
+1. Position inside the tab is now ranked, not chronological. Since September 2025
+   Gmail offers a "most relevant" sort, and it puts the senders a reader engages
+   with most at the top. Sending more often buys nothing. Engagement history buys
+   position.
+2. Gmail's AI Inbox reads the Primary tab only. It states this plainly: it
+   surfaces information from Primary and not from Social or Promotions. So a
+   message in Promotions is invisible to the summary and to-do layer that Gmail
+   began adding in January 2026 and extended to paid Workspace accounts in
+   October 2026.
+
+Item 2 is the real consequence, and it splits your mail in two. Bulk campaign
+mail will sit in Promotions, and no amount of editing moves it. One-to-one mail
+from a person can earn Primary, because Gmail picks the readers it treats as
+important from frequent correspondents, saved contacts, and relationships it
+infers from the message text. For that mail, write the date and the action in
+plain words ("reply by Friday 6 November"), and ask for a reply. A reply is the
+strongest signal a recipient can send.
+
+### Measure which tab it reached
+
+Inference stops here. Gmail assigns every message a category even when the reader
+has tabs turned off, and you can read that category on a Gmail account you
+control.
+
+1. Send the message to a Gmail address you own.
+2. Search your mailbox for `category:promotions`. The other categories answer the
+   same way: `category:primary`, `category:social`, `category:updates`,
+   `category:forums`, `category:purchases`, `category:reservations`.
+3. To record it rather than read it, build a Gmail filter on
+   `category:promotions` that applies a label. A label is visible over IMAP, so
+   you can log the tab for every test send instead of looking each one up.
+
+This measures your own account, which has its own engagement history with you.
+It tells you the category Gmail assigned. It does not tell you the category a
+stranger's account assigned.
 
 ### The check that settles it
 
@@ -234,3 +282,78 @@ recently. That is usually the one to fix.
 
 **The order matters.** Items 1 and 2 are things you can fix today. Items 3 to 5
 take weeks. Rule out the fast ones first.
+
+---
+
+## 4. The message bounced, and the code means nothing to me
+
+A bounce is the one place a receiving provider tells you exactly why, in writing.
+It is better evidence than any test, and most senders throw it away because the
+string looks like noise.
+
+**Read the raw string, not your ESP's summary.** An ESP groups bounces into
+"blocked" or "deferred", and those two words cover six different causes with six
+different fixes. Open the bounce message and find the line the receiver sent.
+
+**Fix anything naming Spamhaus first**, before you read any of the rest. A
+listing there feeds many receivers at once, so every other reading is distorted
+while it stands.
+
+### Gmail
+
+| Code | Cause | The check that names it |
+|---|---|---|
+| `550 5.7.25` | the delivering address has no name, or its name does not point back to it | `sending_ip.ptr_resolves`, `sending_ip.fcrdns` |
+| `550 5.7.26` | neither SPF nor DKIM aligns with your `From:` domain | `auth.dmarc_alignment_overall` |
+| `421 4.7.x` that clears | rate limiting. Slow down and retry. | none. Shape your volume. |
+
+`550 5.7.25` is the one senders miss, because authentication looks clean and the
+record belongs to the ESP. Check it whenever the auth findings pass and Gmail
+still refuses the mail.
+
+### Microsoft, consumer addresses
+
+These are `outlook.com`, `hotmail.com`, `live.com`, and `msn.com`.
+
+| Code | Cause | The check that names it |
+|---|---|---|
+| `550 5.7.515` | the `From:` domain does not meet the authentication requirement | `auth.spf`, `auth.dkim`, `dmarc_record.published` |
+| `S3150` | the delivering address is on Microsoft's own blocklist | `blacklist.*` |
+| `SC-004` | too many recipients marked your mail as junk | none. Read JMRP. |
+| `SC-001`, `OU-002` | content or reputation | the `copywriting.*` and `content.*` findings |
+| `SC-002` | too many attempts at addresses that do not exist | none. This comes from a list-verification tool of yours, not from this audit. Stop verifying addresses by SMTP probe. |
+| `451 4.7.x` that never clears | rate limiting tied to reputation, or a volume spike | none. Shape your volume. |
+
+**`550 5.7.515` is the strictest gate any provider publishes.** Microsoft asks
+for more than Gmail does. SPF **and** DKIM must both pass, and the domain must
+publish DMARC at `p=none` or stricter, aligned with at least one of them.
+Microsoft states the requirement for a `From:` domain sending more than 5,000
+messages a day to those four domains. Senders report the code on much smaller
+volumes, so do not read the threshold as a safe allowance.
+
+Two things to know about it. Microsoft's announcement says the mail is refused,
+while Microsoft's own postmaster page still describes sending it to Junk first.
+Senders' bounce logs show refusal. And it arrives without warning: a reputation
+problem degrades over weeks, while this gate starts refusing overnight.
+
+The string arrives in two spellings. Search your logs for `550 5.7.515` and for
+`550; 5.7.515`.
+
+### Microsoft 365 tenants
+
+A tenant is a company's own Microsoft mail, and its administrator sets their own
+filtering. A Microsoft delisting does nothing for a tenant-level block.
+
+| Code | Cause | The check that names it |
+|---|---|---|
+| `550 5.7.509` | your domain publishes DMARC `p=reject` and this message failed DMARC | `auth.dmarc_alignment_overall` |
+
+### What to do with the answer
+
+1. Run the audit on a copy of the message that bounced. The table above names the
+   check for each code, so go to that finding and read it.
+2. If the named check passes, the cause is not in the message. Go to
+   [playbook 3](#3-everything-was-fine-and-now-it-is-not).
+3. If no check covers the code, it is reputation or volume. Neither is visible in
+   one message. Read your spam rate and complaint rate in
+   [CONNECTIONS.md](CONNECTIONS.md).

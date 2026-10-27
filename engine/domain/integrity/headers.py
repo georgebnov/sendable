@@ -66,7 +66,8 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"The message is missing {missing}. Every email needs these, and "
+                    f"The message is missing {', '.join(str(h) for h in missing)}. "
+                    "Every email needs these, and "
                     "your sending tool normally adds them. Filters add about 1.5 spam "
                     "points for each one that is absent."
                 ),

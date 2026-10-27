@@ -15,6 +15,17 @@ aggregate reports, and track both locally. No service, no account, no database.
 
 ### Added
 
+- Playbook 4, "The message bounced, and the code means nothing to me". It maps
+  every bounce code Gmail and Microsoft send to its cause and to the check in
+  this tool that names it: 550 5.7.25, 550 5.7.26 and 421 4.7.x at Gmail,
+  550 5.7.515, S3150, SC-001, SC-002, SC-004, OU-002 and 451 4.7.x at consumer
+  Microsoft, and 550 5.7.509 at a Microsoft 365 tenant.
+- A way to measure which Gmail tab a message reached, in playbook 1. Gmail
+  assigns every message a category even with tabs turned off, and a search for
+  `category:promotions` on an account you own reads it back. A filter on the same
+  term applies a label, which is visible over IMAP, so a tab can be logged for
+  every test send.
+
 - Audit one saved email with `scripts/audit.py`, covering copy and structure,
   SPF, DKIM and DMARC and whether they align, MTA-STS, TLSRPT and BIMI records,
   31 IP blocklists, 8 URL blocklists, a live SMTP probe, and 6 checks that compare
@@ -79,6 +90,21 @@ aggregate reports, and track both locally. No service, no account, no database.
   names the mechanism and both actions.
 
 ### Changed
+
+- Say that Gmail can refuse a message whose delivering address has no matching
+  name, and name the code it sends: 550 5.7.25. The two reverse DNS findings said
+  "a hard deliverability hit" and "penalised", which sends the reader to the spam
+  folder to look for a message that was never accepted.
+- Replace the Google Postmaster Tools "Domain reputation" panel in
+  `references/CONNECTIONS.md` and `references/PLAYBOOKS.md`. Google retired the
+  first version of Postmaster Tools at the end of September 2025, and the second
+  version does not carry the domain and IP reputation ratings. The documents now
+  describe the Deliverability analysis panel that replaced them, its 7 verdicts,
+  and what `USER_FEEDBACK_LOW` means: recipients who neither complain nor act.
+- State what cannot be fixed about the Promotions tab. Stripping a message down
+  does not reliably move it. Position inside the tab is ranked by engagement, and
+  Gmail's AI Inbox reads the Primary tab only, so a campaign in Promotions is
+  invisible to it. One-to-one mail can still earn Primary.
 
 - Take the industry vocabulary out of the two checks that carried it. The tool
   grades any sender, and a word list built around one trade graded that trade and

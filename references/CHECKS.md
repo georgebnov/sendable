@@ -381,15 +381,20 @@ Sections: Domain Health → Email Auth → Headers → Bulk Compliance → Body 
 - Validates: PTR record exists for the actual sending IP. Gmail / Microsoft require this.
 - GOOD: PTR resolves.
 - MEDIUM: n/a
-- BAD: No PTR → hard deliverability hit.
+- BAD: No PTR → Gmail can refuse the message with 550 5.7.25.
 - Severity: HIGH / INFO (demoted to INFO when sending IP belongs to a known ESP)
 
 ### sending_ip.fcrdns
 - Validates: PTR hostname forward-resolves back to the same sending IP (Forward-Confirmed reverse DNS). Strict Gmail / Microsoft requirement.
 - GOOD: PTR round-trips to original IP.
 - MEDIUM: n/a
-- BAD: PTR resolves to a different IP, or PTR has no A record.
+- BAD: PTR resolves to a different IP, or PTR has no A record → Gmail 550 5.7.25.
 - Severity: HIGH / INFO (demoted to INFO when sending IP belongs to a known ESP)
+- Note: Gmail's sender FAQ puts broken forward/reverse DNS in the row that earns
+  "Temporary or Permanent Failure codes, or spam foldering". Both findings say
+  refused rather than penalised, because a sender who reads "penalised" searches
+  the spam folder for a message that was never accepted. See
+  [PLAYBOOKS.md](PLAYBOOKS.md), playbook 4.
 
 ---
 

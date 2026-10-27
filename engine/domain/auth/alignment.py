@@ -268,9 +268,12 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 message=(
                     f"Neither your signature nor your sending record matches the "
                     f"domain in your From address ({from_org}). Your anti-spoofing "
-                    "policy therefore fails, even though each check passed on its "
-                    "own. Gmail bounces this with the code 5.7.26 and Microsoft "
-                    "with 5.7.509."
+                    "policy therefore fails. Passing one of those two checks is not "
+                    "enough on its own: the domain it passed for has to be the "
+                    "domain in your From address. At a reject policy this is "
+                    "refused outright, and Gmail answers with the code 5.7.26 and "
+                    "Microsoft with 5.7.509. At quarantine it goes to the spam "
+                    "folder."
                 ),
                 details={
                     "from_org": from_org,

@@ -168,7 +168,8 @@ async def run(domain: str) -> list[Finding]:
                 passed=False,
                 message=(
                     f"Your domain publishes {len(spf_records)} SPF records. A domain "
-                    "may publish only one. A receiver that finds two stops reading "
+                    "may publish only one. A receiver that finds more than one stops "
+                    "reading "
                     "and treats your domain as having no SPF at all. Merge them into "
                     "one record."
                 ),
