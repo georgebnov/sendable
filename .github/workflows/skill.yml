@@ -11,12 +11,10 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - "production/**"
       - "docs/**"
       - "**.md"
   pull_request:
     paths-ignore:
-      - "production/**"
       - "docs/**"
       - "**.md"
 

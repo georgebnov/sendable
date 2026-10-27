@@ -128,6 +128,13 @@ aggregate reports, and track both locally. No service, no account, no database.
 
 ### Removed
 
+- The `production/` tree: the FastAPI backend, the Next.js app, and the Astro
+  marketing site this tool came from. None of it ran, and it was the last thing
+  excluded from the gates. With it gone, rule 2 holds without an exception:
+  `extend-exclude` is off `pyproject.toml`, and the workflow no longer skips a
+  directory. The tag `saas-final` is now on the server, not only on one machine,
+  so `git show saas-final:<path>` recovers any file of it.
+
 - The `VERSION` file. Nothing read it, and it still said `0.45.0` from the SaaS
   while `pyproject.toml` said `0.1.0`. The version has one home now.
 

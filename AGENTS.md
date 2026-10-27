@@ -4,11 +4,10 @@ Sendable is an email deliverability audit tool. It ships as a skill that an agen
 downloads and runs. It has no service, no account, and no database. `SKILL.md` is
 the contract that an agent reads. This file is the contract for work on the code.
 
-`production/` still holds the SaaS that this tool came from: a FastAPI backend on
-Fargate, a Next.js app on Vercel, and an Astro marketing site. The AWS account is
-closed, and none of it runs. Every gate excludes it, and it will be removed. The
-tag `saas-final` marks the state before the refactor. To recover a file from it,
-run `git show saas-final:<path>`.
+This tool came from a SaaS: a FastAPI backend on Fargate, a Next.js app on
+Vercel, and an Astro marketing site. None of it runs, and none of it is in this
+tree any more. The tag `saas-final` marks the state before the refactor, and it
+is on the server, so `git show saas-final:<path>` recovers any file of it.
 
 ## Layout
 
@@ -55,8 +54,8 @@ and docs cite the rules by number.
 
 2. **Nothing is excluded from the gates.** `engine/` came from a tree that lint
    and the type check excluded. When the gates covered it, they found two real
-   bugs. Do not add an exclusion. `production/` is the only exception, and it
-   will be removed.
+   bugs. Do not add an exclusion. There is no longer any exception: the last one
+   was `production/`, and that tree is gone.
 
 3. *The global rules (Project Defaults) cover this.* The rule was: tests come
    first, and you never weaken a test.

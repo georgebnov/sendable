@@ -50,9 +50,6 @@ dev = [
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-# production/ holds the SaaS this repo is being refactored away from. It carries
-# its own pyproject and its own gates, and it is removed at the end of this work.
-extend-exclude = ["production"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RET", "RUF", "PIE", "PLE"]
