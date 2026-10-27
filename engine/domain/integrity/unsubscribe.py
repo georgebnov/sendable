@@ -138,7 +138,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="content.list_unsubscribe_header",
                 severity=Severity.INFO,
                 passed=True,
-                message="Not applicable — 1:1 mail (no bulk signals).",
+                message="Not applicable: 1:1 mail (no bulk signals).",
                 details={"is_bulk": False},
             )
         )
@@ -172,7 +172,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="content.list_unsubscribe_post",
                 severity=Severity.INFO,
                 passed=True,
-                message="Not applicable — 1:1 mail (no bulk signals).",
+                message="Not applicable: 1:1 mail (no bulk signals).",
                 details={"is_bulk": False},
             )
         )

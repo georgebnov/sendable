@@ -224,7 +224,7 @@ async def audit(
                 passed=False,
                 message=(
                     "Gmail routed this message to Spam. The recipient mailbox "
-                    "has already classified it as spam — score capped at "
+                    "has already classified it as spam: score capped at "
                     f"{SPAM_SCORE_CAP}."
                 ),
                 details={"score_cap": SPAM_SCORE_CAP},

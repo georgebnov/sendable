@@ -83,7 +83,7 @@ def merge_spf(
     if projected > lookup_limit:
         warning = (
             f"This record needs about {projected} DNS lookups, over the "
-            f"{lookup_limit}-lookup SPF limit — flatten or remove unused includes "
+            f"{lookup_limit}-lookup SPF limit: flatten or remove unused includes "
             "before publishing, or SPF will PermError and fail for everyone."
         )
     return record, warning

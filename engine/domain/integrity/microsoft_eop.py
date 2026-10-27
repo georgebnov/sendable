@@ -65,7 +65,7 @@ _COMPAUTH_SEVERITIES = {
     "fail": (
         Severity.HIGH,
         False,
-        "Composite authentication FAILED — Microsoft does not trust the sender's auth combo.",
+        "Composite authentication FAILED. Microsoft does not trust the sender's auth combo.",
     ),
 }
 
@@ -104,7 +104,7 @@ def _bcl_severity(bcl: int) -> tuple[Severity, bool, str]:
             False,
             f"BCL={bcl} (medium-complaint bulk; default policy threshold = 7).",
         )
-    return (Severity.MEDIUM, False, f"BCL={bcl} (high-complaint bulk — essentially spam).")
+    return (Severity.MEDIUM, False, f"BCL={bcl} (high-complaint bulk: essentially spam).")
 
 
 async def run(email: ParsedEmail) -> list[Finding]:
@@ -124,7 +124,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check=f"{CHECK_PREFIX}.transit",
                 severity=Severity.INFO,
                 passed=True,
-                message="No Microsoft EOP headers — message did not transit M365/Outlook.",
+                message="No Microsoft EOP headers: message did not transit M365/Outlook.",
             )
         ]
 
@@ -169,7 +169,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                     check=f"{CHECK_PREFIX}.sfv",
                     severity=sev,
                     passed=passed,
-                    message=f"Microsoft SFV={code} — {meaning}.",
+                    message=f"Microsoft SFV={code}: {meaning}.",
                     details={"sfv": code, "meaning": meaning},
                 )
             )

@@ -40,8 +40,27 @@ aggregate reports, and track both locally. No service, no account, no database.
   header, so a caller needs only `uv`.
 - `SKILL.md`, the agent-facing contract, including the mailbox setup that routes
   DMARC reports to `<you>+reports@` and messages to grade to `<you>+check@`.
+- `references/CONNECTIONS.md`, the setup for every data source a sender can connect:
+  mailbox tags, DMARC aggregate reports, Google Postmaster Tools, an ESP branded
+  subdomain, Microsoft SNDS and JMRP, the Yahoo complaint feedback loop, and the
+  ESP dashboard. Each entry says what it answers, what it costs, and what it
+  cannot do. SNDS is keyed to an IP address, so it is useless on a shared pool.
+- `references/PLAYBOOKS.md`, for the three questions one audit cannot answer alone: why
+  one email reached three different folders, how to warm a new domain, and what
+  to compare when placement drops with no obvious cause. A clean audit on a
+  message that still went to spam is information, not a dead end, and the first
+  playbook says what to measure next.
 
 ### Fixed
+
+- Reject a DMARC report address written without `mailto:`. `rua=mailto:a@x,b@y`
+  has one URI and one bare address. RFC 7489 defines the value as a list of URIs,
+  so receivers drop the bare one and some drop the whole tag, which can leave a
+  sender with no reports at all while the record looks right to them. The parser
+  used to strip the scheme when present and take the address when absent, so the
+  audit called that record fine. New check `dmarc_record.report_uri_syntax`, HIGH
+  when it fails. **This adds a check, so a domain audited before may score
+  differently.**
 
 - Stop reporting a correct Ed25519 DKIM key as dangerously weak. The key size was
   measured against a 1024-bit RSA floor, and RFC 8463 defines Ed25519 for DKIM
@@ -53,8 +72,16 @@ aggregate reports, and track both locally. No service, no account, no database.
   declaring. Key size had been estimated from the DER byte length instead of read
   from the key.
 - Remove dashes from the DMARC policy advice, per the house copy rule.
+- Say what not to do when SPF is unaligned. The finding named the fix and stopped,
+  so senders edited the record called SPF, which is their apex record, and added
+  the ESP there. That changes nothing: receivers check SPF against the envelope
+  sender, which on a shared ESP pool is the ESP's own domain. The message now
+  names the mechanism and both actions.
 
 ### Removed
+
+- The `VERSION` file. Nothing read it, and it still said `0.45.0` from the SaaS
+  while `pyproject.toml` said `0.1.0`. The version has one home now.
 
 - The hardcoded industry check registry. It was unreachable: no caller ever passed
   an industry, so its three real-estate checks never ran.

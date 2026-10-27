@@ -163,7 +163,7 @@ def _check_merge_tag_unfilled(email: ParsedEmail) -> Finding:
             message=(
                 f"{len(hits)} unfilled merge field(s) detected. The recipient "
                 f"sees a placeholder or empty name where personalization was "
-                f"expected — filters treat this as broken/test mail."
+                f"expected: filters treat this as broken/test mail."
             ),
             details={"hits": hits[:5], "count": len(hits)},
         )

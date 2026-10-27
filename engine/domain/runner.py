@@ -89,7 +89,7 @@ def _demote_to_info(findings: list[Finding], operator: str) -> list[Finding]:
                     "message": (
                         f"[managed by {operator}] {f.message} "
                         f"This is your mail-operator's infrastructure, not your "
-                        f"domain — there is nothing to fix here."
+                        f"domain: there is nothing to fix here."
                     ),
                     "source": "domain_config",
                 }
@@ -145,7 +145,7 @@ async def run_domain_health(parsed: ParsedEmail) -> list[Finding]:
                     severity=Severity.INFO,
                     passed=True,
                     message=(
-                        f"Sending-IP blacklist scan skipped — outbound IP belongs to "
+                        f"Sending-IP blacklist scan skipped: outbound IP belongs to "
                         f"{esp.name}, not to your domain. Major ESPs always have "
                         f"some IPs on RBLs (shared pool churn); flagging them as "
                         f"your problem would be misleading."
@@ -203,7 +203,7 @@ async def run_domain_health(parsed: ParsedEmail) -> list[Finding]:
                 passed=True,
                 message=(
                     f"Mail-server infrastructure managed by {mail_operator}. "
-                    f"SMTP-side checks (MX shape, open relay) demoted — the "
+                    f"SMTP-side checks (MX shape, open relay) demoted: the "
                     f"operator owns every one of them; nothing for the "
                     f"marketer to fix."
                 ),

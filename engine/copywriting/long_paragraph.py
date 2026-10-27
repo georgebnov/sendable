@@ -67,7 +67,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 passed=False,
                 message=(
                     f"A paragraph is {worst_words} words / ~{worst_lines} "
-                    f"lines. Readers scroll past walls of text — break it "
+                    f"lines. Readers scroll past walls of text: break it "
                     f"into shorter paragraphs, add a subhead, or convert "
                     f"to a list."
                 ),

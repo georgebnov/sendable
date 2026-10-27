@@ -447,7 +447,7 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
                 if flag not in ("y", "s"):
                     syntax_issues.append(f"t flag '{flag}' invalid")
             if "y" in flags:
-                syntax_issues.append("t=y flag set — testing mode (receivers may downgrade)")
+                syntax_issues.append("t=y flag set: testing mode (receivers may downgrade)")
 
         if syntax_issues:
             findings.append(
@@ -532,7 +532,7 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
                 risk_tiers: list[str] = []
                 if body_simple:
                     parts.append(
-                        "Body canonicalization is `simple` — this is the "
+                        "Body canonicalization is `simple`: this is the "
                         "main risk: ESP footer insertion or any relay "
                         "whitespace mutation breaks the body hash and the "
                         "signature fails to verify on the receiver side."
@@ -540,7 +540,7 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
                     risk_tiers.append("body=simple (HIGH risk on bulk sends)")
                 if header_simple:
                     parts.append(
-                        "Header canonicalization is `simple` — minor risk; "
+                        "Header canonicalization is `simple`: minor risk; "
                         "only relays that aggressively refold long headers "
                         "will break the signature."
                     )

@@ -77,7 +77,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
         model=_MODEL,
         system=(
             "You judge whether an email opening creates a curiosity "
-            "gap — an open loop, a surprising statistic, or a "
+            "gap: an open loop, a surprising statistic, or a "
             "question the reader cannot answer without reading on. "
             "Return classification=OPEN_LOOP when the opening pulls "
             "the reader forward, CLOSED_STATEMENT when it is a "
@@ -121,7 +121,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             severity=Severity.LOW,
             passed=False,
             message=(
-                f"Opening is a closed statement — reader has permission to "
+                f"Opening is a closed statement: reader has permission to "
                 f"stop after the first line. {verdict.reason} Lead with an "
                 f"open loop, a surprising data point, or a question."
             ),

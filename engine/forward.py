@@ -185,7 +185,7 @@ def _forwarder_signing_note(f: Finding) -> str:
         f"About the account that forwarded this: it signs its own email as "
         f"{signer}, not {domain}. That's the forwarding account's setup, not "
         f"this campaign, so it isn't scored here. But if this is your account, "
-        f"your everyday emails aren't building {domain}'s reputation — worth "
+        f"your everyday emails aren't building {domain}'s reputation: worth "
         f"turning on your own signing."
     )
 

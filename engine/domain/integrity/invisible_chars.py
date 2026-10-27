@@ -156,7 +156,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             message = (
                 f"Zero-width / invisible characters detected "
                 f"({len(zw_hits)} in {_source_summary(zw_hits)}). "
-                f"Located in body only — {chrome.name} injects these around "
+                f"Located in body only: {chrome.name} injects these around "
                 f"footer / social / unsubscribe blocks. Template chrome, not "
                 f"user content."
             )

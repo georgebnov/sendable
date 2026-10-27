@@ -96,7 +96,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
         # Surface the carve-out for transparency so the user knows we
         # noticed the words but recognised them as series naming.
         msg += (
-            f" Treated branded prefix '{branded_prefix}' as series name —"
+            f" Treated branded prefix '{branded_prefix}' as series name: "
             " deadwords inside it don't count."
         )
     return [

@@ -123,7 +123,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="copywriting.reading_level",
                 severity=Severity.INFO,
                 passed=True,
-                message=(f"Reading level Grade {grade} — conversational range (USA Today to NYT)."),
+                message=(f"Reading level Grade {grade}: conversational range (USA Today to NYT)."),
                 details=stats,
             )
         ]
@@ -149,7 +149,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             severity=Severity.HIGH,
             passed=False,
             message=(
-                f"Reading level Grade {grade} — academic range. Audience "
+                f"Reading level Grade {grade}: academic range. Audience "
                 f"disengages before the CTA. Cut sentence length and "
                 f"replace multi-syllable words with everyday ones."
             ),

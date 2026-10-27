@@ -132,7 +132,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 passed=False,
                 message=(
                     f"Executable attachment(s): {[h['name'] for h in executable_hits]}. "
-                    "Universally blocked by Gmail and Microsoft Defender — message "
+                    "Universally blocked by Gmail and Microsoft Defender: message "
                     "will be quarantined or rejected."
                 ),
                 details={"hits": executable_hits},

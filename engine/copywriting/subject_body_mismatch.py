@@ -41,7 +41,7 @@ _SYSTEM_PROMPT = (
     "list. "
     "IMPORTANT: Many emails are genuinely well-aligned. When the subject "
     "and body match, you MUST return matches=true with empty suggestions. "
-    "Do NOT invent a mismatch to justify a more elaborate response — "
+    "Do NOT invent a mismatch to justify a more elaborate response: "
     "a clean PASS is the correct verdict for the majority of real emails."
 )
 _USER_PROMPT = (
@@ -85,7 +85,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
 
     if not subject or not body_text:
         return _skip(
-            "Skipped — need both subject and body to grade alignment.",
+            "Skipped: need both subject and body to grade alignment.",
             subject_present=bool(subject),
             body_present=bool(body_text),
         )
@@ -109,7 +109,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="copywriting.subject_body_mismatch",
                 severity=Severity.INFO,
                 passed=True,
-                message=f"Subject aligns with body — {verdict.reason}",
+                message=f"Subject aligns with body: {verdict.reason}",
                 details={
                     "reason": verdict.reason,
                     "subject": subject,
@@ -123,7 +123,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             severity=Severity.HIGH,
             passed=False,
             message=(
-                f"Subject does not accurately describe body content — "
+                f"Subject does not accurately describe body content: "
                 f"CAN-SPAM §5(a)(2) deceptive-subject risk. {verdict.reason}"
             ),
             details={

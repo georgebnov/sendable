@@ -131,7 +131,7 @@ def demote_to_info_when_esp(findings: list[Finding], esp_name: str) -> list[Find
                 update={
                     "severity": Severity.INFO,
                     "message": (
-                        f"[ESP outbound IP — {esp_name}] {f.message} "
+                        f"[ESP outbound IP: {esp_name}] {f.message} "
                         f"This IP is operated by {esp_name}, not by your domain; "
                         f"forward the finding to their deliverability team."
                     ),

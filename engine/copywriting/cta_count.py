@@ -72,7 +72,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="copywriting.cta_count",
                 severity=Severity.INFO,
                 passed=True,
-                message=f"{count} active CTA detected — focused ask.",
+                message=f"{count} active CTA detected: focused ask.",
                 details={"count": count, "ctas": samples},
             )
         ]
@@ -84,7 +84,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    "2 active CTAs detected — competing attention. Pick the "
+                    "2 active CTAs detected: competing attention. Pick the "
                     "single most important next step; demote the other to "
                     "an inline link or drop it."
                 ),
@@ -98,7 +98,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             severity=Severity.HIGH,
             passed=False,
             message=(
-                f"{count} active CTAs detected — scattershot. Multiple "
+                f"{count} active CTAs detected: scattershot. Multiple "
                 f"button-shaped asks read as bulk promo to filters and "
                 f"dilute conversion. Collapse to one primary CTA."
             ),

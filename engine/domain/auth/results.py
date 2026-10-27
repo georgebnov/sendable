@@ -81,7 +81,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 sev = Severity.MEDIUM
                 msg = (
                     f"Receiver quick-view says DMARC={result}. Cross-check "
-                    "auth.dmarc_alignment_overall — if alignment passes, the "
+                    "auth.dmarc_alignment_overall: if alignment passes, the "
                     "message authenticates correctly under the actual "
                     "algorithm and this is a receiver-UI quirk."
                 )

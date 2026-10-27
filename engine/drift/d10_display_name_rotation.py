@@ -171,7 +171,7 @@ async def run(email: ParsedEmail, current: EmailFacts, history: list[EmailFacts]
                 passed=False,
                 message=(
                     f"Display-name churn {churn_ratio:.0%}: {n_distinct} distinct names "
-                    f"across {n_rows} sends — excessive rotation."
+                    f"across {n_rows} sends: excessive rotation."
                 ),
                 details={"churn_ratio": churn_ratio, "distinct_count": n_distinct, "rows": n_rows},
             )

@@ -302,7 +302,7 @@ async def run(domain: str) -> list[Finding]:
                 passed=False,
                 message=(
                     "SPF has both 'redirect=' modifier and 'all' mechanism. "
-                    "'all' wins — redirect is ignored. Pick one."
+                    "'all' wins: redirect is ignored. Pick one."
                 ),
             )
         )

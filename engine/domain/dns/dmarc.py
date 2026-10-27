@@ -46,16 +46,29 @@ def _parse(text: str) -> dict:
     return {k.lower(): v.strip() for k, v in tags.items()}
 
 
-def _emails_in(value: str) -> list[str]:
-    """rua/ruf values are comma-separated `mailto:user@host` URIs."""
-    out: list[str] = []
+def _report_uris(value: str) -> tuple[list[str], list[str]]:
+    """Split a rua/ruf value into the addresses that work and the ones that do not.
+
+    RFC 7489 §6.3 defines the value as a comma-separated list of **URIs**, so
+    every entry carries its scheme. `mailto:a@x,b@y` has one URI and one bare
+    address. Receivers discard the bare one, and some discard the whole tag, so
+    a sender can get no reports at all while the record looks right to them.
+
+    Returns `(addresses, malformed)`. An address is returned with the scheme
+    removed. A malformed entry is returned as written.
+    """
+    addresses: list[str] = []
+    malformed: list[str] = []
     for piece in value.split(","):
         piece = piece.strip()
+        if not piece:
+            continue
         if piece.lower().startswith("mailto:"):
-            piece = piece[7:]
-        if "@" in piece:
-            out.append(piece)
-    return out
+            addr = piece[7:]
+            (addresses if "@" in addr else malformed).append(addr if "@" in addr else piece)
+        else:
+            malformed.append(piece)
+    return addresses, malformed
 
 
 async def run(domain: str) -> list[Finding]:
@@ -182,9 +195,9 @@ async def run(domain: str) -> list[Finding]:
                 passed=False,
                 message=(
                     "DMARC policy is p=none (monitor-only). This meets the Gmail / "
-                    "Yahoo / Microsoft minimum compliance bar — your sending is "
-                    "technically compliant — but p=none does not protect your "
-                    "domain from spoofing: receivers still deliver mail that fails "
+                    "Yahoo / Microsoft minimum compliance bar, so your sending is "
+                    "technically compliant. But p=none does not protect your "
+                    "domain from spoofing. Receivers still deliver mail that fails "
                     "DMARC. Recommended upgrade path: review aggregate (rua) reports "
                     "for ~30 days, then advance to p=quarantine and eventually "
                     "p=reject."
@@ -205,10 +218,13 @@ async def run(domain: str) -> list[Finding]:
     # External validation: any rua/ruf address whose domain != sender domain
     # must be authorized via `<sender>._report._dmarc.<rua-domain>` TXT.
     external_failures: list[str] = []
+    malformed_uris: list[str] = []
     for tag in ("rua", "ruf"):
         if tag not in parsed:
             continue
-        for addr in _emails_in(parsed[tag]):
+        addresses, malformed = _report_uris(parsed[tag])
+        malformed_uris.extend(malformed)
+        for addr in addresses:
             rua_domain = addr.split("@", 1)[1].lower()
             if rua_domain == domain:
                 continue
@@ -217,6 +233,34 @@ async def run(domain: str) -> list[Finding]:
             authorized = authz.ok and any("v=dmarc1" in r.lower() for r in authz.records)
             if not authorized:
                 external_failures.append(f"{tag}:{addr}")
+
+    if malformed_uris:
+        shown = ", ".join(malformed_uris[:3])
+        fixed = ", ".join(f"mailto:{u}" for u in malformed_uris[:3])
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.report_uri_syntax",
+                severity=Severity.HIGH,
+                passed=False,
+                message=(
+                    f"Report address written without 'mailto:': {shown}. Each address "
+                    f"in a rua or ruf tag needs its own scheme, so write it as {fixed}. "
+                    "Receivers drop an address written this way, and some drop every "
+                    "address in the tag, which leaves you with no reports at all."
+                ),
+                details={"malformed": malformed_uris},
+            )
+        )
+    else:
+        findings.append(
+            Finding(
+                check=f"{CHECK_PREFIX}.report_uri_syntax",
+                severity=Severity.INFO,
+                passed=True,
+                message="Every rua/ruf report address carries its 'mailto:' scheme.",
+            )
+        )
+
     if external_failures:
         findings.append(
             Finding(

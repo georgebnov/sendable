@@ -215,7 +215,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             message = (
                 f"Hidden-text patterns detected ({len(hits)} hit(s)) but match "
                 f"{chrome.name} template chrome (preview-text / footer). "
-                f"Not user content — clear the preview-text field in your "
+                f"Not user content: clear the preview-text field in your "
                 f"{chrome.name} composer to remove."
             )
         else:

@@ -66,7 +66,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="copywriting.voice_consistency",
                 severity=Severity.INFO,
                 passed=True,
-                message=(f"Only {total} voice token(s) — too few to grade voice consistency."),
+                message=(f"Only {total} voice token(s): too few to grade voice consistency."),
                 details=details,
             )
         ]
@@ -83,7 +83,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.INFO,
                 passed=True,
                 message=(
-                    f"Voice consistent — {dominant_voice}-voice carries "
+                    f"Voice consistent: {dominant_voice}-voice carries "
                     f"{details['dominant_share_pct']}% of voice tokens."
                 ),
                 details=details,
@@ -96,7 +96,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             severity=Severity.LOW,
             passed=False,
             message=(
-                f"Voice split detected — I-voice {i_count} / We-voice "
+                f"Voice split detected. I-voice {i_count} / We-voice "
                 f"{we_count} (dominant {details['dominant_share_pct']}% < "
                 f"{details['threshold_pct']}%). Pick agent (I/my/me) or "
                 f"brand (we/our/us) and stay in it."

@@ -61,7 +61,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 passed=False,
                 message=(
                     "No preheader / preview text detected. Inbox preview "
-                    "will fall back to whatever the body opens with — "
+                    "will fall back to whatever the body opens with: "
                     "usually template chrome. Add a hidden preheader to "
                     "control the second-line message."
                 ),
@@ -76,7 +76,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"Preheader is only {len(preview)} chars — insufficient "
+                    f"Preheader is only {len(preview)} chars: insufficient "
                     f"signal. Target ≥{_MIN_CHARS} chars of intentional copy."
                 ),
                 details={"preview": preview, "chars": len(preview)},
@@ -96,7 +96,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 message=(
                     f"Preheader is a template artifact (matched: "
                     f"{', '.join(hits)}). The marketer didn't author the "
-                    f"preview — the inbox is showing fallback chrome."
+                    f"preview: the inbox is showing fallback chrome."
                 ),
                 details={"preview": preview, "matches": hits},
             )

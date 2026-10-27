@@ -105,7 +105,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                     severity=Severity.INFO,
                     passed=True,
                     message=(
-                        "From display name is an unsubstituted merge tag — "
+                        "From display name is an unsubstituted merge tag: "
                         "no concrete name to match against sign-off."
                     ),
                     details=details,
