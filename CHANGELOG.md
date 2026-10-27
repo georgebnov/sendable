@@ -64,6 +64,16 @@ aggregate reports, and track both locally. No service, no account, no database.
 
 ### Fixed
 
+- Stop telling a sender to escalate an IP that does not exist. When the audit
+  recognised the sending platform, it rewrote every failing reverse DNS finding
+  to name that platform. One of those findings is the note saying no sending
+  address could be read from the message at all, which a forwarded message
+  produces. That note became "[ESP outbound IP: SendGrid] No sender IP
+  recoverable ... forward the finding to their deliverability team", which names
+  an address that was never found and asks the reader to escalate a check that
+  was skipped. The rewrite now touches only the two findings that are about an
+  address.
+
 - Reject a DMARC report address written without `mailto:`. `rua=mailto:a@x,b@y`
   has one URI and one bare address. RFC 7489 defines the value as a list of URIs,
   so receivers drop the bare one and some drop the whole tag, which can leave a
