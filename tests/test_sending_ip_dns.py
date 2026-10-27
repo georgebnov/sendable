@@ -84,3 +84,43 @@ async def test_no_received_chain_skips_both_checks(dns: FakeDns) -> None:
     assert [f.check for f in findings] == ["sending_ip.extraction"]
     assert not findings[0].passed
     assert findings[0].severity == "INFO"
+
+
+async def test_the_demote_path_leaves_the_skip_note_alone(dns: FakeDns) -> None:
+    """A forwarded message can detect an ESP and still have no sending IP.
+
+    The caller demotes whenever an ESP was detected, and `esp.detect` reads the
+    DKIM domain, the header names, the Feedback-ID and the body. It never reads
+    the Received chain. So these two states coexist, and rewriting the skip note
+    told the sender to escalate an IP that does not exist.
+    """
+    findings = await sending_ip_dns.run({})
+    assert [f.check for f in findings] == ["sending_ip.extraction"]
+    out = sending_ip_dns.demote_to_info_when_esp(findings, "SendGrid")
+    assert len(out) == 1
+    assert out[0].message == findings[0].message, "the skip note was rewritten"
+    assert "SendGrid" not in out[0].message
+    assert "deliverability team" not in out[0].message
+
+
+async def test_the_demote_path_still_demotes_a_real_ip_finding(dns: FakeDns) -> None:
+    # The function must keep doing its job: a marketer cannot republish reverse
+    # DNS on an ESP's address, so the finding stays visible but stops scoring.
+    findings = await sending_ip_dns.run(_headers())
+    f = next(f for f in findings if f.check == "sending_ip.ptr_resolves")
+    assert not f.passed
+    out = sending_ip_dns.demote_to_info_when_esp(findings, "SendGrid")
+    demoted = next(x for x in out if x.check == "sending_ip.ptr_resolves")
+    assert demoted.severity == "INFO"
+    assert "SendGrid" in demoted.message
+    assert "deliverability team" in demoted.message
+
+
+async def test_the_demote_path_does_not_touch_a_passing_finding(dns: FakeDns) -> None:
+    dns.set("7.100.51.198.in-addr.arpa", "PTR", "mail.example.net")
+    dns.set("mail.example.net", "A", "198.51.100.7")
+    findings = await sending_ip_dns.run(_headers())
+    out = sending_ip_dns.demote_to_info_when_esp(findings, "SendGrid")
+    for before, after in zip(findings, out, strict=True):
+        assert before.message == after.message
+        assert before.severity == after.severity

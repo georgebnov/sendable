@@ -128,13 +128,27 @@ async def run(headers: dict[str, list[str]]) -> list[Finding]:
     return findings
 
 
+# The two checks this module runs against the sending IP. `sending_ip.extraction`
+# is not one of them: it reports that no IP was recoverable, so there is no IP to
+# attribute to anybody.
+_IP_CHECKS = frozenset({"sending_ip.ptr_resolves", "sending_ip.fcrdns"})
+
+
 def demote_to_info_when_esp(findings: list[Finding], esp_name: str) -> list[Finding]:
     """Same pattern as the RBL scan: when the sending IP belongs to a
     high-confidence ESP, demote PTR/FCrDNS findings — the marketer can't
-    re-publish DNS records on SendGrid/Mailchimp/Brevo's IPs."""
+    re-publish DNS records on SendGrid/Mailchimp/Brevo's IPs.
+
+    Only those two findings. The caller demotes whenever an ESP was detected,
+    and `esp.detect` reads the DKIM domain, the header names, the Feedback-ID
+    and the body, never the Received chain. So a forwarded message can detect
+    an ESP and still recover no sending IP, which leaves `sending_ip.extraction`
+    failing. Rewriting that one produced "[ESP outbound IP: SendGrid] No sender
+    IP recoverable ... forward the finding to their deliverability team": an IP
+    that does not exist, and an escalation for a check that was skipped."""
     out: list[Finding] = []
     for f in findings:
-        if f.passed:
+        if f.passed or f.check not in _IP_CHECKS:
             out.append(f)
             continue
         out.append(

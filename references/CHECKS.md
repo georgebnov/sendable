@@ -745,10 +745,12 @@ Sections: Domain Health → Email Auth → Headers → Bulk Compliance → Body 
 
 ### copywriting.compound_signal
 - Validates: Compound promotional signal count.
-- GOOD: <3 categories.
-- MEDIUM: 3: 4 categories.
-- BAD: 5+ categories (stacked = deliverability killer).
+- GOOD: 2 or fewer categories.
+- MEDIUM: 3 categories.
+- BAD: 4 or more categories (stacked = deliverability killer).
 - Severity: CRITICAL (5+) / HIGH (4) / MEDIUM (3) / INFO
+- The list holds 5 promotional categories, so CRITICAL needs every one of them.
+  `tests/test_compound_signal.py` pins the tiers against the shipped list.
 
 ### copywriting.body_length
 - Validates: Body word count in range.
