@@ -85,7 +85,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 message=(
                     f"Urgency language in the opening 40% of the body "
                     f"({', '.join(labels)}). Urgency closes, it doesn't "
-                    f"open — leading with it reads as desperate. Move "
+                    f"open: leading with it reads as desperate. Move "
                     f"these phrases past the midpoint so they pay off "
                     f"a built-up case."
                 ),

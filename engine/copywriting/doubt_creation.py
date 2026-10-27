@@ -80,7 +80,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 passed=False,
                 message=(
                     f"Doubt-creating phrase(s) detected: {', '.join(hits)}. "
-                    f"Naming the doubt creates the doubt — the reader "
+                    f"Naming the doubt creates the doubt: the reader "
                     f"adopts hesitation that wasn't there. Cut the "
                     f"phrase; lead with confidence about the next step."
                 ),

@@ -46,7 +46,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="copywriting.preheader_repeats_subject",
                 severity=Severity.INFO,
                 passed=True,
-                message=("Skipped — need both subject and preheader to compare."),
+                message=("Skipped: need both subject and preheader to compare."),
                 details={
                     "subject_present": bool(subject),
                     "preheader_present": bool(preheader),
@@ -86,7 +86,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.LOW,
                 passed=False,
                 message=(
-                    f"Preheader repeats {overlap_pct}% of subject tokens — "
+                    f"Preheader repeats {overlap_pct}% of subject tokens: "
                     f"wasted second impression. Use the preheader to add "
                     f"detail, urgency, or curiosity the subject couldn't fit."
                 ),

@@ -1,6 +1,6 @@
 ---
 name: sendable
-description: "Audit an email for deliverability and inbox placement, and raise a domain's sending reputation. Use when the user asks why their email lands in spam, wants an email checked before sending, wants DMARC, SPF, or DKIM set up or explained, asks what to do about aggregate reports, or asks how to improve inbox placement. Also use after sending anything that matters, to catch a regression against the sender's own history."
+description: "Find out why an email lands in spam or Promotions, fix it before you send, and raise a domain's sending reputation. Use for inbox placement, open rates, SPF, DKIM, DMARC, aggregate reports, warming a new sending domain, or grading a draft. Also after any send that matters, to catch a regression."
 ---
 
 # Sendable
@@ -15,10 +15,11 @@ authenticate, does the authentication align, is the copy going to get filtered,
 does it carry a working unsubscribe. It also compares the message against the
 sender's earlier sends, so it catches a regression that no single email reveals.
 
-Over 100 distinct checks, in four groups: 38 on the copy and structure of the
-message itself, 10 on authentication and alignment, a domain phase covering the
-SPF, DKIM, DMARC, MTA-STS, TLSRPT, and BIMI records plus 31 IP
-blocklists, 8 URL blocklists, and a live SMTP probe, and 6 drift checks against history.
+135 checks in six groups: 54 on the copy and structure of the message, 11 on
+authentication and alignment, 35 on the domain records (SPF, DKIM, DMARC,
+MTA-STS, TLSRPT, and BIMI), 15 on the sending infrastructure (31 IP blocklists, 8
+URL blocklists, and a live SMTP probe), 14 on headers and hygiene, and 6 drift
+checks against the sender's own history.
 
 **Fix the domain.** `scripts/dmarc.py` reads the aggregate reports that receiving
 providers mail out, works out everything sending as the domain, and gives the one
@@ -104,86 +105,52 @@ the hidden line of white text above your headline".
 Name the one thing to change first. A list of fourteen findings is a report; one
 sentence saying what to fix is help.
 
-## Set up the mailbox so this keeps working
+## Playbooks
 
-Both jobs need email to reach the agent. The setup is two plus-addresses on the
-user's own mailbox and one DNS change, and it takes about ten minutes.
+Three questions arrive more than any others. Each one needs an order of steps,
+not a single command. `references/PLAYBOOKS.md` holds them:
 
-Plus-addressing means `jane+anything@example.com` is delivered to
-`jane@example.com`. Gmail, Google Workspace, Microsoft 365, Fastmail, Proton, and
-most self-hosted servers support it with no configuration. The tag after the `+`
-is visible in the recipient headers, which is what makes the two streams
-separable.
+1. **One email landed in three different folders.** Some recipients got the
+   inbox, some Promotions, some spam, from identical bytes. A clean audit here
+   is information: it means the cause is reputation, not the message. The
+   playbook gives the order of causes and the one measurement that settles it.
+2. **Warm up a new domain.** What you warm depends on whether your sending IP is
+   shared or dedicated, and the two plans are different. On a shared pool you
+   ramp by segment, not by volume.
+3. **Everything was fine, and now it is not.** What to compare, and which causes
+   you can fix today against which take weeks.
 
-**`jane+reports@example.com`** receives the DMARC aggregate reports. Providers
-mail these to whatever address sits in the `rua=` tag of the DMARC DNS record.
+## Connect more data
 
-**`jane+check@example.com`** receives emails the user wants graded. They forward
-or BCC a send to it.
+The audit needs nothing but a saved `.eml`. Each connection in
+`references/CONNECTIONS.md` answers a question that one message cannot:
 
-Walk the user through it:
+| Connection | Answers |
+|---|---|
+| Mailbox tags | how reports and test sends reach the agent |
+| DMARC aggregate reports | who sends as this domain, and does it authenticate |
+| Google Postmaster Tools | what Gmail thinks of this domain |
+| ESP branded subdomain | are the links and bounces on the user's own domain |
+| Microsoft SNDS and JMRP | what Outlook thinks of a **dedicated** sending IP |
+| Yahoo Complaint Feedback Loop | who marked the mail as spam at Yahoo |
+| The ESP dashboard | bounce rate, complaint rate, engagement per campaign |
 
-1. **Confirm plus-addressing works.** Have them send a message to
-   `<their-address>+check@<their-domain>` and confirm it arrives. If it does not,
-   their provider does not support it, and a plain second mailbox such as
-   `dmarc@example.com` works just as well. Everything below still applies.
+Mailbox tags, DMARC reports, and Postmaster Tools cover most of what a sender
+needs. Set them up in that order.
 
-2. **Read the current DMARC record.** `dig +short TXT _dmarc.example.com`
-   Nothing returned means no DMARC record exists.
+Two rules from that document are worth stating here, because agents get both
+backwards:
 
-3. **Publish or update it.** Start at `p=none`, which changes how no mail is
-   treated and only turns reporting on. Never start at `quarantine` or `reject`:
-   that rejects the sender's own mail before anyone knows which of their senders
-   is misconfigured.
-
-   ```
-   Name:  _dmarc.example.com
-   Type:  TXT
-   Value: v=DMARC1; p=none; rua=mailto:jane+reports@example.com
-   ```
-
-   Say plainly what each part does. `v=DMARC1` names the standard. `p=none` means
-   take no action yet. `rua=` is where the daily reports go.
-
-4. **Wait.** The first reports arrive within 24 to 48 hours. A useful picture
-   needs about a week, because `status` will not recommend tightening the policy
-   on under 7 days of data or under 20 messages.
-
-5. **Ingest and act, on a schedule.**
-
-   ```bash
-   uv run scripts/dmarc.py ingest ~/Downloads/dmarc/*.gz
-   uv run scripts/dmarc.py status --domain example.com --pretty
-   ```
-
-   Re-ingesting the same file is safe and changes nothing: reports deduplicate on
-   the provider's own report id.
-
-6. **Climb the ladder, one rung at a time.** `status` returns a `next_step` with a
-   `code`. Do that one thing, then wait for new reports before the next. The
-   order is: get every real sender aligned, then `p=none` to `p=quarantine`, then
-   `p=quarantine` to `p=reject`.
-
-   `status` refuses to recommend advancing while `blockers` is non-empty. A
-   blocker is a real sender of theirs that fails alignment. Tightening the policy
-   then starts rejecting their own mail, which is the one outcome worse than
-   doing nothing.
-
-### If the agent can read the mailbox directly
-
-With a Gmail or IMAP connection, poll for the two tags instead of asking the user
-to download attachments:
-
-- `to:jane+reports@example.com has:attachment` gives the aggregate reports. Save
-  each attachment and pass it to `dmarc.py ingest`.
-- `to:jane+check@example.com` gives messages to grade. Save the **original**
-  message source, not the forwarding wrapper, and pass it to `audit.py`.
-
-Saving the whole forwarded message instead of the original is the common mistake.
-The audit detects a forward and recovers the original content, but the
-authentication headers belong to the forward, so auth findings describe the
-forwarder rather than the real send. Export the attached original where the mail
-client offers it.
+- **SPF is checked against the envelope sender, not the `From:` header.** On a
+  shared ESP pool the envelope sender is the ESP's domain, so the receiver reads
+  the ESP's SPF record and never reads the user's. Adding the ESP's `include:` to
+  the user's apex SPF record changes nothing. The fix for a failing
+  `auth.dmarc_alignment_spf` is the ESP's branded subdomain, which moves the
+  envelope sender onto the user's own domain. Tell the user not to touch their
+  apex SPF record.
+- **Each address in a DMARC `rua=` needs its own `mailto:`.**
+  `rua=mailto:a@x.com,b@y.com` is malformed, and some receivers discard the whole
+  tag and send nothing. Write `rua=mailto:a@x.com,mailto:b@y.com`.
 
 ## What it cannot tell you
 
@@ -220,10 +187,16 @@ Say these plainly rather than implying a guarantee.
 ```
 scripts/audit.py        grade one email
 scripts/dmarc.py        ingest reports, report the next step
+scripts/reports.py      read what the store already holds
 engine/                 every check. No database, no state of its own.
 store/                  JSON files on disk, one per audit and one per report
-.sendable/              where those files go. Safe to commit, holds real subjects
-                        and link URLs, so decide deliberately.
+.sendable/              where those files go. Holds real subjects and link URLs,
+                        so decide deliberately before committing it.
+references/             what to load on demand:
+  PLAYBOOKS.md            the questions one audit cannot answer alone
+  CONNECTIONS.md          every data source a sender can connect, and how
+  CHECKS.md               every check, with its thresholds and severity
+  MECHANISMS.md           how the subtle checks decide, step by step
 ```
 
 Set `OPENAI_API_KEY` to turn on the checks that ask a model for a judgement on the

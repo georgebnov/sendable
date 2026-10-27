@@ -43,7 +43,7 @@ class _Verdict(BaseModel):
         default_factory=list,
         description=(
             "When idea_count is '2' or '3+', exactly 3 candidate single-"
-            "idea framings the marketer could choose between — each one "
+            "idea framings the marketer could choose between: each one "
             "names the central idea to keep, the ideas to cut, and one "
             "sentence on the resulting angle. Empty list when idea_count "
             "is '1'."
@@ -138,7 +138,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             passed=False,
             message=(
                 f"Three or more competing value propositions. "
-                f"{verdict.reason} Multiple ideas dilute each other — "
+                f"{verdict.reason} Multiple ideas dilute each other: "
                 f"split into separate sends or pick the one that matters."
             ),
             details={

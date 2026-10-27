@@ -85,11 +85,11 @@ async def run(email: ParsedEmail) -> list[Finding]:
             "oriented. Give a one-sentence reason. "
             "If framing is FEATURE_ONLY or MIXED, return exactly 3 "
             "rewrites of the bare-feature sentences as benefit-"
-            "framed sentences — name the feature and what it "
+            "framed sentences: name the feature and what it "
             "unlocks for the reader. Empty list when framing is "
             "BENEFIT_FOCUSED. "
             "IMPORTANT: A short personal note or update may have no "
-            "features at all — that's BENEFIT_FOCUSED. A pitch where "
+            "features at all: that's BENEFIT_FOCUSED. A pitch where "
             "every feature already has reader context is also "
             "BENEFIT_FOCUSED. Do NOT downgrade to MIXED unless at "
             "least one feature is genuinely stated as a bare fact."
@@ -118,7 +118,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.LOW,
                 passed=False,
                 message=(
-                    f"Mixed framing — some features have benefit context, "
+                    f"Mixed framing: some features have benefit context, "
                     f"others are bare specs. {verdict.reason} Apply the "
                     f"same framing throughout: what does each feature "
                     f"unlock for the reader?"
@@ -137,7 +137,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             severity=Severity.LOW,
             passed=False,
             message=(
-                f"Feature-only listing — features stated as bare facts "
+                f"Feature-only listing: features stated as bare facts "
                 f"with no reader-side outcome. {verdict.reason} Excitement "
                 f"comes from the imagined state, not the specification."
             ),

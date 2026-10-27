@@ -49,7 +49,7 @@ async def run(email: ParsedEmail, current: EmailFacts, history: list[EmailFacts]
                 check=CHECK,
                 severity=Severity.INFO,
                 passed=True,
-                message="not bulk mail — Reply-To drift not evaluated",
+                message="not bulk mail. Reply-To drift not evaluated",
             )
         ]
 

@@ -96,7 +96,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check=f"{CHECK_PREFIX}.list_unsub_live_probe",
                 severity=Severity.INFO,
                 passed=True,
-                message="No List-Unsubscribe header — nothing to probe.",
+                message="No List-Unsubscribe header: nothing to probe.",
             )
         ]
 
@@ -165,7 +165,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             passed=False,
             message=(
                 f"RFC 8058 one-click POST failed: {final_status}. "
-                "Gmail / Apple Mail will fail the same way — sender penalty likely."
+                "Gmail / Apple Mail will fail the same way: sender penalty likely."
             ),
             details={"hops": hops, "final_url": final_url, "final_status": final_status},
         )

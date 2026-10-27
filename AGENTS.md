@@ -21,8 +21,11 @@ scripts/          the three entry points. Each script declares its own dependenc
 engine/           every check. No database, no network state, and no globals that it owns.
 store/            JSON files on disk. One file for each audit and for each DMARC report.
 tests/            the suite. No network, no model call, and no database.
-docs/             reference material. CHECKS_RUBRIC.md and STEP1_CHECKS.md explain
-                  each check and its thresholds.
+references/       what an agent loads on demand. CONNECTIONS.md (the data sources
+                  a sender can connect), PLAYBOOKS.md (the questions one audit
+                  cannot answer), CHECKS.md (every check and its thresholds),
+                  MECHANISMS.md (how the subtle checks decide).
+docs/             maintainer docs. RELEASING.md only.
 ```
 
 ## Toolchain

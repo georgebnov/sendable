@@ -68,31 +68,31 @@ _DBLS = [
         "ivm_uri",
         "uri.ivmuri.org",
         Severity.MEDIUM,
-        "Invaluement IPv4 URI — paid subscription list of abused URI domains.",
+        "Invaluement IPv4 URI: paid subscription list of abused URI domains.",
     ),
     (
         "nordspam_dbl",
         "dbl.nordspam.com",
         Severity.MEDIUM,
-        "Nordspam DBL — Nordic anti-spam URL reputation.",
+        "Nordspam DBL: Nordic anti-spam URL reputation.",
     ),
     (
         "sem_fresh",
         "fresh.spameatingmonkey.net",
         Severity.MEDIUM,
-        "Spam Eating Monkey FRESH — recently-registered domains used in spam.",
+        "Spam Eating Monkey FRESH: recently-registered domains used in spam.",
     ),
     (
         "sem_uri",
         "uribl.spameatingmonkey.net",
         Severity.MEDIUM,
-        "Spam Eating Monkey URIBL — domains found in spam URIs.",
+        "Spam Eating Monkey URIBL: domains found in spam URIs.",
     ),
     (
         "sem_urired",
         "urired.spameatingmonkey.net",
         Severity.MEDIUM,
-        "Spam Eating Monkey URIRED — redirector/cloaker domains.",
+        "Spam Eating Monkey URIRED: redirector/cloaker domains.",
     ),
 ]
 

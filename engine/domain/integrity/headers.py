@@ -115,7 +115,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check=f"{CHECK_PREFIX}.date_sanity",
                 severity=Severity.LOW,
                 passed=False,
-                message="No Date header — covered by required_headers above.",
+                message="No Date header: covered by required_headers above.",
             )
         )
     else:
@@ -177,7 +177,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check=f"{CHECK_PREFIX}.message_id",
                 severity=Severity.LOW,
                 passed=False,
-                message="No Message-ID — covered by required_headers above.",
+                message="No Message-ID: covered by required_headers above.",
             )
         )
     elif not _MSG_ID_RX.match(mid[0]):

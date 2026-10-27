@@ -132,7 +132,7 @@ async def _run_mta_sts(domain: str) -> list[Finding]:
                 passed=True,
                 message=(
                     f"No MTA-STS record at {qname}. Inbound security hardening, "
-                    "not an outbound deliverability factor — Gmail/Microsoft do "
+                    "not an outbound deliverability factor. Gmail/Microsoft do "
                     "not penalize spam scoring for missing MTA-STS. Optional."
                 ),
                 details={"dns_error": ans.error},
@@ -271,7 +271,7 @@ async def _run_tlsrpt(domain: str) -> list[Finding]:
                 passed=True,
                 message=(
                     f"No TLSRPT record at {qname}. TLSRPT is a reporting "
-                    "mechanism for inbound TLS failures — not an outbound "
+                    "mechanism for inbound TLS failures: not an outbound "
                     "deliverability factor. Optional ops visibility only."
                 ),
                 details={"dns_error": ans.error},
@@ -394,9 +394,9 @@ async def _run_bimi(domain: str) -> list[Finding]:
                 severity=Severity.INFO,
                 passed=False,
                 message=(
-                    f"No BIMI record at {qname} (optional — Gmail/Apple logo bonus). "
-                    f"You're at p={policy}, so you're eligible. Add a TXT record at "
-                    f"{qname} with this value: {suggested} — point l= at a square "
+                    f"No BIMI record at {qname} (optional, a Gmail and Apple logo "
+                    f"bonus). You're at p={policy}, so you're eligible. Add a TXT "
+                    f"record at {qname} with this value: {suggested}. Point l= at a square "
                     f"SVG (SVG Tiny PS profile) logo you host over HTTPS. To actually "
                     f"display the logo, Gmail and Apple also require a Verified Mark "
                     f"Certificate (VMC), added as a=https://your-host/vmc.pem."

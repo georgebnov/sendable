@@ -141,7 +141,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check=f"{CHECK_PREFIX}.dmarc_alignment_overall",
                 severity=Severity.INFO,
                 passed=False,
-                message="No From: address — alignment cannot be evaluated.",
+                message="No From: address. Alignment cannot be evaluated.",
             )
         )
         return findings
@@ -201,7 +201,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.LOW,
                 passed=False,
                 message=(
-                    "No Return-Path header — SPF alignment cannot be evaluated. "
+                    "No Return-Path header. SPF alignment cannot be evaluated. "
                     "(May be stripped by forwarding; not necessarily an issue.)"
                 ),
                 details={"from_org": from_org},
@@ -230,8 +230,11 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 passed=False,
                 message=(
                     f"SPF not aligned: Return-Path domain {return_path_org} differs "
-                    f"from From organizational domain {from_org}. Configure your "
-                    "ESP's bounce domain on a subdomain of your apex to fix."
+                    f"from From organizational domain {from_org}. Receivers check SPF "
+                    "against the envelope sender, so your apex SPF record is never read "
+                    "for this mail. Ask your ESP to move the bounce domain onto a "
+                    "subdomain of yours. Do not add the ESP to your apex SPF record, "
+                    "because that changes nothing."
                 ),
                 details={"from_org": from_org, "return_path_org": return_path_org},
             )
@@ -265,7 +268,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 message=(
                     f"Neither DKIM nor SPF aligns with From organizational domain "
                     f"({from_org}). DMARC will fail alignment regardless of "
-                    "individual SPF/DKIM pass results — Gmail returns 5.7.26, "
+                    "individual SPF/DKIM pass results. Gmail returns 5.7.26, "
                     "Microsoft 5.7.509."
                 ),
                 details={
@@ -284,7 +287,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check=f"{CHECK_PREFIX}.reply_to_alignment",
                 severity=Severity.INFO,
                 passed=True,
-                message="No Reply-To header — replies go to From: (default behaviour).",
+                message="No Reply-To header: replies go to From: (default behaviour).",
             )
         )
     elif from_org in reply_to_domains:

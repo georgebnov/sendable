@@ -197,7 +197,7 @@ def _check_compound_signal(fired_categories: set[str]) -> list[Finding]:
                 check="copygen.compound_signal",
                 severity=Severity.INFO,
                 passed=True,
-                message=f"{n} promotional category(ies) — below the compound-signal threshold.",
+                message=f"{n} promotional category(ies): below the compound-signal threshold.",
                 details={"categories": sorted(promotional), "count": n},
             )
         ]

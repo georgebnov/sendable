@@ -30,7 +30,7 @@ async def run(email: ParsedEmail, current: EmailFacts, history: list[EmailFacts]
 
     cur_policy = current.get("dmarc_policy")
     if not cur_policy:
-        return [_insufficient("DMARC policy comment absent in AR — cannot evaluate.")]
+        return [_insufficient("DMARC policy comment absent in AR: cannot evaluate.")]
     cur_rank = _POLICY_RANK.get(cur_policy)
     if cur_rank is None:
         return [_insufficient(f"Unknown DMARC policy value: {cur_policy}")]

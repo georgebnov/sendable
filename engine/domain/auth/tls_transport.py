@@ -70,7 +70,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.INFO,
                 passed=False,
                 message=(
-                    "No Received headers — cannot evaluate transport TLS. "
+                    "No Received headers: cannot evaluate transport TLS. "
                     "Likely a forwarded or ARC-rewritten message."
                 ),
             )
@@ -116,7 +116,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.INFO,
                 passed=False,
                 message=(
-                    f"[ESP outbound — {esp.name}] Last external hop has "
+                    f"[ESP outbound: {esp.name}] Last external hop has "
                     "no TLS marker in its Received header. Major ESPs submit "
                     "over TLS as hard policy; missing marker is a header-"
                     "sanitization artifact at the relay, not an actual "
@@ -133,7 +133,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             severity=Severity.HIGH,
             passed=False,
             message=(
-                "Last external SMTP hop appears to be plain SMTP — no "
+                "Last external SMTP hop appears to be plain SMTP: no "
                 "ESMTPS / STARTTLS / TLS marker found in the Received "
                 "header. Gmail (2024+) and Microsoft (May 2025+) both "
                 "require outbound mail to land over TLS; plain-text "

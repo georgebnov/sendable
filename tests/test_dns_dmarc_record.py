@@ -173,3 +173,53 @@ async def test_a_dns_timeout_is_reported_not_swallowed(dns: FakeDns) -> None:
 async def test_a_malformed_record_does_not_raise(dns: FakeDns) -> None:
     dns.set("_dmarc.example.com", "TXT", "v=DMARC1;;;p=;rua=;;garbage")
     assert await dmarc.run("example.com")
+
+
+# ── report addresses: each one is a URI, not a bare address ────────────────
+
+
+async def test_two_report_addresses_each_with_a_scheme_is_fine(dns: FakeDns) -> None:
+    dns.set(
+        "_dmarc.example.com",
+        "TXT",
+        "v=DMARC1; p=reject; rua=mailto:a@example.com,mailto:b@example.com",
+    )
+    syntax = _by(await dmarc.run("example.com"), "report_uri_syntax")
+    assert syntax is not None
+    assert syntax.passed is True
+
+
+async def test_a_report_address_without_mailto_is_reported(dns: FakeDns) -> None:
+    """RFC 7489 §6.3: `rua` is a comma-separated list of URIs, not of addresses.
+
+    An entry with no scheme is not a URI. Receivers discard it, and some discard
+    the whole tag, so the sender can end up with no reports while the record
+    looks right to them. The tool used to strip `mailto:` when present and take
+    the address when it was absent, which told the sender their record was fine.
+    """
+    dns.set(
+        "_dmarc.example.com",
+        "TXT",
+        "v=DMARC1; p=reject; rua=mailto:a@example.com,b@vendor.example",
+    )
+    findings = await dmarc.run("example.com")
+
+    syntax = _by(findings, "report_uri_syntax")
+    assert syntax is not None
+    assert syntax.passed is False
+    assert "b@vendor.example" in syntax.message
+    # The message has to carry the fix, not just the complaint (rule 9).
+    assert "mailto:" in syntax.message
+    assert syntax.details["malformed"] == ["b@vendor.example"]
+
+    # And the malformed entry is not a destination, so it is not looked up as one.
+    external = _by(findings, "external_validation")
+    assert external is not None
+    assert "vendor.example" not in str(external.details)
+
+
+async def test_a_record_with_no_rua_skips_the_uri_check(dns: FakeDns) -> None:
+    dns.set("_dmarc.example.com", "TXT", "v=DMARC1; p=reject")
+    syntax = _by(await dmarc.run("example.com"), "report_uri_syntax")
+    assert syntax is not None
+    assert syntax.passed is True

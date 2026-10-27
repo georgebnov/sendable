@@ -153,7 +153,7 @@ async def run(domain: str) -> list[Finding]:
                 severity=Severity.INFO,
                 passed=True,
                 message=(
-                    f"Null MX record (RFC 7505) at {domain} — domain explicitly "
+                    f"Null MX record (RFC 7505) at {domain}: domain explicitly "
                     "accepts no mail. SMTP probe skipped."
                 ),
                 details={"mx": mx_ans.records[0]},
@@ -190,7 +190,7 @@ async def _audit_mx_host(mx_host: str) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"MX target {mx_host!r} is a bare IP literal — RFC 1035/5321 "
+                    f"MX target {mx_host!r} is a bare IP literal. RFC 1035/5321 "
                     "forbid IP literals in MX records. Many strict receivers reject."
                 ),
                 details={"mx_host": mx_host},

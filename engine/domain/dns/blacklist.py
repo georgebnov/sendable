@@ -62,7 +62,7 @@ _RBLS = [
         "barracuda",
         "b.barracudacentral.org",
         Severity.HIGH,
-        "Barracuda Reputation Block List — used by many corporate filters.",
+        "Barracuda Reputation Block List: used by many corporate filters.",
     ),
     (
         "abuseat_cbl",
@@ -76,73 +76,73 @@ _RBLS = [
         "uceprotect_l1",
         "dnsbl-1.uceprotect.net",
         Severity.MEDIUM,
-        "UCEPROTECT Level 1 — your specific outbound IP is listed.",
+        "UCEPROTECT Level 1: your specific outbound IP is listed.",
     ),
     ("mailspike_bl", "bl.mailspike.net", Severity.MEDIUM, "Mailspike Block List."),
-    ("mailspike_z", "z.mailspike.net", Severity.MEDIUM, "Mailspike Z List — combined reputation."),
-    ("psbl", "psbl.surriel.com", Severity.MEDIUM, "PSBL — Passive Spam Block List."),
+    ("mailspike_z", "z.mailspike.net", Severity.MEDIUM, "Mailspike Z List: combined reputation."),
+    ("psbl", "psbl.surriel.com", Severity.MEDIUM, "PSBL: Passive Spam Block List."),
     (
         "truncate_gbudb",
         "truncate.gbudb.net",
         Severity.MEDIUM,
-        "GBUdb Truncate — confirmed senders of substantially-only spam.",
+        "GBUdb Truncate: confirmed senders of substantially-only spam.",
     ),
     (
         "ivmsip",
         "dnsbl.ivmsip.org",
         Severity.MEDIUM,
-        "Invaluement IPv4 SIP — paid subscription list; some mid-size receivers consult it.",
+        "Invaluement IPv4 SIP: paid subscription list; some mid-size receivers consult it.",
     ),
     (
         "backscatterer",
         "ips.backscatterer.org",
         Severity.MEDIUM,
-        "Backscatterer — IPs that send mis-directed bounces (backscatter).",
+        "Backscatterer: IPs that send mis-directed bounces (backscatter).",
     ),
     (
         "dronebl",
         "dnsbl.dronebl.org",
         Severity.MEDIUM,
-        "DroneBL — known compromised drones / bots / proxies.",
+        "DroneBL: known compromised drones / bots / proxies.",
     ),
     (
         "blocklistde",
         "bl.blocklist.de",
         Severity.MEDIUM,
-        "Blocklist.de — fed by fail2ban / mod_security reports.",
+        "Blocklist.de: fed by fail2ban / mod_security reports.",
     ),
-    ("0spam", "bl.0spam.org", Severity.MEDIUM, "0spam — community reputation list."),
-    ("kempt_bl", "spamrbl.imp.ch", Severity.MEDIUM, "imp.ch / KEMPT — Swiss anti-spam project."),
+    ("0spam", "bl.0spam.org", Severity.MEDIUM, "0spam: community reputation list."),
+    ("kempt_bl", "spamrbl.imp.ch", Severity.MEDIUM, "imp.ch / KEMPT: Swiss anti-spam project."),
     (
         "sem_black",
         "bl.spameatingmonkey.net",
         Severity.MEDIUM,
-        "Spam Eating Monkey Black — automated spam-trap fed list.",
+        "Spam Eating Monkey Black: automated spam-trap fed list.",
     ),
-    ("nordspam_bl", "bl.nordspam.com", Severity.MEDIUM, "Nordspam BL — Nordic spam-trap list."),
+    ("nordspam_bl", "bl.nordspam.com", Severity.MEDIUM, "Nordspam BL: Nordic spam-trap list."),
     (
         "rats_dyna",
         "dyna.spamrats.com",
         Severity.MEDIUM,
-        "SpamRATS Dyna — dynamic IP space being used to send mail.",
+        "SpamRATS Dyna: dynamic IP space being used to send mail.",
     ),
     (
         "rats_noptr",
         "noptr.spamrats.com",
         Severity.MEDIUM,
-        "SpamRATS NoPtr — IPs missing PTR records.",
+        "SpamRATS NoPtr: IPs missing PTR records.",
     ),
     (
         "rats_spam",
         "spam.spamrats.com",
         Severity.MEDIUM,
-        "SpamRATS Spam — specific spam-source IPs.",
+        "SpamRATS Spam: specific spam-source IPs.",
     ),
     (
         "anonmails_dnsbl",
         "spam.dnsbl.anonmails.de",
         Severity.MEDIUM,
-        "Anonmails DNSBL — German anti-spam project.",
+        "Anonmails DNSBL: German anti-spam project.",
     ),
     (
         "hostkarma_black",
@@ -167,27 +167,27 @@ _RBLS = [
         "major receivers.",
     ),
     ("woodys", "blacklist.woody.ch", Severity.LOW, "Woody's SMTP Blacklist."),
-    ("dan_torexit", "torexit.dan.me.uk", Severity.LOW, "DAN TorExit — Tor network exit nodes."),
-    ("schulte", "rbl.schulte.org", Severity.LOW, "Schulte — small private list."),
+    ("dan_torexit", "torexit.dan.me.uk", Severity.LOW, "DAN TorExit: Tor network exit nodes."),
+    ("schulte", "rbl.schulte.org", Severity.LOW, "Schulte: small private list."),
     (
         "triumf",
         "rbl2.triumf.ca",
         Severity.LOW,
-        "TRIUMF — Canadian particle-physics network anti-spam.",
+        "TRIUMF: Canadian particle-physics network anti-spam.",
     ),
     (
         "interserver",
         "rbl.interserver.net",
         Severity.LOW,
-        "Interserver RBL — hosting-provider anti-spam list.",
+        "Interserver RBL: hosting-provider anti-spam list.",
     ),
     (
         "calivent",
         "dnsbl.calivent.com.pe",
         Severity.LOW,
-        "Calivent — South American spam-trap list.",
+        "Calivent: South American spam-trap list.",
     ),
-    ("netherrelays", "relays.nether.net", Severity.LOW, "Nether Relays — open-relay tracking."),
+    ("netherrelays", "relays.nether.net", Severity.LOW, "Nether Relays: open-relay tracking."),
 ]
 
 # Administrative-error sentinels — NOT real listings. Doc §1 (Spamhaus/
@@ -291,7 +291,7 @@ async def _check_one(
                 f"(e.g. Brevo, Mailchimp, Klaviyo); listings are usually "
                 f"caused by other senders sharing the same IP. To resolve, "
                 f"forward this finding to your ESP's deliverability/support "
-                f"team — they can request delisting or move you to a "
+                f"team: they can request delisting or move you to a "
                 f"cleaner IP. You cannot unlist the IP yourself."
             ),
             details={
@@ -339,7 +339,7 @@ async def _check_one(
         passed=False,
         message=(
             f"{label}: lookup inconclusive ({ans.error}). The RBL did not "
-            "respond definitively — could be a transient outage on the "
+            "respond definitively: could be a transient outage on the "
             "RBL operator's side, a network issue, or DNS misconfiguration. "
             "Re-run shortly."
         ),

@@ -188,12 +188,12 @@ def classify_record(
         return ClassificationResult(
             classification="bounce",
             severity=Severity.INFO,
-            headline="Bounce / NDR — normal mail behaviour",
+            headline="Bounce / NDR: normal mail behaviour",
             explainer=(
                 f"This record is a bounce message ({record.count} email). "
                 f"Bounces always have an empty envelope sender to "
                 f"prevent infinite loops. SPF / DKIM failures here are "
-                f"expected — nothing you can do about it, nothing to "
+                f"expected: nothing you can do about it, nothing to "
                 f"action."
             ),
             source_match=src,
@@ -209,7 +209,7 @@ def classify_record(
             severity=Severity.INFO,
             headline="Receiver trusted via ARC chain",
             explainer=(
-                "The receiver applied an ARC override — they trusted "
+                "The receiver applied an ARC override: they trusted "
                 "the original authentication that came in before "
                 "forwarding. DKIM may show as failing in this row but "
                 "the email still passed end-to-end. No action."
@@ -244,13 +244,13 @@ def classify_record(
         return ClassificationResult(
             classification="policy_override_sampled",
             severity=Severity.INFO,
-            headline="Sampled-out — pct rollout didn't pick this message",
+            headline="Sampled-out: pct rollout didn't pick this message",
             explainer=(
                 f"Your published policy is "
                 f"p={policy_p or '?'} pct={published_pct or '?'}, and this "
                 f"row was randomly NOT selected for enforcement. The "
                 f"receiver delivered it under the prior policy. This is "
-                f"the expected behaviour of a pct rollout — not a failure."
+                f"the expected behaviour of a pct rollout: not a failure."
             ),
             source_match=src,
             details=base,
@@ -307,12 +307,12 @@ def classify_record(
         return ClassificationResult(
             classification="esp_softfail_ok",
             severity=Severity.INFO,
-            headline=f"{src.name} — expected SPF softfail, DKIM covers it",
+            headline=f"{src.name}: expected SPF softfail, DKIM covers it",
             explainer=(
                 f"{src.name} uses a CNAME-based SPF setup, so the "
                 f"envelope domain doesn't align with {header_from}. "
                 f"DKIM passes cleanly, DMARC passes overall, every "
-                f"email delivered. This is permanent and expected — "
+                f"email delivered. This is permanent and expected: "
                 f"adding their SPF include doesn't change what the "
                 f"reports show."
             ),
@@ -336,7 +336,7 @@ def classify_record(
             headline=f"Subscriber-side forwarding via {fwd_dom}",
             explainer=(
                 f"A recipient at {fwd_dom!r} has email forwarding "
-                f"configured — the SPF envelope shows their domain, "
+                f"configured: the SPF envelope shows their domain, "
                 f"not yours. DKIM still passes under {header_from}, "
                 f"so DMARC passes overall. Not a problem you can fix "
                 f"on your side."
@@ -354,7 +354,7 @@ def classify_record(
         return ClassificationResult(
             classification="gateway_relay",
             severity=Severity.LOW,
-            headline=f"{src.name} relay broke DKIM — recipient-side issue",
+            headline=f"{src.name} relay broke DKIM: recipient-side issue",
             explainer=(
                 f"{src.name} is a security gateway in front of the "
                 f"recipient. They re-relayed the email; the "
@@ -383,10 +383,10 @@ def classify_record(
             gap_sev = Severity.HIGH if recurring else Severity.MEDIUM
 
         if recurring:
-            headline = f"{ident.name} — recurring authentication gap"
+            headline = f"{ident.name}: recurring authentication gap"
             explainer = (
                 f"{ident.name} has now failed to authenticate as {header_from} "
-                f"across {prior_periods + 1} reporting periods — DKIM and SPF "
+                f"across {prior_periods + 1} reporting periods. DKIM and SPF "
                 f"both fail to align. This is a pattern, not a stray forward, "
                 f"and a persistent unauthenticated stream drags your inbox "
                 f"placement. Fix the sender's setup."
@@ -397,10 +397,10 @@ def classify_record(
                 f"deliverability until it's fixed."
             )
         else:
-            headline = f"{ident.name} — authentication gap, not a spoof"
+            headline = f"{ident.name}: authentication gap, not a spoof"
             explainer = (
                 f"{record.count} email from {ident.name} sent as "
-                f"{header_from} but didn't authenticate as you — DKIM and SPF "
+                f"{header_from} but didn't authenticate as you. DKIM and SPF "
                 f"both failed to align. This is a sender you use, not an "
                 f"impostor. A single miss is almost always a forward or list "
                 f"and won't hurt you; a rising share from the same source can "
@@ -409,7 +409,7 @@ def classify_record(
             if policy_p in (None, "none"):
                 gap_action = (
                     f"A one-off miss from a sender you use is usually a forward "
-                    f"or mailing list — safe to ignore. If mail from "
+                    f"or mailing list: safe to ignore. If mail from "
                     f"{ident.name} keeps failing, check its SPF and DKIM so it "
                     f"authenticates as {domain}."
                 )
@@ -434,7 +434,7 @@ def classify_record(
         return ClassificationResult(
             classification="spoofing_blocked",
             severity=Severity.INFO,
-            headline=f"Spoof attempt {dispo}d — policy working",
+            headline=f"Spoof attempt {dispo}d: policy working",
             explainer=(
                 f"{record.count} email from {record.source_ip} "
                 f"({src.name or 'unknown'}) tried to send as "
@@ -457,12 +457,12 @@ def classify_record(
             action = (
                 f"Receiver did not honour your published p={policy_p}. "
                 f"Sometimes happens with whitelisted senders or ARC "
-                f"chains — investigate the recipient's mail filter."
+                f"chains: investigate the recipient's mail filter."
             )
         return ClassificationResult(
             classification="spoofing_delivered",
             severity=Severity.HIGH,
-            headline="Spoof attempt delivered — investigate",
+            headline="Spoof attempt delivered: investigate",
             explainer=(
                 f"{record.count} email from {record.source_ip} "
                 f"({src.name or 'unknown'}) sent as {header_from} with "
@@ -524,7 +524,7 @@ def classify_record(
                 f"in your DMARC history for {domain}. Reverse-DNS "
                 f"doesn't match any recognised ESP or gateway. If you "
                 f"don't recognise this server, treat as a spoofing "
-                f"probe — your policy will catch it on the next send."
+                f"probe: your policy will catch it on the next send."
             ),
             suggested_action=(
                 f"Check if anyone on your team has spun up a new tool "
@@ -548,7 +548,7 @@ def classify_record(
             severity=Severity.INFO,
             headline="Clean send",
             explainer=(
-                f"{record.count} email from {ident.name} — authenticated and "
+                f"{record.count} email from {ident.name}: authenticated and "
                 f"delivered, DMARC passed. Nothing to flag."
             ),
             source_match=src,
@@ -562,7 +562,7 @@ def classify_record(
         headline="Unclassified record",
         explainer=(
             f"{record.count} email from {record.source_ip} "
-            f"({src.name}) — DKIM={record.policy_dkim}, "
+            f"({src.name}). DKIM={record.policy_dkim}, "
             f"SPF={record.policy_spf}, disposition={dispo}. "
             f"Didn't match a known pattern. Worth a manual look."
         ),

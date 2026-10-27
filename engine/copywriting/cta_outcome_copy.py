@@ -75,7 +75,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="copywriting.cta_outcome_copy",
                 severity=Severity.INFO,
                 passed=True,
-                message="No active CTA detected — nothing to grade.",
+                message="No active CTA detected: nothing to grade.",
                 details={},
             )
         ]
@@ -91,7 +91,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f'Primary CTA reads "{primary.text}" — generic action '
+                    f'Primary CTA reads "{primary.text}": generic action '
                     f'verb ("{matched}"). Rewrite to name the outcome the '
                     f'reader gets, not the mechanical action. e.g. "Move '
                     f'into your dream home" not "Buy Now".'

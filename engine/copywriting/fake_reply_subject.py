@@ -80,7 +80,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 passed=True,
                 message=(
                     f'Subject opens with "{prefix.title()}:" and thread '
-                    f"headers are present ({', '.join(present)}) — genuine "
+                    f"headers are present ({', '.join(present)}): genuine "
                     f"reply/forward."
                 ),
                 details={
@@ -99,7 +99,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             hard_gate=True,
             message=(
                 f'Subject opens with "{prefix.title()}:" but no '
-                f"In-Reply-To or References header is present — the "
+                f"In-Reply-To or References header is present: the "
                 f"thread cue is spoofed. CAN-SPAM §5(a)(2) deceptive-"
                 f"subject violation and an explicit Gmail/Outlook spam "
                 f"signal."

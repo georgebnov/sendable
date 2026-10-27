@@ -92,7 +92,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                         severity=Severity.INFO,
                         passed=True,
                         message=(
-                            "From display name is a first-name merge tag — personal-name slot."
+                            "From display name is a first-name merge tag: personal-name slot."
                         ),
                         details={**details, "placeholders": ph_matches},
                     )
@@ -149,7 +149,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             passed=True,
             message=(
                 f"From display name reads as personal: "
-                f"{display or '(none — raw address shown to recipient)'}."
+                f"{display or '(none: raw address shown to recipient)'}."
             ),
             details=details,
         )

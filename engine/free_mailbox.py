@@ -94,7 +94,7 @@ def calibrate_for_free_mailbox(findings: list[Finding], from_addr: str | None) -
             passed=False,
             message=(
                 f"This email was sent from a personal {domain} address. Personal "
-                f"mailboxes can't be authenticated for marketing — to run real "
+                f"mailboxes can't be authenticated for marketing: to run real "
                 f"campaigns and clear spam filters, send from a domain you own. "
                 f"Authentication and domain-record checks were skipped because "
                 f"they don't apply to a mailbox you don't control."

@@ -31,12 +31,12 @@ class _Verdict(BaseModel):
             "Generic claims without specifics do not count."
         ),
     )
-    reason: str = Field(description="One short sentence — what signal, or that none was found.")
+    reason: str = Field(description="One short sentence: what signal, or that none was found.")
     suggestions: list[str] = Field(
         default_factory=list,
         description=(
             "When has_trust_signal=false, exactly 3 candidate trust-signal "
-            "insertions the marketer could add — each one names the kind "
+            "insertions the marketer could add: each one names the kind "
             "of evidence (specific number, named result, testimonial, "
             "data source) and where in the body it would land. Use "
             "placeholders like '[X%]' or '[client name]' where the "
@@ -80,7 +80,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             "marketing claims without specifics do not count. "
             "Give a one-sentence reason. "
             "If has_trust_signal=false, return exactly 3 candidate "
-            "trust-signal insertions — each names the kind of "
+            "trust-signal insertions: each names the kind of "
             "evidence and where it would land, using "
             "placeholders like '[X%]' or '[client name]' for "
             "the real values the marketer fills in. Empty list "
@@ -114,7 +114,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             severity=Severity.LOW,
             passed=False,
             message=(
-                f"No trust signal detected — email relies entirely on "
+                f"No trust signal detected: email relies entirely on "
                 f"assertion with no supporting data or social proof. "
                 f"{verdict.reason} Add one specific number, named result, "
                 f"or testimonial to earn the claim."

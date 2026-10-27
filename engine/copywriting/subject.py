@@ -22,7 +22,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 check="content.subject_present",
                 severity=Severity.HIGH,
                 passed=False,
-                message="Subject is empty or missing — strong spam signal.",
+                message="Subject is empty or missing: strong spam signal.",
                 details={"subject": subj},
             )
         ]

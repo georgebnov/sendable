@@ -150,12 +150,12 @@ async def run(email: ParsedEmail) -> list[Finding]:
     if phrase_count == 2 or (phrase_count <= 1 and low_variance):
         if phrase_count == 2:
             msg = (
-                "Two AI-pattern phrases detected — borderline. Replace "
+                "Two AI-pattern phrases detected: borderline. Replace "
                 f"{', '.join(phrase_hits)} with your natural phrasing."
             )
         else:
             msg = (
-                f"Sentence length variance is low (SD {sd} < {_SD_THRESHOLD}) — "
+                f"Sentence length variance is low (SD {sd} < {_SD_THRESHOLD}): "
                 f"reads as machine-paced. Mix short fragments with longer "
                 f"compound sentences."
             )
@@ -171,7 +171,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
 
     msg = "No AI-pattern signals firing."
     if phrase_count == 1:
-        msg = f"One AI-pattern phrase ({phrase_hits[0]}) — within tolerance."
+        msg = f"One AI-pattern phrase ({phrase_hits[0]}): within tolerance."
     return [
         Finding(
             check="copywriting.ai_writing_pattern",
