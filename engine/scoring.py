@@ -68,8 +68,6 @@ _CATEGORY_BY_PREFIX: tuple[tuple[str, str], ...] = (
     # axis from hygiene so clean deliverable content with so-so prose can't
     # bottom out the overall score.
     ("copywriting.", "copywriting"),
-    # Engagement: history-derived drift checks
-    ("drift.", "engagement"),
     # Delivery placement (Gmail spam folder etc.) — infra-tier
     ("delivery.", "infrastructure"),
 )
@@ -80,7 +78,6 @@ CATEGORY_WEIGHTS: dict[str, float] = {
     "hygiene": 0.15,
     "copywriting": 0.10,  # softest axis — affects engagement, not delivery
     "domain_records": 0.15,
-    "engagement": 0.05,
 }
 
 CATEGORY_BUDGETS: dict[str, int] = {
@@ -89,7 +86,6 @@ CATEGORY_BUDGETS: dict[str, int] = {
     "hygiene": 20,  # tighter — hygiene defects clearly hurt delivery
     "copywriting": 50,  # wider — see _category_subscore for diminishing-returns
     "domain_records": 25,
-    "engagement": 20,
 }
 
 SEVERITY_PENALTY: dict[Severity, int] = {
@@ -262,10 +258,8 @@ def score_findings(
 
     # ─── Stage 2: per-category continuous score ─────────────────────
     penalty_by_category: dict[str, int] = {}
-    seen_categories: set[str] = set()
     for f in deduped:
         cat = _categorize(f)
-        seen_categories.add(cat)
         if f.passed:
             continue
         if f.severity is Severity.CRITICAL:
@@ -273,13 +267,8 @@ def score_findings(
             continue
         penalty_by_category[cat] = penalty_by_category.get(cat, 0) + SEVERITY_PENALTY[f.severity]
 
-    # Engagement collapses to "skipped" if no drift findings appeared.
-    if "engagement" not in seen_categories:
-        present = {c for c in CATEGORY_WEIGHTS if c != "engagement"}
-    else:
-        present = set(CATEGORY_WEIGHTS.keys())
-
     sub_scores: dict[str, int] = {}
+    present = set(CATEGORY_WEIGHTS)
     for cat in present:
         pen = penalty_by_category.get(cat, 0)
         sub_scores[cat] = _category_subscore(cat, pen)

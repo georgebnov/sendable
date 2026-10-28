@@ -44,20 +44,11 @@ aggregate reports, and track both locally. No service, no account, no database.
 - Grade an unsent message with `--draft`, which skips the checks that read headers
   only a server can add. Without it a well-written draft scored 30 and NO_GO on 8
   findings its writer could not act on; with it the same draft scores 99.
-- Store every audit as one JSON file under `.sendable/audits/`, written once and
-  never changed, so the 6 drift checks have history to compare against. They begin
-  reporting from the third audit of a sender.
-- Read DMARC aggregate reports with `scripts/dmarc.py ingest`, accepting plain
-  XML, gzip, and zip, since providers send all three. Re-ingesting a report stores
-  nothing, so a re-read cannot double a message count.
-- Report the one next step for a domain with `scripts/dmarc.py status`, which
-  reads the live SPF and DMARC records as well as the stored reports and refuses
-  to recommend tightening a policy while a real sender is failing alignment.
-- List everything sending as a domain with `scripts/dmarc.py senders`, collapsing
-  a provider's many IPs into one row.
-- Track the stored set with `scripts/reports.py`: `trend` for how the score is
-  moving, `problems` for what keeps failing worst first, `senders` for one row per
-  sending domain, `list`, and `show`.
+- Read DMARC aggregate reports with `scripts/dmarc.py`, accepting plain XML,
+  gzip, and zip, since providers send all three. It reads the live SPF and DMARC
+  records alongside them, reports the one next step, lists everything sending as
+  the domain with a provider's many IPs collapsed into one row, and refuses to
+  recommend tightening a policy while a real sender is failing alignment.
 - Run any script with no install step. Each one carries a PEP 723 dependency
   header, so a caller needs only `uv`.
 - `SKILL.md`, the agent-facing contract, including the mailbox setup that routes
@@ -148,6 +139,18 @@ aggregate reports, and track both locally. No service, no account, no database.
     generic greeting such as "dear valued customer".
 
 ### Removed
+
+- The store, and everything that existed to serve it. The MVP answers one
+  question, will this email land and why, and that needs the file rather than a
+  history. Gone: `.sendable/`, the 6 drift checks that compared a send against
+  earlier ones, `scripts/reports.py`, and the `--store` and `--no-store` flags.
+  Checks go from 130 to 124, and the `engagement` sub-score goes with them.
+
+  **Neither entry point writes to disk now.** The audit prints its report and
+  keeps nothing. `scripts/dmarc.py` lost its subcommands: you pass the report
+  files and it prints the answer. Reports older than the window become the
+  baseline for new-sender detection, so that capability survives with no state
+  on disk, and the output says in `new_sender_detection` whether it had one.
 
 - Every call to a third-party API, and the checks that made them. The audit asked
   a model to judge five things about the copy: whether the subject matched the

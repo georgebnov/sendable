@@ -38,7 +38,7 @@ coverage:
     #!/usr/bin/env bash
     set -euo pipefail
     uv run --quiet pytest -q --cov --cov-report=term 2>&1 \
-      | grep -E '^(engine|scripts|store)' \
+      | grep -E '^(engine|scripts)' \
       | awk '{c=$NF; gsub("%","",c); print c+0"%\t"$2"\tstmts\t"$1}' \
       | sort -n
 

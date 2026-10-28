@@ -93,15 +93,15 @@ contractor's account, or somebody spoofing you.
 3. Wait 24 to 48 hours for the first reports. A useful picture needs about a
    week.
 
-4. Ingest and act.
+4. Read them and act.
 
    ```bash
-   uv run scripts/dmarc.py ingest ~/Downloads/dmarc/*.gz
-   uv run scripts/dmarc.py status --domain example.com --pretty
+   uv run scripts/dmarc.py ~/Downloads/dmarc/*.gz --pretty
    ```
 
-   Re-ingesting the same file is safe. Reports deduplicate on the provider's own
-   report id.
+   Nothing is stored, so keep the files. Pass the whole folder each time: the
+   reports older than the window become the baseline that tells a brand new
+   source from a provider you already use.
 
 **Sending reports to two places.** Each address needs its own `mailto:` scheme.
 This is the most common mistake in a DMARC record:

@@ -98,19 +98,10 @@ jobs:
       # downloads the skill invokes it. The gate job cannot catch a dependency
       # missing from a PEP 723 header, because `uv sync` installs the dev group.
       #
-      # The job needs a fresh working directory for every run. `uv run` already
-      # ignores the project, because each script carries a PEP 723 header, so the
-      # directory does not control which environment runs. It controls the store.
-      # The runner is persistent. A fixed path would keep the .sendable/ store
-      # from the last run. The store writes 1 record for each message hash, so
-      # the same fixture cannot add a second record, but an edited fixture adds
-      # one for the same sender. After a few edits the 6 drift checks fire, and
-      # the result of the job changes with its history.
-      #
-      # $RUNNER_TEMP, not /tmp and not mktemp. The runner empties $RUNNER_TEMP
-      # around every job, so nothing accumulates on a machine George also uses.
-      # /tmp is shared with every other user of that machine, which means another
-      # user can own the path first.
+      # The job runs outside the checkout so nothing in the repo is on the path.
+      # $RUNNER_TEMP, not /tmp: the runner empties it around every job, and /tmp
+      # is shared with every other user of a machine George also uses, which
+      # means another user can own the path first.
       - name: Make a bare working directory
         run: |
           bare="$RUNNER_TEMP/bare"
@@ -131,23 +122,28 @@ jobs:
           print(f'ok: score={r["score"]} verdict={r["verdict"]} findings={len(r["findings"])}')
           PY
 
-      - name: Confirm it wrote a report to the store
-        run: test -d "$BARE/.sendable/audits" && ls -1 "$BARE/.sendable/audits"
-
-      - name: Read the stored report back
+      # An audit must leave the directory exactly as it found it, beyond the
+      # report the step above redirected itself. The store used to write here.
+      - name: Confirm the audit wrote nothing of its own
         run: |
           cd "$BARE"
-          uv run --quiet "$GITHUB_WORKSPACE/scripts/reports.py" list
-          uv run --quiet "$GITHUB_WORKSPACE/scripts/reports.py" trend
+          found="$(ls -A | grep -v '^mail.eml$' | grep -v '^report.json$' || true)"
+          if [ -n "$found" ]; then
+            echo "the audit created: $found" >&2
+            exit 1
+          fi
+          echo "ok: nothing written"
 
-      # dmarc.py was the one entry point this job never drove, so a dependency
-      # missing from its header alone would have shipped. It needs no network:
-      # ingesting a report and then asking for a domain with none exits 1.
+      # dmarc.py is the other entry point, so a dependency missing from its
+      # header alone would otherwise ship. It needs no network to fail: a file
+      # that is not a report exits 1 before any DNS read.
       - name: Drive the DMARC entry point
         run: |
           cd "$BARE"
           uv run --quiet "$GITHUB_WORKSPACE/scripts/dmarc.py" --help > /dev/null
-          if uv run --quiet "$GITHUB_WORKSPACE/scripts/dmarc.py" status --domain nothing.invalid; then
-            echo "expected a non-zero exit for a domain with no stored reports" >&2
+          echo '<html>not a report</html>' > junk.xml
+          if uv run --quiet "$GITHUB_WORKSPACE/scripts/dmarc.py" junk.xml; then
+            echo "expected a non-zero exit for a file that is not a DMARC report" >&2
             exit 1
           fi
+          echo "ok: a non-report exits non-zero"

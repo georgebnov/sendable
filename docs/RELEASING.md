@@ -60,6 +60,6 @@ The version describes what a user sees, not how the code is arranged.
 | A fixed false finding | patch |
 | A refactor with identical output | none |
 
-A change to how a stored record is read gets its own section in the release notes,
-naming what moved, because it changes what every earlier audit in a user's
-`.sendable/` meant.
+A change to how the scorer or the DMARC chain reads data gets its own section in
+the release notes, naming what moved, because a report a user kept from an
+earlier run no longer agrees with one run today.

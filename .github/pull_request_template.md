@@ -9,7 +9,7 @@ Run the real command on a real file and paste the output. Reading the code is no
 proof; several defects in this repo were found only by driving the actual surface.
 
   uv run scripts/audit.py <file> --offline --pretty
-  uv run scripts/dmarc.py status --domain <domain>
+  uv run scripts/dmarc.py <report.xml.gz> --domain <domain>
 
 For a changed check, show the before and after on the same input.
 -->
@@ -29,11 +29,11 @@ For a changed check, show the before and after on the same input.
 
 <!-- Tick one. -->
 
-- [ ] **No.** New check, new field, or a change that only affects future audits.
-      Every stored record still means what it meant.
-- [ ] **Yes.** Something previously read one way is now read differently, so every
-      earlier audit in a user's `.sendable/` now means something else. Explain
-      below what moved and why, and confirm an older record still loads.
+- [ ] **No.** New check, new field, or a change that only affects what a future
+      run reports.
+- [ ] **Yes.** Something previously read one way is now read differently, so a
+      report a user kept from an earlier run no longer agrees with one run today.
+      Explain below what moved and why.
 
 <!-- If yes, explain here: -->
 

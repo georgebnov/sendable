@@ -166,8 +166,7 @@ Everything above is inference from one copy. This is the measurement.
    the two who answered you.
 
    ```bash
-   uv run scripts/dmarc.py ingest ~/Downloads/*.xml.gz
-   uv run scripts/dmarc.py status --domain example.app --pretty
+   uv run scripts/dmarc.py ~/Downloads/*.xml.gz --domain example.app --pretty
    ```
 
 ### What to tell the sender
@@ -236,11 +235,12 @@ mode. Use theirs. They know their pool.
 
 ```bash
 uv run scripts/audit.py latest-send.eml --pretty
-uv run scripts/reports.py trend --domain example.app
 ```
 
-The 6 drift checks start reporting from the 3rd audit of a sender. After that,
-`trend` answers "is this moving, and which way" instead of you guessing.
+The audit keeps no history, so you keep the sends. Audit each one as it goes out
+and keep the JSON next to the `.eml`, then the scores are a sequence you can
+read. The number that matters while warming is the complaint rate at the
+provider, not the score: a clean message to a cold list still gets reported.
 
 ---
 
@@ -252,20 +252,21 @@ Placement dropped, and nothing obvious changed.
 read them.
 
 ```bash
-uv run scripts/audit.py good.eml --pretty
-uv run scripts/audit.py bad.eml --pretty
-uv run scripts/reports.py problems --domain example.app
+uv run scripts/audit.py good.eml --pretty > good.json
+uv run scripts/audit.py bad.eml  --pretty > bad.json
+diff <(jq -r '.findings[]|select(.passed==false)|.check' good.json) \
+     <(jq -r '.findings[]|select(.passed==false)|.check' bad.json)
 ```
 
-`problems` counts how many stored audits each check failed in, worst first. The
-top line is the thing that keeps happening, not the thing that happened most
-recently. That is usually the one to fix.
+The diff is the answer. A check that fails in the bad send and passed in the good
+one is what changed, and it names itself. Comparing the two scores tells you much
+less, because one number can move for several reasons at once.
 
 **Then check the things that change without you touching the message.**
 
 1. **A DNS record changed.** Somebody edited SPF, DKIM, or DMARC. The
-   `domain.*` and `auth.*` findings catch this. The drift checks name it
-   directly when you have 3 or more audits of the sender.
+   `domain.*` and `auth.*` findings catch this, and the diff above names which
+   one.
 2. **A new sender appeared on your domain.** A CRM, a form tool, a contractor.
    It sends unaligned mail as you, and your whole domain pays for it.
 

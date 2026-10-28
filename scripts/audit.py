@@ -24,11 +24,10 @@ it once, and caches it.
 
 What it does, in order:
   1. Parses the email.
-  2. Reads this sender's earlier audits from the local store.
-  3. Runs the checks, including the 6 drift checks that compare this send against
-     those earlier ones.
-  4. Stores the report, so the next audit of this sender has more to compare.
-  5. Prints the report as JSON on stdout.
+  2. Runs every check.
+  3. Prints the report as JSON on stdout.
+
+It stores nothing and reads nothing but the file you give it.
 
 Progress goes to stderr, so stdout is always parseable JSON.
 """
@@ -46,9 +45,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from engine.parse import parse_eml
 from engine.report import Report
 from engine.runner import audit
-from store import Store
-
-DEFAULT_STORE = ".sendable"
 
 
 def _read_source(target: str) -> bytes:
@@ -66,26 +62,14 @@ def _read_source(target: str) -> bytes:
     return path.read_bytes()
 
 
-async def _run(
-    raw: bytes,
-    *,
-    offline: bool,
-    store: Store | None,
-    probe_unsub: bool,
-    draft: bool,
-) -> tuple[Report, int, Path | None]:
-    """Audit the message. Returns the report, the history depth, and where it was stored."""
-    email = parse_eml(raw)
-    history = store.history_for(email) if store is not None else []
-    report = await audit(
-        email,
-        history=history or None,
+async def _run(raw: bytes, *, offline: bool, probe_unsub: bool, draft: bool) -> Report:
+    """Audit the message and return the report. Nothing is written anywhere."""
+    return await audit(
+        parse_eml(raw),
         domain_health=not offline,
         probe_unsub=probe_unsub,
         draft=draft,
     )
-    saved = store.save(email, report, raw=raw) if store is not None else None
-    return report, len(history), saved
 
 
 def main() -> None:
@@ -100,20 +84,6 @@ def main() -> None:
         help=(
             "Skip every check that needs the network: DNS records, the blocklist "
             "fan-out, and the SMTP probe. Copy and structure checks still run."
-        ),
-    )
-    ap.add_argument(
-        "--store",
-        default=DEFAULT_STORE,
-        metavar="DIR",
-        help=f"Where reports are kept. Default: {DEFAULT_STORE}",
-    )
-    ap.add_argument(
-        "--no-store",
-        action="store_true",
-        help=(
-            "Audit without reading or writing the store. The drift checks then "
-            "have nothing to compare against."
         ),
     )
     ap.add_argument(
@@ -146,15 +116,10 @@ def main() -> None:
         )
 
     raw = _read_source(args.target)
-    # A draft is not a send. Storing it would add a row with no authentication
-    # results to the history that every drift check reads, making a clean
-    # sender look like it had started failing.
-    store = None if (args.no_store or args.draft) else Store(args.store)
-    report, depth, saved = asyncio.run(
+    report = asyncio.run(
         _run(
             raw,
             offline=args.offline,
-            store=store,
             probe_unsub=args.probe_unsub,
             draft=args.draft,
         )
@@ -163,24 +128,10 @@ def main() -> None:
     # Context on stderr. stdout stays machine-readable.
     if args.draft:
         print(
-            "[draft] graded as an unsent draft. Not stored, because a draft has "
-            "no authentication results and would skew this sender's history.",
+            "[draft] graded as an unsent draft: the checks that read headers only a "
+            "server can add were skipped, not passed.",
             file=sys.stderr,
         )
-    if store is not None:
-        if depth:
-            print(
-                f"[store] compared against {depth} earlier send(s) from this sender",
-                file=sys.stderr,
-            )
-        else:
-            print(
-                "[store] no earlier sends from this sender, so the 6 drift checks "
-                "had nothing to compare. They start reporting from the 3rd audit.",
-                file=sys.stderr,
-            )
-        if saved is not None:
-            print(f"[store] saved {saved}", file=sys.stderr)
 
     json.dump(report.model_dump(mode="json"), sys.stdout, indent=2 if args.pretty else None)
     sys.stdout.write("\n")

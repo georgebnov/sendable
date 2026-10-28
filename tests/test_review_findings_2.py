@@ -162,6 +162,25 @@ def test_the_forwarder_domain_respects_the_public_suffix(spf_domain: str, expect
     assert _forwarder_domain(record) == expected
 
 
+def _report_xml(domain: str, day: datetime) -> bytes:
+    """One aggregate report for `domain` covering `day`, as a provider sends it."""
+    begin = int(day.timestamp())
+    end = int(day.replace(hour=23, minute=59).timestamp())
+    return f"""<?xml version="1.0"?>
+<feedback>
+  <report_metadata><org_name>google.com</org_name>
+    <report_id>{domain}-{day:%Y%m%d}</report_id>
+    <date_range><begin>{begin}</begin><end>{end}</end></date_range>
+  </report_metadata>
+  <policy_published><domain>{domain}</domain><p>none</p></policy_published>
+  <record><row><source_ip>203.0.113.9</source_ip><count>5</count>
+      <policy_evaluated><disposition>none</disposition><dkim>fail</dkim><spf>fail</spf></policy_evaluated>
+    </row><identifiers><header_from>{domain}</header_from></identifiers>
+    <auth_results><spf><domain>attacker.test</domain><result>fail</result></spf></auth_results>
+  </record>
+</feedback>""".encode()
+
+
 # ── the record the tool tells you to publish must be valid ─────────────────
 
 
@@ -181,38 +200,49 @@ def test_a_bare_address_still_gets_the_scheme() -> None:
 # ── the baseline must predate the window it judges ─────────────────────────
 
 
-def test_known_providers_can_exclude_the_window_being_judged(tmp_path) -> None:
+def test_the_baseline_excludes_the_window_being_judged() -> None:
     # Built from the same reports it classifies, every identity is already known
     # before it is looked at, so _is_known_provider returns True for all of them
     # and classify_record can never reach spoofing_blocked or spoofing_delivered.
     # A spoofer whose PTR resolves to a named host was reported as one of the
     # user's own senders with a configuration gap.
-    from datetime import timedelta
-
     from engine.dmarc.parser import parse
-    from store.dmarc import DmarcStore
+    from engine.dmarc.window import known_providers_from, split_at_window
 
-    store = DmarcStore(tmp_path / ".sendable")
-    xml = f"""<?xml version="1.0"?>
+    now = datetime(2026, 10, 1, tzinfo=UTC)
+    recent = parse(_report_xml(DOMAIN, datetime(2026, 9, 28, tzinfo=UTC)))
+    old = parse(_report_xml(DOMAIN, datetime(2026, 8, 1, tzinfo=UTC)))
+
+    inside, baseline = split_at_window([recent, old], days=21, now=now)
+    assert [r.report_id for r in inside] == [recent.report_id]
+    assert [r.report_id for r in baseline] == [old.report_id]
+
+    # The judged report must not contribute to its own baseline. The baseline
+    # here carries the old report's identities, and the recent report is judged
+    # against those rather than against itself.
+    assert known_providers_from(baseline) == known_providers_from([old])
+    # With nothing older, detection is skipped rather than guessed. An empty set
+    # would instead call every source brand new.
+    assert known_providers_from([]) is None
+
+
+def test_a_report_with_no_date_is_judged_not_used_as_baseline() -> None:
+    # A wrong baseline is worse than a missing one, so an undated report counts
+    # as inside the window.
+    from engine.dmarc.parser import parse
+    from engine.dmarc.window import split_at_window
+
+    undated = parse(
+        b"""<?xml version="1.0"?>
 <feedback>
-  <report_metadata><org_name>google.com</org_name><report_id>g-1</report_id>
-    <date_range><begin>{int(datetime(2026, 9, 20, tzinfo=UTC).timestamp())}</begin>
-      <end>{int(datetime(2026, 9, 20, 23, 59, tzinfo=UTC).timestamp())}</end></date_range>
+  <report_metadata><org_name>google.com</org_name><report_id>no-date</report_id>
   </report_metadata>
-  <policy_published><domain>{DOMAIN}</domain><p>none</p></policy_published>
-  <record><row><source_ip>203.0.113.9</source_ip><count>5</count>
-      <policy_evaluated><disposition>none</disposition><dkim>fail</dkim><spf>fail</spf></policy_evaluated>
-    </row><identifiers><header_from>{DOMAIN}</header_from></identifiers>
-    <auth_results><spf><domain>attacker.test</domain><result>fail</result></spf></auth_results>
-  </record>
-</feedback>""".encode()
-    store.save(parse(xml))
-
-    # Everything, which is what the defect produced.
-    assert store.known_providers(DOMAIN) != set()
-    # Nothing from before that report, which is the correct baseline for it.
-    cutoff = datetime(2026, 9, 20, tzinfo=UTC) - timedelta(days=1)
-    assert store.known_providers(DOMAIN, before=cutoff) == set()
+  <policy_published><domain>example.com</domain><p>none</p></policy_published>
+</feedback>"""
+    )
+    inside, baseline = split_at_window([undated], days=21, now=datetime(2026, 10, 1, tzinfo=UTC))
+    assert [r.report_id for r in inside] == ["no-date"]
+    assert baseline == []
 
 
 # ── a passing check must not be reported as skipped ────────────────────────
@@ -243,36 +273,33 @@ def test_draft_mode_keeps_a_required_headers_check_that_already_passed() -> None
 # ── one sender's audits must not be counted against another ────────────────
 
 
-def test_a_similar_domain_is_not_counted_in_another_senders_listing(tmp_path) -> None:
-    # The filename glob matches a sanitised name, which rewrites every character
-    # outside [a-z0-9.-] to a dash, so "sub_example.com" is stored as
-    # "sub-example.com" and matched a glob for "example.com".
-    import asyncio
+def test_a_similar_domain_is_not_counted_as_another_sender() -> None:
+    # An earlier version matched a filename that rewrote every character outside
+    # [a-z0-9.-] to a dash, so "sub_example.com" became "sub-example.com" and was
+    # counted against "example.com". The match is exact now.
+    from engine.dmarc.parser import parse
+    from engine.dmarc.window import for_domain, pick_domain
 
-    from engine.parse import parse_eml
-    from engine.runner import audit
-    from store import Store
+    day = datetime(2026, 9, 28, tzinfo=UTC)
+    mine = parse(_report_xml("example.com", day))
+    theirs = parse(_report_xml("sub_example.com", day))
 
-    store = Store(tmp_path / ".sendable")
-    for domain in ("example.com", "sub_example.com"):
-        email = parse_eml(
-            f"From: Jane <jane@{domain}>\r\nTo: r@gmail.com\r\n"
-            f"Subject: hello from {domain}\r\nContent-Type: text/plain\r\n"
-            f"\r\nbody\r\n".encode()
-        )
-        store.save(email, asyncio.run(audit(email, domain_health=False)))
+    def domains(reports) -> list[str]:
+        return [r.policy.domain for r in reports if r.policy]
 
-    listed = store.list_audits(from_domain="example.com")
-    assert len(listed) == 1, f"counted {len(listed)} audits for example.com"
-    assert listed[0].from_domain == "example.com"
+    assert domains(for_domain([mine, theirs], "example.com")) == ["example.com"]
+    assert domains(for_domain([mine, theirs], "sub_example.com")) == ["sub_example.com"]
+    # Two domains in one batch means the caller has to say which one it meant.
+    assert pick_domain([mine, theirs]) is None
+    assert pick_domain([mine]) == "example.com"
 
 
 # ── a failed ingest must not report success ────────────────────────────────
 
 
-def test_ingesting_only_unreadable_files_exits_non_zero(tmp_path) -> None:
-    # Returning 0 let a caller treat total failure as success, then run `status`
-    # and be told to ingest the reports it had just tried to ingest.
+def test_reading_only_unreadable_files_exits_non_zero(tmp_path) -> None:
+    # Returning 0 let a caller treat total failure as success. This exits before
+    # any DNS read, so the test stays off the network.
     import subprocess
     import sys
     from pathlib import Path
@@ -281,14 +308,7 @@ def test_ingesting_only_unreadable_files_exits_non_zero(tmp_path) -> None:
     junk.write_text("<html>this is not a dmarc report</html>")
     root = Path(__file__).resolve().parent.parent
     result = subprocess.run(
-        [
-            sys.executable,
-            str(root / "scripts" / "dmarc.py"),
-            "ingest",
-            str(junk),
-            "--store",
-            str(tmp_path / ".sendable"),
-        ],
+        [sys.executable, str(root / "scripts" / "dmarc.py"), str(junk)],
         capture_output=True,
         text=True,
         cwd=root,

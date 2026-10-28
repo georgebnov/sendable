@@ -28,12 +28,14 @@ because tightening policy would start rejecting that sender's real mail.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 from engine.copywriting.link_quality import _registrable
 from engine.dmarc.classifier import classify_record
 from engine.dmarc.esp_fingerprint import classify as classify_ip
+from engine.dmarc.esp_fingerprint import resolve_identity
 from engine.dmarc.parser import DmarcRecord as ParsedRecord
 from engine.dmarc.parser import DmarcReport
 from engine.dmarc.policy_engine import _UNCONTROLLABLE_TAGS as _UNCONTROLLABLE
@@ -333,9 +335,74 @@ def build_window(
     )
 
 
+def pick_domain(reports: Sequence[DmarcReport]) -> str | None:
+    """The domain these reports are about, when every report agrees.
+
+    A batch downloaded from one mailbox is normally about one domain. Returns
+    None when it is not, because judging two domains together would mix their
+    senders and their policies, and the caller has to say which one it meant.
+    """
+    names = {r.policy.domain for r in reports if r.policy and r.policy.domain}
+    return next(iter(names)) if len(names) == 1 else None
+
+
+def for_domain(reports: Sequence[DmarcReport], domain: str) -> list[DmarcReport]:
+    """Only the reports about `domain`, matched exactly.
+
+    Exactly, not by a sanitised or globbed name. An earlier version of this tool
+    matched a filename that rewrote every character outside [a-z0-9.-] to a dash,
+    so `sub_example.com` became `sub-example.com` and was counted against
+    `example.com`. One sender's mail must never be judged as another's.
+    """
+    return [r for r in reports if r.policy and r.policy.domain == domain]
+
+
+def split_at_window(
+    reports: Sequence[DmarcReport], *, days: int, now: datetime | None = None
+) -> tuple[list[DmarcReport], list[DmarcReport]]:
+    """Split a batch into (inside the window, older than it).
+
+    The older half is the baseline for new-sender detection. Judging a source
+    against the very records it appears in makes every identity already known,
+    `_is_known_provider` returns True for all of them, and `classify_record` can
+    never reach spoofing_blocked or spoofing_delivered. A spoofer whose PTR
+    resolves to a named host, failing both SPF and DKIM, then reads as one of the
+    sender's own providers with a configuration gap.
+
+    A report with no date lands inside the window, because it cannot be shown to
+    predate it and a wrong baseline is worse than a missing one.
+    """
+    edge = (now or datetime.now(UTC)) - timedelta(days=days)
+    inside: list[DmarcReport] = []
+    older: list[DmarcReport] = []
+    for report in reports:
+        end = report.date_end or report.date_begin
+        if end is not None and (end.replace(tzinfo=UTC) if end.tzinfo is None else end) < edge:
+            older.append(report)
+        else:
+            inside.append(report)
+    return inside, older
+
+
+def known_providers_from(reports: Sequence[DmarcReport]) -> set[str] | None:
+    """The sender identities in these reports, or None when there are none.
+
+    None rather than an empty set: `build_window` reads None as "skip new-sender
+    detection" and an empty set as "nothing has ever sent here", and the second
+    would call every source brand new.
+    """
+    if not reports:
+        return None
+    return {resolve_identity(record).provider_key for r in reports for record in r.records}
+
+
 __all__ = [
     "WINDOW_DAYS",
     "build_window",
+    "for_domain",
     "include_for_provider",
+    "known_providers_from",
     "legitimacy_from_classification",
+    "pick_domain",
+    "split_at_window",
 ]
