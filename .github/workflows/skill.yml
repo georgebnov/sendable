@@ -30,13 +30,17 @@ concurrency:
 jobs:
   gate:
     name: lint, types, tests (py${{ matrix.python }})
-    # Self-hosted, on local-runner. A GitHub-hosted runner cannot start: every job
-    # on every branch failed in 2 seconds with no step executed. The runner is a
-    # systemd service there, running as `runner`, with DOCKER_HOST pointed at
-    # that user's rootless Docker so a job cannot reach the system daemon.
-    runs-on: [self-hosted, local-runner]
-    # The runner is a real machine George uses. A hung job holds it until someone
-    # notices, so every job states its own ceiling.
+    # GitHub-hosted. Standard hosted runners are free for public repositories,
+    # so this costs nothing and every job gets a disposable machine.
+    #
+    # This ran on a self-hosted runner while the repository was private and its
+    # hosted-minute quota was spent. A self-hosted runner cannot stay once the
+    # repository is public: the `pull_request` trigger below would let any fork
+    # run its own code on that machine, which GitHub documents as the one thing
+    # not to do with a self-hosted runner.
+    runs-on: ubuntu-latest
+    # A hung job here burns minutes rather than a machine someone is using, but
+    # it still should not run for 6 hours.
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -81,7 +85,7 @@ jobs:
 
   packaged-script:
     name: the script a user actually runs
-    runs-on: [self-hosted, local-runner]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -99,9 +103,8 @@ jobs:
       # missing from a PEP 723 header, because `uv sync` installs the dev group.
       #
       # The job runs outside the checkout so nothing in the repo is on the path.
-      # $RUNNER_TEMP, not /tmp: the runner empties it around every job, and /tmp
-      # is shared with every other user of a machine George also uses, which
-      # means another user can own the path first.
+      # $RUNNER_TEMP rather than /tmp: the runner owns it and empties it around
+      # every job, which holds whether or not the machine is disposable.
       - name: Make a bare working directory
         run: |
           bare="$RUNNER_TEMP/bare"
