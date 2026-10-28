@@ -17,6 +17,9 @@ on:
     paths-ignore:
       - "docs/**"
       - "**.md"
+  # Run the gate on demand, so a maintainer can check a green run without an
+  # empty commit.
+  workflow_dispatch:
 
 # Read-only. Nothing here publishes, comments, or writes to the repository, so the
 # default token permissions are more than it needs.
