@@ -2,7 +2,7 @@
 
 [![ci](https://img.shields.io/github/actions/workflow/status/georgebnov/sendable/skill.yml?branch=main&style=flat-square&label=ci)](https://github.com/georgebnov/sendable/actions/workflows/skill.yml)
 [![python](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square)](pyproject.toml)
-[![license](https://img.shields.io/github/license/georgebnov/sendable?style=flat-square)](LICENSE)
+[![license](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
 Find out why an email lands in spam or Promotions. Grade a message you already
 sent, or a draft before it goes out. 124 checks on the message, the
