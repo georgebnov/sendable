@@ -15,6 +15,17 @@ aggregate reports, and track both locally. No service, no account, no database.
 
 ### Added
 
+- A section in `SKILL.md` telling the host agent to make the five copy
+  judgements the audit stopped making: whether the subject promises what the body
+  delivers, whether the opening leaves a question open, how many central ideas
+  the message carries, whether the body names the state or only the
+  specification, and whether the message earns its claims. The skill runs inside
+  a model, so the model that reads the report answers them. Each item carries the
+  criteria and how much it matters.
+- A limit in `SKILL.md`: the score does not grade whether the copy is any good.
+  It grades what a rule can decide. A message can score 99 and still be weak
+  writing, and the number must not stand in for a judgement it never made.
+
 - Playbook 4, "The message bounced, and the code means nothing to me". It maps
   every bounce code Gmail and Microsoft send to its cause and to the check in
   this tool that names it: 550 5.7.25, 550 5.7.26 and 421 4.7.x at Gmail,
