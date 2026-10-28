@@ -47,8 +47,8 @@ stays so that code comments and pull requests keep citing the same one.
 
 2. **Nothing is excluded from the gates.** `engine/` came from a tree that lint
    and the type check excluded. When the gates covered it, they found two real
-   bugs. Do not add an exclusion. There is no longer any exception: the last one
-   was `production/`, and that tree is gone.
+   bugs. Do not add an exclusion. There is no exception, and there is nothing in
+   this repository that is not the skill.
 
 3. **Tests come first, and you never weaken one.** Watch a new test fail before
    you write the code. For a bug, write the failing test first. If a test has to

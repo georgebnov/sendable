@@ -6,9 +6,7 @@ Entries describe user-visible behaviour. They land with the work, under
 
 ## Unreleased
 
-Version numbering restarts here. The SaaS reached 0.45.0, but that line described
-a hosted product with a different surface, so continuing it would imply a
-compatibility this shares none of.
+Version numbering starts at 0.1.0. This is the first release of the skill.
 
 **Highlights:** First release as a skill. Audit an email, read your DMARC
 aggregate reports, and track both locally. No service, no account, no database.
@@ -176,24 +174,21 @@ aggregate reports, and track both locally. No service, no account, no database.
   body extractor, a wrapper that called `_peel_signature_with_tail` and dropped
   the tail. `_selectors_from_signatures` in the DKIM check, labelled a
   "back-compat shim" with no caller.
-- The paragraphs in `AGENTS.md` and `docs/README.md` that described the SaaS this
-  tool came from. A rule file holds current rules, and git and this changelog
-  hold the history.
+- The paragraphs in `AGENTS.md` and `docs/README.md` that pointed at a private
+  rules file and at a documentation tree that no longer exists.
 - The "Coverage status" section of `references/CHECKS.md`. It claimed the rubric
   was "comprehensive for every check ID emitted by the current codebase", and the
   section immediately below it said the file describes 104 of 136. Both could not
   be true. The remaining section says what the file does not cover, states its
   entry count, and gives the command that checks the number.
 
-- The `production/` tree: the FastAPI backend, the Next.js app, and the Astro
-  marketing site this tool came from. None of it ran, and it was the last thing
-  excluded from the gates. With it gone, rule 2 holds without an exception:
-  `extend-exclude` is off `pyproject.toml`, and the workflow no longer skips a
-  directory. The tag `saas-final` is now on the server, not only on one machine,
-  so `git show saas-final:<path>` recovers any file of it.
+- Everything that was not the skill. This repository is the audit engine, its
+  two entry points and the documents an agent reads, and nothing else. With the
+  last of it gone, rule 2 holds without an exception: `extend-exclude` is off
+  `pyproject.toml`, and the workflow skips no directory.
 
-- The `VERSION` file. Nothing read it, and it still said `0.45.0` from the SaaS
-  while `pyproject.toml` said `0.1.0`. The version has one home now.
+- The `VERSION` file. Nothing read it, and it disagreed with
+  `pyproject.toml`. The version has one home now.
 
 - The hardcoded industry check registry. It was unreachable: no caller ever passed
   an industry, so its three vertical checks never ran.
