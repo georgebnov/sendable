@@ -59,6 +59,42 @@ judgement is skipped rather than guessed, and the output says so in
 Both commands print JSON on stdout and progress on stderr, so stdout always
 parses. Exit code is 0 on success and 1 when there is nothing to work with.
 
+## Get the message yourself, do not ask for a file
+
+If you have access to the user's mail, use it. Do not ask them to export an
+`.eml` and tell you where they put it. The audit reads a message on stdin, so
+fetch it and pipe it:
+
+```bash
+# whatever your mail access is, write the raw message to stdin
+uv run scripts/audit.py - --pretty
+```
+
+**Fetch the raw message, not the rendered one.** A Gmail connector, the Gmail
+API, or an IMAP client will offer you a plain-text or markdown rendering by
+default, and that is the wrong thing. It throws away the headers, and the
+headers are where authentication, alignment, TLS, the unsubscribe mechanism and
+the Received chain live, which is roughly a third of the checks. Ask for the
+original:
+
+- a Gmail MCP tool: the `RAW` message format
+- the Gmail API: `messages.get` with `format=raw`, then base64url-decode it
+- a mail client by hand: "Show original" in Gmail, or "Save as" / "Download
+  message" elsewhere
+
+**Pass the original, not a copy forwarded to yourself.** Forwarding rewrites the
+envelope and re-signs the message, so the authentication results you would be
+grading are your own forwarder's, not the sender's. The audit notices and says
+so, and it reframes the alignment findings rather than blaming the sender, but
+the report is still about a different message than the one you meant. If a user
+forwards you something to check, grade it and tell them the limit.
+
+**Finding the right message.** The user will describe it, not name it. Search
+their mail the way they described it, and when more than one matches, say which
+one you picked and why rather than guessing silently. Gmail's own search is
+enough: `from:`, `subject:`, `after:`, and `category:promotions` if they are
+asking why something was sorted that way.
+
 ## Reading an audit report
 
 ```json
@@ -157,7 +193,7 @@ not a single command. `references/PLAYBOOKS.md` holds them:
 
 ## Connect more data
 
-The audit needs nothing but a saved `.eml`. Each connection in
+The audit needs nothing but the message itself. Each connection in
 `references/CONNECTIONS.md` answers a question that one message cannot:
 
 | Connection | Answers |
