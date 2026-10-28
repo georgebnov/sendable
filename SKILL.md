@@ -1,6 +1,6 @@
 ---
 name: sendable
-description: "Find out why an email lands in spam or Promotions, fix it before you send, and raise a domain's sending reputation. Use for inbox placement, open rates, SPF, DKIM, DMARC, aggregate reports, warming a new sending domain, or grading a draft. Also after any send that matters, to catch a regression."
+description: "Find out why an email will land in spam or Promotions, and fix it before you send. Use for inbox placement, deliverability, open rates, SPF, DKIM, DMARC and alignment, blocklists, grading a draft an agent wrote, warming a new sending domain, or reading DMARC aggregate reports to find everything sending as your domain. Runs locally and stores nothing."
 ---
 
 # Sendable
