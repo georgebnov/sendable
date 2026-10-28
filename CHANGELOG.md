@@ -14,10 +14,6 @@ service, no account, no database.
 
 ### Added
 
-- A one line install for Claude Code. Sendable is now a plugin as well as a
-  skill, so `/plugin install sendable --marketplace georgebnov/sendable` sets it
-  up. Cloning the repository and linking it by hand still works, and it is still
-  the path for every other agent.
 - A section in `SKILL.md` telling the host agent to make the five copy
   judgements the audit stopped making: whether the subject promises what the body
   delivers, whether the opening leaves a question open, how many central ideas

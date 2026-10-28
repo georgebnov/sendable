@@ -30,18 +30,7 @@ contract an agent reads to know when and how to run it.
 You need [`uv`](https://docs.astral.sh/uv/). Each script declares its own
 dependencies, so there is nothing else to install and no environment to build.
 
-**In Claude Code, in one command.** Sendable is also a plugin, so you do not have
-to clone it or link anything:
-
-```
-/plugin install sendable --marketplace georgebnov/sendable
-```
-
-That needs Claude Code 2.1.275 or newer. On an older build, register the
-marketplace first with `/plugin marketplace add georgebnov/sendable`, then run
-`/plugin install sendable`.
-
-**As a skill, for any agent.** This is an
+**As a skill, so an agent can use it.** This is an
 [Agent Skill](https://agentskills.io): a folder with a `SKILL.md`, which is an
 open format that many agents read, not a Claude-only one. Clone it once and link
 it wherever your agent looks:

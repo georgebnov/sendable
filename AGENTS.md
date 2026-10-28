@@ -18,10 +18,6 @@ references/       what an agent loads on demand. CONNECTIONS.md (the data source
                   cannot answer), CHECKS.md (every check and its thresholds),
                   MECHANISMS.md (how the subtle checks decide).
 docs/             maintainer docs. RELEASING.md only.
-.claude-plugin/   the plugin manifests, so Claude Code installs the skill in one
-                  command. plugin.json points `skills` at the repository root,
-                  because the root is the skill. marketplace.json lets a user
-                  add this repository as a marketplace.
 ```
 
 ## Toolchain
