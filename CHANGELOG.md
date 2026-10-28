@@ -8,11 +8,16 @@ Entries describe user-visible behaviour. They land with the work, under
 
 Version numbering starts at 0.1.0. This is the first release of the skill.
 
-**Highlights:** First release as a skill. Audit an email, read your DMARC
-aggregate reports, and track both locally. No service, no account, no database.
+**Highlights:** First release as a skill. Audit an email, or read your DMARC
+aggregate reports, and get back what to change. Nothing is written to disk. No
+service, no account, no database.
 
 ### Added
 
+- A one line install for Claude Code. Sendable is now a plugin as well as a
+  skill, so `/plugin install sendable --marketplace georgebnov/sendable` sets it
+  up. Cloning the repository and linking it by hand still works, and it is still
+  the path for every other agent.
 - A section in `SKILL.md` telling the host agent to make the five copy
   judgements the audit stopped making: whether the subject promises what the body
   delivers, whether the opening leaves a question open, how many central ideas
@@ -197,6 +202,11 @@ aggregate reports, and track both locally. No service, no account, no database.
   In a skill the host agent does that translation, which `SKILL.md` specifies.
 
 ### Internal
+
+- Deleted the configuration the removed SaaS left behind. Three files still
+  excluded a `production/` directory that no longer exists, which contradicted
+  the rule that nothing is excluded from the gates. Two comments described a
+  record store and a `.env` file that the repository does not have.
 
 - Bring all 14.6k lines of the engine under ruff, ruff format, and mypy, none of
   which previously ran on it. Nothing is excluded.
