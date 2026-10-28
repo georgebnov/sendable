@@ -10,13 +10,7 @@ name: Skill
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "**.md"
   pull_request:
-    paths-ignore:
-      - "docs/**"
-      - "**.md"
   # Run the gate on demand, so a maintainer can check a green run without an
   # empty commit.
   workflow_dispatch:
