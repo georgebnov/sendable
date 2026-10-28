@@ -1,12 +1,13 @@
-# Sendable 📬
+# Sendable 📬: because nobody tells you why it went to spam, or whether the next one will
 
 [![ci](https://img.shields.io/github/actions/workflow/status/georgebnov/sendable/skill.yml?branch=main&style=flat-square&label=ci)](https://github.com/georgebnov/sendable/actions/workflows/skill.yml)
 [![python](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square)](pyproject.toml)
 [![license](https://img.shields.io/github/license/georgebnov/sendable?style=flat-square)](LICENSE)
 
-Find out why an email lands in spam or Promotions, and fix it before you send the
-next one. 124 checks on the message, the authentication, and the domain, run on
-your machine. No account, no service, nothing uploaded.
+Find out why an email lands in spam or Promotions. Grade a message you already
+sent, or a draft before it goes out. 124 checks on the message, the
+authentication, and the domain, run on your machine. No account, no service,
+nothing uploaded.
 
 Built to be driven by an agent. Every command prints JSON, and `SKILL.md` is the
 contract an agent reads to know when and how to run it.
