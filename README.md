@@ -16,19 +16,31 @@ contract an agent reads to know when and how to run it.
 You need [`uv`](https://docs.astral.sh/uv/). Each script declares its own
 dependencies, so there is nothing else to install and no environment to build.
 
-**As a skill, so an agent can use it.** Clone it and link it into your skills
-directory. On Claude Code that is `~/.claude/skills`:
+**As a skill, so an agent can use it.** This is an
+[Agent Skill](https://agentskills.io): a folder with a `SKILL.md`, which is an
+open format that many agents read, not a Claude-only one. Clone it once and link
+it wherever your agent looks:
 
 ```bash
-git clone https://github.com/georgebnov/sendable.git ~/Projects/sendable
-ln -s ~/Projects/sendable ~/.claude/skills/sendable
+git clone https://github.com/georgebnov/sendable.git ~/skills/sendable
 ```
 
-Or clone straight into place, if you do not want a separate checkout:
+| Agent | Skills directory |
+|---|---|
+| Any, project-level | `.agents/skills/` |
+| Claude Code | `~/.claude/skills/` |
+| Codex | `~/.codex/skills/` |
+| Cursor | `.cursor/skills/`, and it also reads the Claude and Codex paths |
+| Windsurf | `.windsurf/skills/` |
 
 ```bash
-git clone https://github.com/georgebnov/sendable.git ~/.claude/skills/sendable
+# pick the one your agent uses, or link it into several
+ln -s ~/skills/sendable ~/.claude/skills/sendable
+ln -s ~/skills/sendable ~/.codex/skills/sendable
 ```
+
+The directory the skill sits in has to be named `sendable`, because the spec
+requires the folder name to match the `name` in the frontmatter.
 
 A skill is read when a session starts, so start a new one and the agent has it.
 From then on `SKILL.md` is the whole contract: the agent reads that to know when
