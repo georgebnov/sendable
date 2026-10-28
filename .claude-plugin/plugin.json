@@ -1,0 +1,22 @@
+{
+  "name": "sendable",
+  "description": "Email deliverability audit before you send: inbox placement, spam and Promotions, SPF, DKIM, DMARC alignment, blocklists, copy, and DMARC aggregate reports.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "homepage": "https://github.com/georgebnov/sendable",
+  "repository": "https://github.com/georgebnov/sendable",
+  "author": {
+    "name": "George Babakhanov",
+    "email": "47159201+georgebnov@users.noreply.github.com"
+  },
+  "keywords": [
+    "email",
+    "deliverability",
+    "spam",
+    "spf",
+    "dkim",
+    "dmarc",
+    "copywriting"
+  ],
+  "skills": ["./"]
+}
