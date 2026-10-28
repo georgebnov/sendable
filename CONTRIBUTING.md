@@ -50,9 +50,8 @@ Write the failing test first, then the code. For a bug, reproduce it before fixi
 it: a fix with no captured repro quietly regresses later.
 
 The suite is deterministic by construction, and must stay that way. It makes no
-network call, no model call, and depends on no clock. `tests/conftest.py` enforces
-this with two autouse fixtures that clear `OPENAI_API_KEY` and block
-`socket.gethostbyaddr`. When your check needs DNS, use the `dns` fixture, which
+network call and depends on no clock. `tests/conftest.py` enforces this with an
+autouse fixture that blocks `socket.gethostbyaddr`. When your check needs DNS, use the `dns` fixture, which
 holds a zone in a dict; any name you do not register answers NXDOMAIN, as a real
 resolver does. For a reverse lookup, use `ptr`.
 

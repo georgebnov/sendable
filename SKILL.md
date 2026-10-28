@@ -15,7 +15,7 @@ authenticate, does the authentication align, is the copy going to get filtered,
 does it carry a working unsubscribe. It also compares the message against the
 sender's earlier sends, so it catches a regression that no single email reveals.
 
-135 checks in six groups: 54 on the copy and structure of the message, 11 on
+130 checks in six groups: 49 on the copy and structure of the message, 11 on
 authentication and alignment, 35 on the domain records (SPF, DKIM, DMARC,
 MTA-STS, TLSRPT, and BIMI), 15 on the sending infrastructure (31 IP blocklists, 8
 URL blocklists, and a live SMTP probe), 14 on headers and hygiene, and 6 drift
@@ -201,7 +201,3 @@ references/             what to load on demand:
   CHECKS.md               every check, with its thresholds and severity
   MECHANISMS.md           how the subtle checks decide, step by step
 ```
-
-Set `OPENAI_API_KEY` to turn on the checks that ask a model for a judgement on the
-copy. Without it those checks report INFO and pass, and everything else is
-unaffected.

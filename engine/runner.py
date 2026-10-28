@@ -27,17 +27,13 @@ because drift is about how this real send compares to past real sends.
 from __future__ import annotations
 
 import asyncio
-import sys
 
-from . import llm as _llm
 from .cleanup import cleanup
 from .copywriting import (
     ai_writing_pattern,
-    benefit_over_feature,
     body_composition,
     cta_count,
     cta_outcome_copy,
-    curiosity_hook,
     doubt_creation,
     fake_reply_subject,
     from_name_body_consistency,
@@ -49,10 +45,7 @@ from .copywriting import (
     preheader_quality,
     preheader_repeats_subject,
     reading_level,
-    single_big_idea,
-    social_proof_presence,
     subject,
-    subject_body_mismatch,
     subject_deadwords,
     subject_word_count,
     urgency_position,
@@ -106,7 +99,6 @@ CHECKS = [
     subject_word_count.run,
     subject_deadwords.run,
     fake_reply_subject.run,
-    subject_body_mismatch.run,
     personal_from_name.run,
     from_name_body_consistency.run,
     preheader_quality.run,
@@ -116,10 +108,6 @@ CHECKS = [
     voice_consistency.run,
     doubt_creation.run,
     long_paragraph.run,
-    curiosity_hook.run,
-    single_big_idea.run,
-    benefit_over_feature.run,
-    social_proof_presence.run,
     body_composition.run,
     link_quality.run,
     reading_level.run,
@@ -177,11 +165,7 @@ async def audit(
     # one asyncio.gather. None of them depend on each other so we
     # collapse what used to be three sequential phases into one
     # concurrent fan-out. Wall time is bounded by the slowest single
-    # check (LLM tail latency for content; DNS round-trips for
-    # domain_health). On a typical send: 3–5s wall instead of 8–20s
-    # sequential.
-    _llm.reset_accumulator()
-
+    # check, which is a DNS round-trip in domain_health.
     content_tasks = [c(cleaned_email) for c in CHECKS]
 
     async def _drift_bucket() -> list[Finding]:
@@ -206,14 +190,6 @@ async def audit(
         _unsub_bucket(),
     )
 
-    _acc = _llm.get_accumulator()
-    if _acc and _acc["calls"]:
-        print(
-            f"[llm] AUDIT TOTAL calls={_acc['calls']} "
-            f"in={_acc['in']} out={_acc['out']} "
-            f"cost=${_acc['usd']:.6f}",
-            file=sys.stderr,
-        )
     findings: list[Finding] = [f for sub in all_results for f in sub]
 
     if in_spam:

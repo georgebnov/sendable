@@ -5,7 +5,7 @@
 [![license](https://img.shields.io/github/license/georgebnov/sendable?style=flat-square)](LICENSE)
 
 Find out why an email lands in spam or Promotions, and fix it before you send the
-next one. 135 checks on the message, the authentication, and the domain, run on
+next one. 130 checks on the message, the authentication, and the domain, run on
 your machine. No account, no service, nothing uploaded.
 
 Built to be driven by an agent. Every command prints JSON, and `SKILL.md` is the
@@ -175,9 +175,6 @@ two writers.
 
 They hold real subject lines and link URLs. `.sendable/` is gitignored by
 default, and committing it is a deliberate choice.
-
-Set `OPENAI_API_KEY` to turn on the checks that ask a model to judge the copy.
-Without it those report INFO and pass, and nothing else changes.
 
 ## Honest limits
 

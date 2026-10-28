@@ -11,7 +11,6 @@
 #   "pydantic>=2.13",
 #   "cryptography>=46.0",
 #   "pyasn1>=0.6",
-#   "openai>=2.41",
 # ]
 # ///
 """Audit one email for deliverability, inbox placement, and copy problems.
@@ -31,10 +30,7 @@ What it does, in order:
   4. Stores the report, so the next audit of this sender has more to compare.
   5. Prints the report as JSON on stdout.
 
-Progress and cost go to stderr, so stdout is always parseable JSON.
-
-Set OPENAI_API_KEY to enable the checks that ask a model a question. Without it
-those checks report INFO and pass, and the rest of the audit is unaffected.
+Progress goes to stderr, so stdout is always parseable JSON.
 """
 
 from __future__ import annotations

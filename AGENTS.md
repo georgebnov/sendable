@@ -14,7 +14,7 @@ scripts/          the three entry points. Each script declares its own dependenc
   reports.py        reads what the store already holds
 engine/           every check. No database, no network state, and no globals that it owns.
 store/            JSON files on disk. One file for each audit and for each DMARC report.
-tests/            the suite. No network, no model call, and no database.
+tests/            the suite. No network and no database.
 references/       what an agent loads on demand. CONNECTIONS.md (the data sources
                   a sender can connect), PLAYBOOKS.md (the questions one audit
                   cannot answer), CHECKS.md (every check and its thresholds),
@@ -55,11 +55,11 @@ and docs cite the rules by number.
 3. *The global rules (Project Defaults) cover this.* The rule was: tests come
    first, and you never weaken a test.
 
-4. **The suite is deterministic.** It has no network, no model call, and no
-   dependency on the clock. `tests/conftest.py` enforces this with 2 autouse
-   fixtures. It clears `OPENAI_API_KEY`, and it blocks `socket.gethostbyaddr`.
-   Use the `dns` fixture for DNS and the `ptr` fixture for a reverse lookup. A
-   test that uses the network fails for reasons that the code did not cause.
+4. **The suite is deterministic.** It has no network and no dependency on the
+   clock. `tests/conftest.py` enforces this with an autouse fixture that blocks
+   `socket.gethostbyaddr`. Use the `dns` fixture for DNS and the `ptr` fixture
+   for a reverse lookup. A test that uses the network fails for reasons that the
+   code did not cause.
 
 5. **Run the real command on a real file.** The global rules (Project Defaults)
    hold the general rule. In this repo, only a real run found these defects:
@@ -71,7 +71,7 @@ and docs cite the rules by number.
 
 6. **Tune each automated part against its real output.** The global rules
    (Project Defaults) hold the general rule. In this repo, the automated parts
-   are the scorer, the LLM checks, and the DMARC advice.
+   are the scorer and the DMARC advice.
 
 7. **Stored data stays readable.** `.sendable/` holds the history of a user. A
    record that an older version wrote must still load. Add a field. Do not change
@@ -96,8 +96,8 @@ and docs cite the rules by number.
     global rules (Project Defaults) say to delete the old code path.
 
 11. **Put imports at module scope.** Do not import lazily for convenience. Never
-    catch `ImportError` to fall back silently. The exception is a dependency that
-    is really optional, such as `openai`. Its skip path is documented behavior.
+    catch `ImportError` to fall back silently. There is no exception: every
+    dependency this repo declares is required, and each one is imported.
 
 12. **Public text follows the brand.** The name is **Sendable**. Do not use
     dashes in text that a user reads. Use a comma, a colon, or a period. Describe

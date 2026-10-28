@@ -138,6 +138,24 @@ aggregate reports, and track both locally. No service, no account, no database.
 
 ### Removed
 
+- Every call to a third-party API, and the checks that made them. The audit asked
+  a model to judge five things about the copy: whether the subject matched the
+  body, whether the opening created an open loop, whether the message carried one
+  idea, whether it framed benefits over features, and whether it showed social
+  proof. In a skill the host agent reads the report and is itself a model, so the
+  tool paying for a second one was work done twice.
+
+  Gone with them: `engine/llm.py`, the `openai` dependency from both
+  `pyproject.toml` and the `scripts/audit.py` header, the `OPENAI_API_KEY`
+  paragraph from `SKILL.md`, `README.md` and `SECURITY.md`, and the test fixture
+  that cleared the variable.
+
+  **The engine now reads no environment variable at all.** `grep -rn os.environ`
+  over `engine/`, `store/` and `scripts/` returns nothing, so there is no key to
+  set, nothing to leak, and one less disclosed network surface in `SECURITY.md`.
+
+  The count drops from 135 checks to 130, and the copy group from 54 to 49.
+
 - Three dead functions. `is_known_legit` in the sending-platform fingerprint,
   with its constant: nothing called it, and its own docstring said it served "the
   classifier's new-IP branch", which no longer calls it. `_peel_signature` in the

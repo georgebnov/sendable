@@ -360,13 +360,6 @@ Sections: Domain Health → Email Auth → Headers → Bulk Compliance → Body 
 - BAD: Accepts → open relay → massive reputation hit.
 - Severity: CRITICAL / INFO
 
-### REMOVED from smtp_probe (was misleading)
-> `smtp.connect`, `smtp.transaction_time`, `smtp.banner`: inbound-MX operational metrics, not deliverability signals.
-> `smtp.tls` (STARTTLS on inbound MX): measures whether you can **receive** TLS, not whether you **send** TLS. Misleading.
-> `smtp.reverse_dns_resolution`, `smtp.reverse_dns_mismatch`, `smtp.banner_vs_ptr`: these probed the MX IP, but Gmail/MS require PTR on the **sending IP**. Moved to `sending_ip_dns.py` against the Received-extracted IP.
-
----
-
 ## Domain Health: Sending IP DNS
 > **Scope note:** This is the deliverability-relevant PTR check. Sending IP = IP extracted from Received headers (same logic as the RBL scan). For ESP senders (SendGrid / Mailchimp / Brevo / Klaviyo / etc.), failures are demoted to INFO: the marketer can't republish DNS on a shared ESP outbound IP.
 
@@ -398,15 +391,6 @@ Sections: Domain Health → Email Auth → Headers → Bulk Compliance → Body 
 
 ---
 
-## Domain Health: Web Server: REMOVED
-
-> Previously: `http.connect`, `https.certificate_check`, `https.certificate_expiration`.
->
-> **Why removed:** Apex website reachability and TLS cert state have zero impact on outbound email deliverability. Gmail / Yahoo / Microsoft do not inspect the sender's apex web server when scoring outbound mail. The web cert only matters indirectly when a body **link** points to the domain, and that path is already covered by `url_reputation.*` (link-domain DBL scan) and `content.anchor_href_mismatch`.
->
-> If you want apex / linked-URL cert validation in the future, that belongs in a body-link health module, not in the deliverability score.
-
----
 
 ## Email Auth (header-level)
 ### auth.authentication_results
@@ -895,7 +879,7 @@ Sections: Domain Health → Email Auth → Headers → Bulk Compliance → Body 
 
 ## What this file does not cover
 
-This file is not exhaustive, and it does not claim to be. It holds 108 entries.
+This file is not exhaustive, and it does not claim to be. It holds 107 entries.
 The audit emits more ids than that, because several checks fan out: one entry
 covers 24 IP blocklists, another covers 8 domain blocklists, and a third runs 8
 blocklists against every link in the message. A check with no entry here still
@@ -911,10 +895,8 @@ uses, and it is what a report shows.
 
 - `content.attachment_risk`
 - `copywriting.ai_writing_pattern`
-- `copywriting.benefit_over_feature`
 - `copywriting.cta_count`
 - `copywriting.cta_outcome_copy`
-- `copywriting.curiosity_hook`
 - `copywriting.doubt_creation`
 - `copywriting.drive_link`
 - `copywriting.emoji_count`
@@ -927,10 +909,7 @@ uses, and it is what a report shows.
 - `copywriting.preheader_quality`
 - `copywriting.preheader_repeats_subject`
 - `copywriting.reading_level`
-- `copywriting.single_big_idea`
-- `copywriting.social_proof_presence`
 - `copywriting.spam_trigger`
-- `copywriting.subject_body_mismatch`
 - `copywriting.subject_deadwords`
 - `copywriting.subject_word_count`
 - `copywriting.urgency_position`

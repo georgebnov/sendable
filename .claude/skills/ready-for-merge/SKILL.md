@@ -78,7 +78,7 @@ Key checks for this repo:
   and it is going away.
 - **Tests come first.** New behavior ships with a test you watched fail. A bug fix ships with
   a test that failed before the fix. Never delete or weaken a test to go green.
-- **The suite stays deterministic** (rule 4). No network, no model call, no dependency on the
+- **The suite stays deterministic** (rule 4). No network, no dependency on the
   clock. Use the `dns` fixture for DNS and the `ptr` fixture for a reverse lookup.
 - **The real command ran on a real file** (rule 5). A passing unit test is not enough. Paste
   the output you saw into the commit message.
@@ -91,8 +91,8 @@ Key checks for this repo:
   went wrong **and** what to do next.
 - **No speculative code** (rule 10). No unused hook, no abstraction for one caller. When a
   code path is replaced, the old one is deleted.
-- **Imports at module scope** (rule 11). No `ImportError` fallback. `openai` is the one
-  documented optional dependency.
+- **Imports at module scope** (rule 11). No `ImportError` fallback, and no
+  optional dependency: every declared dependency is required and imported.
 - **Public text follows the brand** (rule 12). The name is **Sendable**. No dashes in text a
   user reads. Describe a finding in the part of the composer the user sees, never an HTML tag,
   a CSS property, or an RFC number.
