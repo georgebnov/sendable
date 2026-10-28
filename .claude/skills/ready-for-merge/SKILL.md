@@ -74,8 +74,7 @@ Key checks for this repo:
   coverage floor. Never silence a check (`# type: ignore`, `# noqa`) to go green, and never
   lower the floor. If a lint rule makes the code worse, disable it in `pyproject.toml` with
   the reason written there.
-- **Nothing new is excluded from the gates** (rule 2). `production/` is the only exception,
-  and it is going away.
+- **Nothing new is excluded from the gates** (rule 2). There is no exception.
 - **Tests come first.** New behavior ships with a test you watched fail. A bug fix ships with
   a test that failed before the fix. Never delete or weaken a test to go green.
 - **The suite stays deterministic** (rule 4). No network, no dependency on the
