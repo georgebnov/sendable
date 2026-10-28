@@ -893,20 +893,21 @@ Sections: Domain Health → Email Auth → Headers → Bulk Compliance → Body 
 
 ---
 
-## Coverage status
+## What this file does not cover
 
-This rubric is comprehensive for every check ID emitted by the current codebase (verified by cross-referencing `grep "check="` against `### <name>` headings). When adding a new check module, append its entry under the matching section header and re-run the audit so this stays canonical.
+This file is not exhaustive, and it does not claim to be. It holds 108 entries.
+The audit emits more ids than that, because several checks fan out: one entry
+covers 24 IP blocklists, another covers 8 domain blocklists, and a third runs 8
+blocklists against every link in the message. A check with no entry here still
+runs and still reports. Read its thresholds from its own module until it has one.
 
----
+Count the entries with `grep -c '^### ' references/CHECKS.md`, so this number
+can be checked rather than trusted.
 
-## Not yet documented here
-
-The audit emits 136 check ids. This file describes 104.
-The rest run and report like any other check, they just have no entry yet.
-Read each one's thresholds from its code until they do.
-
-`copygen.*` ids are not in this list. They belong to the copy-generation
-critic in `engine/critic.py`, which is a separate surface from the audit.
+`copygen.*` ids are not in this list. `engine/critic.py` emits them for the
+copy-generation surface, and `engine/copywriting/heuristics.py` rewrites the
+prefix to `copywriting.` for an audit. The audit-side name is what this file
+uses, and it is what a report shows.
 
 - `content.attachment_risk`
 - `copywriting.ai_writing_pattern`

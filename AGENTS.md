@@ -4,11 +4,6 @@ Sendable is an email deliverability audit tool. It ships as a skill that an agen
 downloads and runs. It has no service, no account, and no database. `SKILL.md` is
 the contract that an agent reads. This file is the contract for work on the code.
 
-This tool came from a SaaS: a FastAPI backend on Fargate, a Next.js app on
-Vercel, and an Astro marketing site. None of it runs, and none of it is in this
-tree any more. The tag `saas-final` marks the state before the refactor, and it
-is on the server, so `git show saas-final:<path>` recovers any file of it.
-
 ## Layout
 
 ```

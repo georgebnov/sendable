@@ -13,7 +13,3 @@ Reference material that an agent or a user reads lives in
 | [`PLAYBOOKS.md`](../references/PLAYBOOKS.md) | the questions one audit cannot answer alone |
 | [`CHECKS.md`](../references/CHECKS.md) | every check, with its GOOD, MEDIUM, and BAD thresholds |
 | [`MECHANISMS.md`](../references/MECHANISMS.md) | how the subtle checks decide, step by step |
-
-The SaaS this tool came from had its own docs tree. It is gone. The tag
-`saas-final` holds the state before the refactor, and `git show saas-final:<path>`
-recovers a file from it.

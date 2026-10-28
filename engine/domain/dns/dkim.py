@@ -190,11 +190,6 @@ def _signatures(headers: dict[str, list[str]]) -> list[dict]:
     return out
 
 
-def _selectors_from_signatures(headers: dict[str, list[str]]) -> list[tuple[str, str]]:
-    """Back-compat shim — returns (selector, signing_domain) pairs."""
-    return [(sig["selector"], sig["signing_domain"]) for sig in _signatures(headers)]
-
-
 def _parse_record(text: str) -> dict:
     return {m.group(1).lower(): m.group(2).strip() for m in _DKIM_SIG_TAG_RX.finditer(text)}
 

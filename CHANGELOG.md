@@ -138,6 +138,21 @@ aggregate reports, and track both locally. No service, no account, no database.
 
 ### Removed
 
+- Three dead functions. `is_known_legit` in the sending-platform fingerprint,
+  with its constant: nothing called it, and its own docstring said it served "the
+  classifier's new-IP branch", which no longer calls it. `_peel_signature` in the
+  body extractor, a wrapper that called `_peel_signature_with_tail` and dropped
+  the tail. `_selectors_from_signatures` in the DKIM check, labelled a
+  "back-compat shim" with no caller.
+- The paragraphs in `AGENTS.md` and `docs/README.md` that described the SaaS this
+  tool came from. A rule file holds current rules, and git and this changelog
+  hold the history.
+- The "Coverage status" section of `references/CHECKS.md`. It claimed the rubric
+  was "comprehensive for every check ID emitted by the current codebase", and the
+  section immediately below it said the file describes 104 of 136. Both could not
+  be true. The remaining section says what the file does not cover, states its
+  entry count, and gives the command that checks the number.
+
 - The `production/` tree: the FastAPI backend, the Next.js app, and the Astro
   marketing site this tool came from. None of it ran, and it was the last thing
   excluded from the gates. With it gone, rule 2 holds without an exception:
