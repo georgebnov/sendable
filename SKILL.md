@@ -1,6 +1,8 @@
 ---
 name: sendable
-description: "Find out why an email will land in spam or Promotions, and fix it before you send. Use for inbox placement, deliverability, open rates, SPF, DKIM, DMARC and alignment, blocklists, grading a draft an agent wrote, warming a new sending domain, or reading DMARC aggregate reports to find everything sending as your domain. Runs locally and stores nothing."
+description: "Email deliverability audit before you send: inbox placement, spam and Promotions, SPF, DKIM, DMARC alignment, blocklists, copy, and DMARC aggregate reports."
+license: MIT
+compatibility: Requires uv and Python 3.11 or newer. Network access for the DNS, blocklist and SMTP checks; --offline skips those.
 ---
 
 # Sendable
