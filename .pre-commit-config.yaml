@@ -12,8 +12,7 @@
 default_install_hook_types: [pre-commit]
 exclude: |
   (?x)^(
-    production/     # the SaaS this repo was refactored from, pending removal
-    |tests/fixtures/  # raw .eml files, deliberately malformed in places
+    tests/fixtures/  # raw .eml files, deliberately malformed in places
   )
 
 repos:
@@ -28,7 +27,7 @@ repos:
       - id: trailing-whitespace
       - id: mixed-line-ending
         args: [--fix=lf]
-      # A real .env must never be committed. .env.example is fine.
+      # A signing key or a certificate must never reach the history.
       - id: detect-private-key
 
   # Security audit for the GitHub Actions workflows: unpinned actions, overly broad
