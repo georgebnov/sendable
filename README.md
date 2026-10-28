@@ -13,11 +13,32 @@ contract an agent reads to know when and how to run it.
 
 ## Install
 
-There is no install step. You need [`uv`](https://docs.astral.sh/uv/), and each
-script declares its own dependencies.
+You need [`uv`](https://docs.astral.sh/uv/). Each script declares its own
+dependencies, so there is nothing else to install and no environment to build.
+
+**As a skill, so an agent can use it.** Clone it and link it into your skills
+directory. On Claude Code that is `~/.claude/skills`:
+
+```bash
+git clone https://github.com/georgebnov/sendable.git ~/Projects/sendable
+ln -s ~/Projects/sendable ~/.claude/skills/sendable
+```
+
+Or clone straight into place, if you do not want a separate checkout:
+
+```bash
+git clone https://github.com/georgebnov/sendable.git ~/.claude/skills/sendable
+```
+
+A skill is read when a session starts, so start a new one and the agent has it.
+From then on `SKILL.md` is the whole contract: the agent reads that to know when
+to run an audit, how to read the report, and what to tell you about it.
+
+**To run it yourself**, with no agent involved:
 
 ```bash
 git clone https://github.com/georgebnov/sendable.git && cd sendable
+uv run scripts/audit.py tests/fixtures/clean_bulk.eml --offline --pretty
 ```
 
 ## Quick start
