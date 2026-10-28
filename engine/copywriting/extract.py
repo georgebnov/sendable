@@ -346,15 +346,6 @@ def _peel_footer(paragraphs: list[str]) -> tuple[str | None, list[str]]:
     return footer, paragraphs[:footer_start]
 
 
-def _peel_signature(paragraphs: list[str]) -> tuple[str | None, list[str]]:
-    """Walk backward through paragraphs looking for a sign-off line
-    ("Thanks,", "Best,", "Talk soon,", etc.). When found, absorb that
-    paragraph plus any short trailing paragraphs (≤6 words each) as the
-    name/title/contact block. Cap absorbed trailing lines at 4."""
-    sig, remainder, _tail = _peel_signature_with_tail(paragraphs)
-    return sig, remainder
-
-
 def _peel_signature_with_tail(
     paragraphs: list[str],
 ) -> tuple[str | None, list[str], list[str]]:

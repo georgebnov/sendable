@@ -21,10 +21,8 @@ PTR results are cached in-process. Pure stdlib (`socket.gethostbyaddr`)
 so no extra dep. The lookup runs in a thread when called from async
 code so it doesn't block the event loop.
 
-Two outputs every caller needs:
+One output every caller needs:
     classify(ip) → ESPMatch{name, kind, hostname}
-    is_known_legit(ip) → bool  (kind in {'esp', 'cloud', 'microsoft',
-                                          'google', 'gateway'})
 """
 
 from __future__ import annotations
@@ -160,23 +158,6 @@ def classify(ip: str) -> ESPMatch:
         if host == domain or host.endswith("." + domain):
             return ESPMatch(name=name, kind=kind, hostname=host)
     return ESPMatch(name="unknown", kind="unknown", hostname=host)
-
-
-_LEGIT_KINDS = frozenset({"esp", "gateway", "microsoft", "google"})
-
-
-def is_known_legit(ip: str) -> bool:
-    """Quick yes/no for the classifier's new-IP branch.
-
-    Returns True only when the PTR matches an actual mail-sending
-    product (ESP, M365, Workspace, receiver-side gateway). 'cloud'
-    kinds (AWS, GCP, Azure, OVH, Hetzner, etc.) deliberately return
-    False because spoofers spin up disposable IaaS instances
-    constantly — the legitimate ESP traffic that ALSO comes from
-    cloud IPs would already match a more specific ESP suffix
-    (.amazonses.com, .compute.amazonaws.com bypassed by .convertkit-
-    mail2.com, etc.). When in doubt the classifier escalates."""
-    return classify(ip).kind in _LEGIT_KINDS
 
 
 # ─────────────────────────────────────────────────────────────────────
