@@ -82,10 +82,10 @@ Key checks for this repo:
   clock. Use the `dns` fixture for DNS and the `ptr` fixture for a reverse lookup.
 - **The real command ran on a real file** (rule 5). A passing unit test is not enough. Paste
   the output you saw into the commit message.
-- **Stored data stays readable** (rule 7). Add a field, never change the meaning of one.
-  `SCHEMA_VERSION` moves only for a change an older reader cannot read.
-- **Interpretation changes are announced** (rule 8). The scorer, the DMARC classification
-  chain, and the drift family re-read a user's stored history. If the judgement changes, the
+- **Write nothing to the user's disk** (rule 7). Both entry points read their input
+  and print their output. No store, no cache, no state between runs.
+- **Interpretation changes are announced** (rule 8). The scorer and the DMARC
+  classification chain decide what a user acts on. If the judgement changes, the
   commit says so in plain words.
 - **Error messages are part of the interface** (rule 9). A failure a user can see says what
   went wrong **and** what to do next.

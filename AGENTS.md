@@ -8,12 +8,10 @@ the contract that an agent reads. This file is the contract for work on the code
 
 ```
 SKILL.md          the contract for agents. Update it when a flag or an output changes.
-scripts/          the three entry points. Each script declares its own dependencies.
+scripts/          the two entry points. Each script declares its own dependencies.
   audit.py          grades one email
   dmarc.py          reads aggregate reports and reports the next step
-  reports.py        reads what the store already holds
 engine/           every check. No database, no network state, and no globals that it owns.
-store/            JSON files on disk. One file for each audit and for each DMARC report.
 tests/            the suite. No network and no database.
 references/       what an agent loads on demand. CONNECTIONS.md (the data sources
                   a sender can connect), PLAYBOOKS.md (the questions one audit
@@ -73,23 +71,23 @@ and docs cite the rules by number.
    (Project Defaults) hold the general rule. In this repo, the automated parts
    are the scorer and the DMARC advice.
 
-7. **Stored data stays readable.** `.sendable/` holds the history of a user. A
-   record that an older version wrote must still load. Add a field. Do not change
-   the meaning of a field. Increase `SCHEMA_VERSION` only for a change that an
-   older reader cannot read. The store validates each record when it reads it.
-   It treats a bad field as absent and does not raise an error. Thus 1 file that
-   a person edited by hand cannot block every later audit.
+7. **Write nothing to the user's disk.** Both entry points read their input and
+   print their output. There is no store, no cache, and no state between runs,
+   so the same input always gives the same answer. A feature that needs history
+   needs the user to pass it in, the way `dmarc.py` takes older reports as its
+   baseline.
 
-8. **Say so first, before you change how a check reads data.** The audit
-   scorer, the DMARC classification chain, and the drift family read the stored
-   history of a user again when their judgement changes. A false finding is the
+8. **Say so first, before you change how a check reads data.** The audit scorer
+   and the DMARC classification chain decide what a user acts on, so a change to
+   either re-grades mail that was already graded. A false finding is the
    exception. Fix it, and say clearly in the commit that the interpretation
    changed.
 
 9. **Design from the side of the caller.** Write the call site first, and judge
    it. Error messages are part of the interface. A failure that a user can see
-   says what went wrong **and** what to do next. Example: `dmarc.py status` with
-   no reports gives the ingest command to run.
+   says what went wrong **and** what to do next. Example: `dmarc.py` given a file
+   that is not a report names the three formats a provider sends, and says to
+   check you passed the attachment rather than the message that carried it.
 
 10. **Build for now.** Do not add speculative general code, unused hooks, or an
     abstraction for a single caller. The best codebase has the least code. The

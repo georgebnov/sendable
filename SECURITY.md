@@ -33,13 +33,14 @@ port. That guard has its own tests in `tests/test_ssrf_gate.py`.
 
 ## What is stored, and where
 
-`.sendable/` holds your audit history as plain JSON. It contains real subject
-lines, real link URLs, your sending domains, and the authentication results of
-your mail. It is gitignored by default. Committing it is a deliberate choice, and
-sharing it is a disclosure.
+Nothing. Neither entry point writes to disk. The audit prints its report to
+stdout and keeps no history, and `dmarc.py` reads the report files you pass and
+keeps nothing either.
 
-Reports in `.sendable/dmarc/` list every IP that sent mail claiming to be your
-domain, which is information about your infrastructure.
+That is deliberate. An audit report carries real subject lines, real link URLs,
+your sending domains, and the authentication results of your mail. A DMARC report
+lists every IP that sent mail claiming to be your domain. None of it is written
+anywhere unless you redirect the output yourself, and then it is yours to place.
 
 ## Reading untrusted email
 

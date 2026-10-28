@@ -797,52 +797,6 @@ Sections: Domain Health → Email Auth → Headers → Bulk Compliance → Body 
 
 ---
 
-## Drift (across multiple sends)
-
-### drift.d01_dmarc_regression
-- Validates: DMARC has not regressed from passing history.
-- GOOD: DMARC=pass or no regression.
-- MEDIUM: Mixed/sparse history + current fail/softfail.
-- BAD: ≥3 prior passes + current fail/softfail.
-- Severity: CRITICAL (clear regression) / HIGH (mixed) / INFO
-
-### drift.d03_auth_flip
-- Validates: SPF & DKIM pass rates haven't flipped from ≥90 % history.
-- GOOD: Stable / improved.
-- MEDIUM: n/a
-- BAD: Either flipped (or both).
-- Severity: CRITICAL (both) / HIGH (one) / INFO
-
-### drift.d04_dmarc_policy_downgrade
-- Validates: DMARC policy hasn't downgraded over 30 days.
-- GOOD: Equal or stronger than historical max.
-- MEDIUM: n/a
-- BAD: Downgrade (reject → quarantine, quarantine → none).
-- Severity: HIGH / INFO
-
-### drift.d08_list_unsub_regression
-- Validates: RFC 8058 compliance hasn't regressed.
-- GOOD: Stable or improved.
-- MEDIUM: Lost HTTPS unsub (still has mailto).
-- BAD: Lost List-Unsubscribe or One-Click vs ≥80 % history.
-- Severity: HIGH / MEDIUM / INFO
-
-### drift.d10_display_name_rotation
-- Validates: Display-name doesn't rotate / spoof.
-- GOOD: Stable; churn <30 %; no spoof.
-- MEDIUM: New name vs 3+ historical; churn 30: 50 %.
-- BAD: Churn >50 % OR friendly-from spoof.
-- Severity: HIGH (spoof / >50 %) / MEDIUM (new / 30: 50 %) / INFO
-
-### drift.d11_reply_to_divergence
-- Validates: Bulk Reply-To not diverged from prior history.
-- GOOD: Aligned or in history.
-- MEDIUM: n/a
-- BAD: New freemail Reply-To OR new domain not in history (VEC pattern).
-- Severity: CRITICAL (freemail) / HIGH (new domain) / INFO
-
----
-
 ## Runner / Orchestration (meta-findings)
 
 > These are emitted by the audit orchestrator, not individual check modules. They surface state about *what ran* (or didn't) and a couple of cross-cutting signals.
@@ -879,7 +833,7 @@ Sections: Domain Health → Email Auth → Headers → Bulk Compliance → Body 
 
 ## What this file does not cover
 
-This file is not exhaustive, and it does not claim to be. It holds 107 entries.
+This file is not exhaustive, and it does not claim to be. It holds 101 entries.
 The audit emits more ids than that, because several checks fan out: one entry
 covers 24 IP blocklists, another covers 8 domain blocklists, and a third runs 8
 blocklists against every link in the message. A check with no entry here still

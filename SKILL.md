@@ -5,25 +5,22 @@ description: "Find out why an email lands in spam or Promotions, fix it before y
 
 # Sendable
 
-Audit an email, store the report, and tell the sender what to change. Local, no
-account, no service.
+Audit an email and tell the sender what to change. Local, no account, no
+service, and nothing written to disk.
 
-Two separate jobs, and they answer different questions.
+**Audit one email.** `scripts/audit.py` grades a saved message and answers one
+question: will this land, and why. Did it authenticate, does the authentication
+align, is the copy going to get filtered, does it carry a working unsubscribe.
 
-**Audit one email.** `scripts/audit.py` grades a saved message: did it
-authenticate, does the authentication align, is the copy going to get filtered,
-does it carry a working unsubscribe. It also compares the message against the
-sender's earlier sends, so it catches a regression that no single email reveals.
-
-130 checks in six groups: 49 on the copy and structure of the message, 11 on
+124 checks in five groups: 49 on the copy and structure of the message, 11 on
 authentication and alignment, 35 on the domain records (SPF, DKIM, DMARC,
 MTA-STS, TLSRPT, and BIMI), 15 on the sending infrastructure (31 IP blocklists, 8
-URL blocklists, and a live SMTP probe), 14 on headers and hygiene, and 6 drift
-checks against the sender's own history.
+URL blocklists, and a live SMTP probe), and 14 on headers and hygiene.
 
-**Fix the domain.** `scripts/dmarc.py` reads the aggregate reports that receiving
-providers mail out, works out everything sending as the domain, and gives the one
-next step. This is what raises reputation over weeks.
+**Read your DMARC reports.** `scripts/dmarc.py` reads the aggregate reports that
+receiving providers mail out, works out everything sending as the domain, and
+gives the one next step. It answers the question one message cannot: who else
+sends as you, and do they authenticate.
 
 ## Run it
 
@@ -31,7 +28,7 @@ Nothing to install. `uv` reads each script's own dependency list and caches it.
 First run takes a few seconds, later runs take 0.1s.
 
 ```bash
-# Grade one saved email. Writes the report to .sendable/ and prints it as JSON.
+# Grade one saved email. Prints the report as JSON. Stores nothing.
 uv run scripts/audit.py mail.eml
 
 # Same, no outbound traffic at all: copy and structure checks only.
@@ -43,31 +40,23 @@ uv run scripts/audit.py draft.eml --draft
 # From a pipe.
 cat mail.eml | uv run scripts/audit.py -
 
-# Store aggregate reports the provider mailed. .xml, .xml.gz, and .zip all work.
-uv run scripts/dmarc.py ingest ~/Downloads/*.xml.gz
+# Read the aggregate reports a provider mailed. .xml, .xml.gz, and .zip all work.
+uv run scripts/dmarc.py ~/Downloads/*.xml.gz --pretty
 
-# The one next step for this domain.
-uv run scripts/dmarc.py status --domain example.com --pretty
-
-# Everything sending as this domain, busiest first.
-uv run scripts/dmarc.py senders --domain example.com --pretty
-
-# Read what is already stored. Nothing here audits or writes.
-uv run scripts/reports.py trend          # is the score moving, and which way
-uv run scripts/reports.py problems       # what keeps failing, worst first
-uv run scripts/reports.py senders        # one row per sending domain
-uv run scripts/reports.py list           # every audit, newest first
-uv run scripts/reports.py show <sha>     # one full report
+# Say which domain when one batch covers more than one.
+uv run scripts/dmarc.py ~/Downloads/*.xml.gz --domain example.com
 ```
 
-Every `reports.py` subcommand takes `--json`. Without it the output is a table for
-a person to read. `--domain` narrows `trend`, `problems`, and `list` to one sender.
+`dmarc.py` stores nothing either. You pass the reports you have, it reads them,
+and it prints the answer. Pass more reports to see further back.
 
-`problems` is the most useful of the five. It counts how many stored audits each
-check failed in, worst first, so the top line is the thing that keeps happening
-rather than the thing that happened most recently.
+**Pass reports older than the window and the answer sharpens.** Anything older
+than `--days` becomes the baseline, which is what separates "a spoof just
+started" from "your provider added an IP". With a single day of reports that one
+judgement is skipped rather than guessed, and the output says so in
+`new_sender_detection`.
 
-Every command prints JSON on stdout and progress on stderr, so stdout always
+Both commands print JSON on stdout and progress on stderr, so stdout always
 parses. Exit code is 0 on success and 1 when there is nothing to work with.
 
 ## Reading an audit report
@@ -89,10 +78,6 @@ Read it in this order:
    infrastructure, hygiene, copywriting.
 
 `verdict` is GO at 85 and above, REVIEW at 65, NO_GO below that.
-
-A finding with `severity: "INFO"` and `passed: true` saying "insufficient history"
-is not a problem. It means a drift check had nothing to compare against yet. Those
-start reporting from the 3rd audit of a sender.
 
 ## What to tell the user
 
@@ -221,9 +206,6 @@ Say these plainly rather than implying a guarantee.
   `details.skipped_checks`, and names those two sub-scores in
   `details.unverified_sub_scores`.
 
-  A draft is not stored, because a row with no authentication results would make a
-  clean sender look like it had started failing in every later drift comparison.
-
   To check the rest, send it to `+check` and grade the copy that arrives.
 - **Blocklist checks need a useful vantage point.** The blocklist operators
   rate-limit or refuse queries from residential addresses, so results from a home
@@ -243,12 +225,8 @@ Say these plainly rather than implying a guarantee.
 
 ```
 scripts/audit.py        grade one email
-scripts/dmarc.py        ingest reports, report the next step
-scripts/reports.py      read what the store already holds
-engine/                 every check. No database, no state of its own.
-store/                  JSON files on disk, one per audit and one per report
-.sendable/              where those files go. Holds real subjects and link URLs,
-                        so decide deliberately before committing it.
+scripts/dmarc.py        read aggregate reports, report the next step
+engine/                 every check. No database, no state, nothing written.
 references/             what to load on demand:
   PLAYBOOKS.md            the questions one audit cannot answer alone
   CONNECTIONS.md          every data source a sender can connect, and how

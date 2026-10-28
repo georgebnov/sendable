@@ -1,9 +1,5 @@
 """Audit orchestrator. Fans out checks via asyncio.gather and aggregates.
 
-When `history` is provided, the drift checks run afterward and their
-findings are merged into the Report before scoring. Callers that don't
-have (or don't want) history simply omit the argument.
-
 `in_spam=True` signals the receiving Gmail mailbox routed the message to
 Spam. We surface a HIGH finding and cap the final score at SPAM_SCORE_CAP
 so the verdict cannot be GO regardless of how clean the structural checks
@@ -68,10 +64,8 @@ from .domain.integrity import (
 )
 from .domain.runner import run_domain_health
 from .draft import calibrate_for_draft, draft_hint, looks_like_draft
-from .drift.runner import run_drift
 from .forward import calibrate_for_forward, extract_original, is_forwarded
 from .free_mailbox import calibrate_for_free_mailbox
-from .history import EmailFacts
 from .mode import detect as detect_mode
 from .parse import ParsedEmail
 from .report import Finding, ModeInfo, Report
@@ -125,7 +119,6 @@ SPAM_SCORE_CAP = 50
 
 async def audit(
     email: ParsedEmail,
-    history: list[EmailFacts] | None = None,
     *,
     in_spam: bool = False,
     domain_health: bool = True,
@@ -168,11 +161,6 @@ async def audit(
     # check, which is a DNS round-trip in domain_health.
     content_tasks = [c(cleaned_email) for c in CHECKS]
 
-    async def _drift_bucket() -> list[Finding]:
-        if history is None:
-            return []
-        return await run_drift(email, history)
-
     async def _dh_bucket() -> list[Finding]:
         if not domain_health:
             return []
@@ -185,7 +173,6 @@ async def audit(
 
     all_results = await asyncio.gather(
         *content_tasks,
-        _drift_bucket(),
         _dh_bucket(),
         _unsub_bucket(),
     )

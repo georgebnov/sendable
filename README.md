@@ -5,7 +5,7 @@
 [![license](https://img.shields.io/github/license/georgebnov/sendable?style=flat-square)](LICENSE)
 
 Find out why an email lands in spam or Promotions, and fix it before you send the
-next one. 130 checks on the message, the authentication, and the domain, run on
+next one. 124 checks on the message, the authentication, and the domain, run on
 your machine. No account, no service, nothing uploaded.
 
 Built to be driven by an agent. Every command prints JSON, and `SKILL.md` is the
@@ -84,37 +84,25 @@ you can fix it before the next one goes out instead of after.
 
 **Grade one email.** The copy and structure of the message, SPF, DKIM, DMARC and
 whether they align, MTA-STS, TLSRPT and BIMI records, 31 IP blocklists, 8 URL
-blocklists, a live SMTP probe, and 6 checks that compare this send against the
-sender's earlier ones.
+blocklists, and a live SMTP probe.
 
-That last group is the reason reports are stored. "Your DMARC policy went from
-reject to none" and "this display name has never appeared before" are statements
-about a sequence. No amount of looking at one message produces them. They start
-reporting from the third audit of a sender.
+One email in, one verdict out. It reads nothing but the file you give it and
+writes nothing anywhere, so a second run on the same bytes gives the same answer.
 
-**Fix the domain.** Receiving providers mail you a daily XML report listing
-everything that sent mail claiming to be your domain. Feed those in.
+**Read your DMARC reports.** Receiving providers mail you a daily XML report
+listing everything that sent mail claiming to be your domain. Pass them in.
 
 ```bash
-uv run scripts/dmarc.py ingest ~/Downloads/*.xml.gz
-uv run scripts/dmarc.py status --domain example.com --pretty
+uv run scripts/dmarc.py ~/Downloads/*.xml.gz --pretty
 ```
 
-`status` returns one next step. It will not tell you to tighten your DMARC policy
-while a real sender of yours is failing alignment, because that would start
-rejecting your own mail.
+It returns one next step. It will not tell you to tighten your DMARC policy while
+a real sender of yours is failing alignment, because that would start rejecting
+your own mail.
 
-**Read what is stored.** Nothing here audits or writes.
-
-```bash
-uv run scripts/reports.py trend      # is the score moving, and which way
-uv run scripts/reports.py problems   # what keeps failing, worst first
-uv run scripts/reports.py list       # every audit, newest first
-```
-
-`problems` is the most useful. It counts how many stored audits each check failed
-in, so the top line is the thing that keeps happening rather than the thing that
-happened most recently.
+This answers the one question an audit of a single message cannot: who else sends
+as you, and do they authenticate. Pass reports older than the window and it also
+separates "a spoof just started" from "your provider added an IP".
 
 ## When the audit is clean and the email still went to spam
 
@@ -159,22 +147,6 @@ All free. Do the first three and you have covered most of what a sender needs.
 | [`references/MECHANISMS.md`](references/MECHANISMS.md) | how the subtle checks decide |
 | [`references/PLAYBOOKS.md`](references/PLAYBOOKS.md) | the questions one audit cannot answer |
 | [`references/CONNECTIONS.md`](references/CONNECTIONS.md) | the data sources you can connect |
-
-## Where things go
-
-```
-.sendable/audits/     one JSON file per audited email
-.sendable/dmarc/      one JSON file per aggregate report, grouped by domain
-```
-
-Plain JSON on disk, written once and never changed. The query these answer is
-"the last 30 sends from this sender", so a database would add a schema and a
-binary file and buy nothing at this size. Files also version in git, so you can
-diff your own history, and one immutable file per record cannot be corrupted by
-two writers.
-
-They hold real subject lines and link URLs. `.sendable/` is gitignored by
-default, and committing it is a deliberate choice.
 
 ## Honest limits
 

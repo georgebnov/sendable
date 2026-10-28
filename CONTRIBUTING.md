@@ -34,7 +34,7 @@ and 3.14. A green local run means a green CI run.
 ```
 ruff check .            lint
 ruff format --check .   formatting
-mypy                    types, over engine, store, scripts, and tests
+mypy                    types, over engine, scripts, and tests
 pytest --cov            the suite, with a coverage floor
 ```
 
@@ -100,14 +100,10 @@ one-line entry to `CHANGELOG.md` under `Unreleased`.
 
 Say so first, in the issue or the pull request, before the code.
 
-`.sendable/` holds a real user's history. The audit scorer, the DMARC
-classification chain, and the drift family all reinterpret that history if their
-judgement shifts, which silently changes what every earlier audit meant. Fixing a
-false finding is the exception: do it, and say clearly that the interpretation
-moved.
-
-A record written by an older version must still load. Add a field rather than
-changing what one means.
+The audit scorer and the DMARC classification chain decide what a user acts on.
+A change to either re-grades mail that was already graded, so a report someone
+kept from last week no longer agrees with one run today. Fixing a false finding
+is the exception: do it, and say clearly that the interpretation moved.
 
 ## Dependencies
 

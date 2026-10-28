@@ -1,164 +1,90 @@
-"""The whole chain: store a sender's sends, then catch a regression in the next one.
+"""The whole chain, end to end: an .eml file in, a scored verdict out.
 
-This is the only test that proves the store earns its place. A drift check is
-worthless without history, and history is worthless if the store cannot write and
-read it back in the shape the checks expect. Everything in between is covered by
-narrower tests; this one proves the pieces connect.
+This is the MVP contract. The tool answers one question, "will this land", and
+it answers it from the file alone. No history, no stored state, no second run
+needed. So this test audits the two fixtures and checks the thing a user acts
+on: the verdict, the sub-scores behind it, and the findings that explain it.
+
+It also pins what the tool must NOT do any more. An audit writes nothing to
+disk, and no finding may come from a comparison against an earlier send, because
+there is nothing left to compare against.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-from email.utils import format_datetime
-from pathlib import Path
+import pathlib
 
-import pytest
-
-from engine.parse import ParsedEmail, parse_eml
-from engine.report import Finding, Report
+from engine.parse import parse_eml
+from engine.report import Report
 from engine.runner import audit
-from store import Store
+
+from .conftest import load
 
 
-def _sent_at(n: int) -> str:
-    """An RFC 5322 date for send `n`, placed inside the 30-day drift window.
-
-    The drift checks compare a stored row's `received_at` against `now`, so a
-    hard-coded calendar date silently leaves the window as real time passes and
-    the test starts failing for a reason the code did not cause. Send 1 is the
-    oldest; each later send is one day newer.
-    """
-    return format_datetime(datetime.now(UTC) - timedelta(days=20 - n))
+async def _audit(name: str) -> Report:
+    # domain_health=False keeps the suite off the network, per rule 4.
+    return await audit(parse_eml(load(name)), domain_health=False)
 
 
-def _send(
-    n: int,
-    *,
-    spf: str = "pass",
-    dkim: str = "pass",
-    dmarc: str = "pass",
-    policy: str = "REJECT",
-    display: str = "Jane Okafor",
-    reply_to: str | None = None,
-) -> ParsedEmail:
-    """One bulk send from jane@example.com, with the authentication it reported."""
-    reply = f"Reply-To: {reply_to}\r\n" if reply_to else ""
-    return parse_eml(
-        f"From: {display} <jane@example.com>\r\n"
-        f"To: reader@gmail.com\r\n"
-        f"{reply}"
-        f"Subject: Meter report number {n}\r\n"
-        f"Date: {_sent_at(n)}\r\n"
-        f"Message-ID: <m{n}@example.com>\r\n"
-        f"List-Id: <news.example.com>\r\n"
-        f"List-Unsubscribe: <https://example.com/u/{n}>\r\n"
-        f"List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n"
-        f"Authentication-Results: mx.google.com; spf={spf}; dkim={dkim}; "
-        f"dmarc={dmarc} (p={policy})\r\n"
-        f"Content-Type: text/plain\r\n"
-        f"\r\n"
-        f"Your meter report number {n} is ready.\r\n".encode()
-    )
+async def test_a_clean_bulk_email_is_a_go() -> None:
+    report = await _audit("clean_bulk.eml")
+    assert report.verdict == "GO", f"scored {report.score}"
+    assert report.score >= 85
+    assert not report.hard_gates_failed
 
 
-@pytest.fixture
-def store(tmp_path: Path) -> Store:
-    return Store(tmp_path / ".sendable")
+async def test_a_broken_bulk_email_is_not_a_go() -> None:
+    report = await _audit("broken_bulk.eml")
+    assert report.verdict in {"REVIEW", "NO_GO"}, f"scored {report.score}"
+    assert report.score < 85
+    # The point of the tool is the reason, not the number. A failing verdict with
+    # no failing finding would give a user nothing to act on.
+    assert [f for f in report.findings if not f.passed]
 
 
-async def _audit_through_store(store: Store, email: ParsedEmail) -> Report:
-    """Exactly what scripts/audit.py does: read history, audit, save."""
-    history = store.history_for(email)
-    report = await audit(email, history=history or None, domain_health=False)
-    store.save(email, report)
-    return report
+async def test_the_verdict_matches_the_documented_bands() -> None:
+    # GO at 85 and above, REVIEW at 65, NO_GO below that. SKILL.md and README.md
+    # both state these numbers, so a change here is a change to the contract.
+    for name in ("clean_bulk.eml", "broken_bulk.eml"):
+        r = await _audit(name)
+        expected = "GO" if r.score >= 85 else "REVIEW" if r.score >= 65 else "NO_GO"
+        assert r.verdict == expected, f"{name}: {r.score} gave {r.verdict}"
 
 
-def _drift(report: Report) -> dict[str, Finding]:
-    return {f.check: f for f in report.findings if f.check.startswith("drift.")}
+async def test_every_finding_carries_a_message_a_user_can_read() -> None:
+    for name in ("clean_bulk.eml", "broken_bulk.eml"):
+        for f in (await _audit(name)).findings:
+            assert f.message.strip(), f"{name}: {f.check} has no message"
 
 
-# ── the chain ──────────────────────────────────────────────────────────────
+async def test_no_finding_compares_against_an_earlier_send() -> None:
+    # The 6 drift checks are gone with the store. A `drift.*` id reappearing
+    # means history crept back in, and it cannot work without the store.
+    for name in ("clean_bulk.eml", "broken_bulk.eml"):
+        drift = [f.check for f in (await _audit(name)).findings if f.check.startswith("drift.")]
+        assert not drift, f"{name}: {drift}"
 
 
-async def test_the_first_audit_has_nothing_to_compare(store: Store) -> None:
-    report = await _audit_through_store(store, _send(1))
-    assert all(f.passed for f in _drift(report).values())
+async def test_an_audit_writes_nothing_to_disk(tmp_path, monkeypatch) -> None:
+    # Run from an empty directory. The audit used to create .sendable/ here.
+    monkeypatch.chdir(tmp_path)
+    await _audit("clean_bulk.eml")
+    assert list(tmp_path.iterdir()) == [], f"audit created {list(tmp_path.iterdir())}"
 
 
-async def test_history_accumulates_one_record_per_send(store: Store) -> None:
-    for n in range(1, 5):
-        await _audit_through_store(store, _send(n))
-    assert len(store.history_for_domain("example.com")) == 4
+async def test_the_same_email_audits_the_same_way_twice() -> None:
+    # Without a store there is no first-run versus second-run difference. A
+    # second audit of the same bytes must return the same score.
+    first = await _audit("clean_bulk.eml")
+    second = await _audit("clean_bulk.eml")
+    assert first.score == second.score
+    assert first.verdict == second.verdict
+    assert [f.check for f in first.findings] == [f.check for f in second.findings]
 
 
-async def test_a_clean_sender_stays_clean_as_history_builds(store: Store) -> None:
-    # Four identical-quality sends must not start failing simply because there is
-    # now something to compare against.
-    for n in range(1, 5):
-        report = await _audit_through_store(store, _send(n))
-    assert all(f.passed for f in _drift(report).values())
-
-
-async def test_dmarc_failing_after_a_clean_run_is_caught(store: Store) -> None:
-    for n in range(1, 5):
-        await _audit_through_store(store, _send(n))
-    report = await _audit_through_store(
-        store, _send(5, spf="fail", dkim="fail", dmarc="fail", policy="NONE")
-    )
-    drift = _drift(report)
-
-    regression = drift["drift.d01_dmarc_regression"]
-    assert regression.passed is False
-    assert regression.severity == "CRITICAL"
-    # The message must cite the real history, not a generic warning, or the sender
-    # cannot tell whether this is new.
-    assert "4-of-4" in regression.message
-
-    flip = drift["drift.d03_auth_flip"]
-    assert flip.passed is False
-    assert flip.severity == "CRITICAL"
-
-    downgrade = drift["drift.d04_dmarc_policy_downgrade"]
-    assert downgrade.passed is False
-    assert "p=reject" in downgrade.message
-    assert "p=none" in downgrade.message
-
-
-async def test_a_regression_lowers_the_score(store: Store) -> None:
-    for n in range(1, 5):
-        clean = await _audit_through_store(store, _send(n))
-    regressed = await _audit_through_store(
-        store, _send(5, spf="fail", dkim="fail", dmarc="fail", policy="NONE")
-    )
-    assert regressed.score < clean.score
-
-
-async def test_a_new_freemail_reply_to_is_caught_once_history_exists(
-    store: Store,
-) -> None:
-    for n in range(1, 6):
-        await _audit_through_store(store, _send(n, reply_to="jane@example.com"))
-    report = await _audit_through_store(store, _send(6, reply_to="janeokafor2026@gmail.com"))
-    divergence = _drift(report)["drift.d11_reply_to_divergence"]
-    assert divergence.passed is False
-    assert "free personal mailbox" in divergence.message.lower()
-
-
-async def test_re_auditing_the_same_send_does_not_inflate_the_history(
-    store: Store,
-) -> None:
-    # An agent will re-run the same file. If that added a record, d01 would read
-    # "9-of-9 pass" from 3 real sends and overstate how established the sender is.
-    for _ in range(3):
-        await _audit_through_store(store, _send(1))
-    assert len(store.history_for_domain("example.com")) == 1
-
-
-async def test_the_store_survives_a_reopen(store: Store) -> None:
-    # History must come from disk, not from anything held in memory, or it is lost
-    # between two agent invocations.
-    for n in range(1, 4):
-        await _audit_through_store(store, _send(n))
-    reopened = Store(store.root)
-    assert len(reopened.history_for_domain("example.com")) == 3
+def test_the_store_is_gone() -> None:
+    # The package and the reports CLI are deleted, not merely unused.
+    assert not pathlib.Path("store").exists()
+    assert not pathlib.Path("engine/drift").exists()
+    assert not pathlib.Path("engine/history.py").exists()
+    assert not pathlib.Path("scripts/reports.py").exists()

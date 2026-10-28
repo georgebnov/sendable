@@ -17,7 +17,7 @@ import pkgutil
 
 import pytest
 
-PACKAGES = ("engine", "store")
+PACKAGES = ("engine",)
 
 
 def _module_names() -> list[str]:
@@ -75,7 +75,7 @@ def test_every_script_dependency_is_also_a_project_dependency() -> None:
         )
 
         # The direction that actually ships a break. A package added to
-        # pyproject.toml and imported from engine/ or store/, but left out of a
+        # pyproject.toml and imported from engine/, but left out of a
         # script's header, passes every check here: `uv sync` installs it, so the
         # suite and the type checker are happy, and only a real user running
         # `uv run scripts/<name>.py` hits ModuleNotFoundError.

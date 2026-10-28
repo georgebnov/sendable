@@ -5,8 +5,8 @@ decision tree for each one. Read this when a finding surprises you and you want
 to know what the check measured.
 
 **Coverage.** This file explains the checks whose decision is not obvious from
-its name: the content and authentication group, scoring, and drift. It does not
-cover all of them. [CHECKS.md](CHECKS.md) lists every check with its thresholds,
+its name: the content and authentication group, and scoring. It does not cover
+all of them. [CHECKS.md](CHECKS.md) lists every check with its thresholds,
 and says which ones have no entry yet.
 
 **Code pointers.** Grep a check's id to find it. The id is the stable pointer:
@@ -642,131 +642,12 @@ has_critical → **NO_GO** (verdict overrides score band).
 
 There was a table here listing 19 checks with their source filenames. It named
 the `auth.py`-style paths from the `audit/` tree, which is gone, and it covered
-19 of the 135 checks the audit emits.
+19 of the checks the audit emits.
 
 [CHECKS.md](CHECKS.md) is the complete list, with thresholds and severity for
 each one. One list, not two.
 
-## 13. Drift checks: cross-email analysis
-
-The audit flow can optionally receive a sender's `history` (from `store`). When provided, six additional drift checks run in `engine/drift/` after the single-email checks and merge their findings into the same Report.
-
-**Cold-start gating** (`cold_start_ok`): row count only: `min_rows=3` default. The rotation/churn check (D10) overrides with `min_rows=8` because estimating churn-ratio needs a bigger sample. When the gate doesn't pass, a check returns `INFO: insufficient history for drift analysis` and no false alarms fire.
-
-(An earlier version of this gate also required `min_age_days=14`, but age was being measured against `received_at`, the ingest timestamp, not the email's actual send date. For bootstrapped historical rows all ingested today, that gate falsely tripped even on years of real history. Row count is the actual useful signal; per-check logic provides the rest of the sufficiency test.)
-
-**Sender-cadence rule of thumb:** drift starts firing on the 3rd send from a given sender (for auth / unsub / Reply-To checks) or the 8th send (for display-name rotation). Bootstrap-ingesting old history engages drift immediately.
-
-**Shared derived columns** (populated at save time by `engine/derived.py:extract_all`): `from_domain`, `from_local`, `display_name`, `reply_to_domain`, `num_images`, `spf_result`, `dkim_result`, `dmarc_result`, `dmarc_policy`, `list_unsub_has_mailto`, `list_unsub_has_https`, `list_unsub_has_oneclick_post`. These are computed once and re-read by every drift check from the stored JSON.
-
-### 13.1 `drift.d01_dmarc_regression`: DMARC fail on a historically-passing sender
-
-**Decision tree:**
-```
-if cold_start → INFO: insufficient history
-if current dmarc_result not in {fail, softfail} → INFO pass
-count DMARC results in last 10 rows (non-null only)
-if ≥10 are all pass AND current is fail/softfail → CRITICAL
-else → HIGH
-```
-
-### 13.2 `drift.d03_auth_flip`: SPF / DKIM pass-to-fail
-
-```
-compute pass-rate of SPF and DKIM in last 10 rows
-if SPF pass-rate ≥0.9 AND current SPF in {fail, softfail}: mark spf_flipped
-if DKIM pass-rate ≥0.9 AND current DKIM in {fail, neutral}: mark dkim_flipped
-both flipped → CRITICAL
-exactly one flipped → HIGH
-neither → INFO pass
-```
-
-### 13.3 `drift.d04_dmarc_policy_downgrade`: policy rank regression
-
-Policies rank `none=0 < quarantine=1 < reject=2`, parsed from the `(p=...)` comment in the `dmarc=...` Authentication-Results segment.
-
-```
-if no p= comment in current AR → INFO (cannot evaluate)
-find max rank observed in last 30 days of history (requires non-null dmarc_policy)
-if current rank < historical max → HIGH / "policy downgraded"
-else → INFO pass
-```
-
-(Upgrades are silent in Phase 1; positive-drift handling arrives in Phase 3.)
-
-### 13.4 `drift.d08_list_unsub_regression`: RFC 8058 compliance loss
-
-```
-compute present_rate = fraction of last 10 with any List-Unsubscribe header
-if present_rate ≥0.8 AND current has neither mailto nor https → HIGH / "header absent"
-compute oneclick_rate = fraction of last 10 with list_unsub_has_oneclick_post=1
-if oneclick_rate ≥0.8 AND current != 1 (None or 0) → HIGH / "one-click lost"
-compute https_rate = fraction of last 10 with list_unsub_has_https=1
-if https_rate ≥0.8 AND current https != 1 AND current mailto == 1 → MEDIUM / "downgraded to mailto-only"
-else → INFO pass
-```
-
-### 13.5 `drift.d10_display_name_rotation`: identity drift + friendly-from spoof
-
-Two concerns in one check:
-
-**(a) Friendly-from spoof (fires without history):**
-```
-display name contains `@`:
-    extract the domain after the `@`
-    if that domain ≠ from_domain AND neither is a substring of the other → HIGH
-    (this prevents false positives on Kit/ConvertKit's `"info@brand.com" <info@brand.com>` pattern)
-display name contains a TLD-like token but no `@`:
-    if from_domain is NOT a substring of the display name → HIGH
-display name contains a known brand token ({paypal, google, microsoft, apple, amazon, ...})
-    but from_domain does NOT contain that brand → HIGH
-```
-
-**(b) Rotation over last 90 days (requires ≥8 history rows):**
-```
-collect set S of distinct display_names in last 90 days
-n_rows = size of window; churn_ratio = |S| / n_rows
-if current name ∉ S AND |S| ≥ 3 → MEDIUM / "new name"
-if churn_ratio > 0.5 → HIGH / "excessive rotation"
-elif churn_ratio > 0.3 → MEDIUM / "elevated rotation"
-```
-
-Both (a) and (b) can fire on the same message: details captured separately.
-
-### 13.6 `drift.d11_reply_to_divergence`: Reply-To drift, bulk only
-
-Reuses the `_is_bulk(email)` heuristic from `engine/domain/integrity/unsubscribe.py`. Non-bulk mail is silent: personal 1:1 email legitimately uses many different Reply-To values.
-
-```
-if not bulk → INFO
-if cold_start → INFO: insufficient history
-if current reply_to_domain is null or matches from_domain → INFO pass
-
-prior_rows = history rows that had a reply_to_domain set
-if |prior_rows| < 3 → INFO: sparse (not enough sample)
-prior = set of distinct reply_to_domain values across those rows
-
-if current reply_to_domain in prior → INFO pass
-is_new_freemail = current reply_to_domain ∈ {gmail.com, outlook.com, yahoo.com, proton.me, icloud.com, yandex.*, mail.ru, aol.com, ...}
-had_freemail_prior = any prior is freemail
-if is_new_freemail AND NOT had_freemail_prior → CRITICAL
-else → HIGH
-```
-
-### 13.7 How drift integrates with scoring
-
-Drift findings carry severity the same way audit findings do: a drift CRITICAL caps the score at 40 just like an audit CRITICAL, a drift HIGH deducts 15, etc. The verdict thresholds (§11.3) don't change. A sender whose email produces `drift.d01_dmarc_regression CRITICAL` will always land at NO_GO regardless of its otherwise-clean audit findings, which is correct. DMARC regression on bulk mail is a real delivery-blocking event.
-
-### 13.8 What Step 3 Phase 1 does NOT cover yet
-
-- **Phase 2 checks** (D02 DKIM `d=` shift, D05 Received IP escape, D06 ESP fingerprint tuple, D07 Return-Path shift, D09 new-link-destination Jaccard, D12 send cadence). Each lands alongside its required schema columns in the next iteration.
-- **Phase 3 meta-classifier**: multi-signal correlation → `REBRAND_OR_MIGRATION` / `COMPROMISE_SHAPED` / `CONTENT_ONLY_DRIFT` / `AMBIGUOUS` classification on top of individual findings.
-- **Phase 3 positive-drift suppression**: DMARC policy upgrades, preheader gains, one-click compliance gains stay silent in Phase 1 rather than being reported as `INFO: improving`.
-- **Phase 4 ship-soon** (D13. D19): Message-ID host drift, subject-style Mann-Whitney, body-length distribution shift, language change, preheader-presence drop, audit-score trendline, template-engine fingerprint change.
-
----
-
-## 14. What the audit still does not do
+## 13. What the audit still does not do
 
 Checked against `engine/` when this file moved into `references/`. Everything
 below was verified absent, not assumed.
