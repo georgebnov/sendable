@@ -105,6 +105,53 @@ the hidden line of white text above your headline".
 Name the one thing to change first. A list of fourteen findings is a report; one
 sentence saying what to fix is help.
 
+## Judge the copy yourself
+
+The audit grades what a rule can decide. Five questions about the copy need a
+reader, not a rule, so the audit does not answer them. **You answer them.** You
+are reading the message already, and you are the model this skill runs inside, so
+a second model call would do the same work twice.
+
+Read the message and report these five alongside the findings. Each one says what
+to look for and how much it matters.
+
+1. **Does the subject promise what the body delivers?** A rule catches `Re:`
+   spoofing and a dead subject. It cannot tell whether a subject that promises a
+   price drop opens an email about a hiring update. Read both and say so. Treat a
+   mismatch as serious: it is the one item on this list that a recipient reports
+   as spam rather than ignores.
+
+2. **Does the opening leave a question open?** A surprising number, a question
+   the reader cannot answer yet, or a half-told story makes them read on. A
+   closed statement ("Here is our March update") lets them stop at the subject.
+   Say which it is. Minor on its own.
+
+3. **How many central ideas does the message carry?** One idea, with room, is
+   the target. Two dilute each other, and the second usually belongs in its own
+   send. Three or more make it a digest the reader skims. Report the count:
+   two is worth fixing, three or more is worth rewriting.
+
+4. **Does the body name the state, or only the specification?** A specification
+   is a fact. A benefit is what that fact gives the reader. "Quartz countertops"
+   is the specification; "a counter you do not have to baby" is the benefit. Say
+   whether the body frames benefits, mixes the two, or lists specifications
+   alone. Minor, but it is usually the largest single lift available on a message
+   that is otherwise clean.
+
+5. **Does the message earn its claims?** A specific number, a named result, a
+   study, or a testimonial earns trust inside the body. An assertion with nothing
+   behind it reads as a marketing claim. Say which the message does. Minor.
+
+Two rules for how you report them.
+
+Say these are your reading, not a measured result. The score and the verdict come
+from the checks, and nothing you judge here moves either. A sender who cannot
+tell the two apart will argue with the score.
+
+Keep item 1 separate from the other four. A subject that misleads is a
+deliverability problem, because the reader reports it. The other four cost
+attention and replies, not placement.
+
 ## Playbooks
 
 Four questions arrive more than any others. Each one needs an order of steps,
@@ -184,6 +231,13 @@ Say these plainly rather than implying a guarantee.
 - **A good score is not a promise of delivery.** It means the things a sender
   controls are in order. Recipient engagement, list quality, and complaint rate
   decide placement too, and none of them are visible in one message.
+- **The score does not grade whether the copy is any good.** It grades what a
+  rule can decide: length, structure, links, trigger phrases, shouting, reading
+  level. Whether the subject matches the body, whether the opening holds a
+  reader, and whether the message carries one idea are the five questions under
+  "Judge the copy yourself", and they are yours to answer. A message can score 99
+  and still be weak writing. Say that plainly rather than letting the number
+  stand in for a judgement it never made.
 
 ## Files
 
