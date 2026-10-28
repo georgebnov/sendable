@@ -25,10 +25,6 @@ opens an SMTP connection to the domain's mail server. Those queries reveal the
 domain you are auditing to your resolver and to the blocklist operators.
 `--offline` skips all of it.
 
-**A model call.** Several copy checks ask a model for a judgement, and only when
-`OPENAI_API_KEY` is set. They send the subject line and an excerpt of the body.
-Leave the variable unset and those checks report INFO and pass.
-
 `--probe-unsub` is off by default because it fetches a URL taken from the email
 under audit, which is a URL an attacker chose. When you do enable it,
 `_is_public_http_url` refuses a private address, a loopback address, a link-local

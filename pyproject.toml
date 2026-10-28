@@ -31,11 +31,6 @@ dependencies = [
     "pyasn1>=0.6",
 ]
 
-[project.optional-dependencies]
-# The checks that ask a model a question. Without this the audit still runs;
-# those checks report INFO and pass.
-llm = ["openai>=2.41"]
-
 [dependency-groups]
 dev = [
     "pytest>=9.0",
@@ -44,7 +39,6 @@ dev = [
     "mypy>=2.1",
     "ruff>=0.14",
     "types-beautifulsoup4",
-    "openai>=2.41",
 ]
 
 [tool.ruff]
@@ -75,9 +69,6 @@ ignore = [
 "engine/copywriting/extract.py" = ["RUF001"]
 "engine/copywriting/from_name_body_consistency.py" = ["RUF001"]
 "engine/copywriting/personal_from_name.py" = ["RUF001"]
-# The Cyrillic letter is the example in an LLM prompt that teaches the model to
-# spot a Cyrillic homoglyph. Replacing it with Latin would void the example.
-"engine/report.py" = ["RUF001"]
 "tests/*" = [
     "E501",    # raw .eml fixtures are long byte strings
     "RUF012",  # mutable class attributes on throwaway test doubles

@@ -69,8 +69,8 @@ jobs:
       - name: Types
         run: uv run --python ${{ matrix.python }} mypy
 
-      # No network and no model: the suite must be deterministic. OPENAI_API_KEY is
-      # deliberately absent, which is also what tests/conftest.py enforces.
+      # No network: the suite must be deterministic. The engine reads no
+      # environment variable at all, so there is nothing to unset here.
       - name: Tests
         run: |
           # The floor lives in the justfile, which owns it. Reading it here keeps
