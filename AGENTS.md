@@ -35,13 +35,13 @@ just audit <file> # run the real entry point
 
 ## Rules
 
-The global rules in `~/Projects/agent-scripts/AGENTS.md` now cover some of the
-old rules. Each of these rules keeps its number as a short stub, because code
-and docs cite the rules by number.
+These are every rule for working on this code. Some numbers are short, because
+the rule they held moved into the maintainer's own global rules, and the number
+stays so that code comments and pull requests keep citing the same one.
 
 1. **Keep the tree clean before each commit.** `just check` must pass. The
-   global rules (Project Defaults) say to fix forward. In this repo, do not add
-   `# type: ignore` or `# noqa`, and do not lower the coverage floor. If the
+   Fix forward: never silence a check to make the run green. In this repo, do
+   not add `# type: ignore` or `# noqa`, and do not lower the coverage floor. If the
    suggestion of a lint rule makes the code worse, disable the rule in
    `pyproject.toml` and write the reason there. `SIM108` is the example.
 
@@ -50,8 +50,9 @@ and docs cite the rules by number.
    bugs. Do not add an exclusion. There is no longer any exception: the last one
    was `production/`, and that tree is gone.
 
-3. *The global rules (Project Defaults) cover this.* The rule was: tests come
-   first, and you never weaken a test.
+3. **Tests come first, and you never weaken one.** Watch a new test fail before
+   you write the code. For a bug, write the failing test first. If a test has to
+   change because a decision changed, say why in the commit.
 
 4. **The suite is deterministic.** It has no network and no dependency on the
    clock. `tests/conftest.py` enforces this with an autouse fixture that blocks
@@ -59,17 +60,18 @@ and docs cite the rules by number.
    for a reverse lookup. A test that uses the network fails for reasons that the
    code did not cause.
 
-5. **Run the real command on a real file.** The global rules (Project Defaults)
-   hold the general rule. In this repo, only a real run found these defects:
+5. **Run the real command on a real file.** A passing unit test is not enough.
+   In this repo, only a real run found these defects:
    - The CLI refused `--pretty` after the subcommand.
    - A draft got NO_GO because of eight findings that nobody could act on.
    - A check called a correct Ed25519 key weak.
 
    Paste the output that you saw into the commit message.
 
-6. **Tune each automated part against its real output.** The global rules
-   (Project Defaults) hold the general rule. In this repo, the automated parts
-   are the scorer and the DMARC advice.
+6. **Tune each automated part against its real output.** Read a sample of real
+   inputs and outputs before you call a part improved, and keep the before and
+   after. In this repo the automated parts are the scorer and the DMARC
+   advice.
 
 7. **Write nothing to the user's disk.** Both entry points read their input and
    print their output. There is no store, no cache, and no state between runs,
@@ -90,8 +92,10 @@ and docs cite the rules by number.
    check you passed the attachment rather than the message that carried it.
 
 10. **Build for now.** Do not add speculative general code, unused hooks, or an
-    abstraction for a single caller. The best codebase has the least code. The
-    global rules (Project Defaults) say to delete the old code path.
+    abstraction for a single caller. The best codebase has the least code. When
+    you replace a code path, delete the old one. Keep a shim only for a named
+    contract: a public API, a CLI, a config or data format, or a state seen in
+    production. Tests alone are not a contract.
 
 11. **Put imports at module scope.** Do not import lazily for convenience. Never
     catch `ImportError` to fall back silently. There is no exception: every
@@ -109,5 +113,7 @@ and docs cite the rules by number.
     path breaks while the development path passes. The `packaged-script` CI job
     finds this error.
 
-14. *The global rules (Git) cover this.* The rule held the commit format and the
-    ban on amended commits. Rule 5 holds the proof that goes in the commit.
+14. **Conventional Commits, and do not amend.** `feat|fix|refactor|build|ci|
+    chore|docs|style|perf|test`, a lowercase imperative subject of 50 characters
+    or fewer, and a body only when the reason is not obvious. Rule 5 holds the
+    proof that goes in the commit.
