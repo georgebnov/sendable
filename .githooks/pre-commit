@@ -22,10 +22,6 @@ staged="$(git diff --cached --name-only --diff-filter=ACM)"
 if ! grep -qE '\.(py|toml)$|^justfile$|^\.github/workflows/' <<< "$staged"; then
     exit 0
 fi
-# production/ is the SaaS pending removal and is excluded from every gate.
-if ! grep -vE '^production/' <<< "$staged" | grep -qE '\.(py|toml)$|^justfile$|^\.github/'; then
-    exit 0
-fi
 
 fail=0
 echo "> ruff check"
