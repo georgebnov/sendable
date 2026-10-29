@@ -4,7 +4,6 @@
 # dependencies = [
 #   "beautifulsoup4>=4.15",
 #   "dnspython>=2.8",
-#   "confusable-homoglyphs>=3.3.1",
 # ]
 # ///
 """Read DMARC aggregate reports and say what to do next about your domain.
