@@ -34,14 +34,17 @@ from __future__ import annotations
 import gzip
 import io
 import re
-import xml.etree.ElementTree as _stdET  # only for the Element TYPE annotation
+import xml.etree.ElementTree as _stdET
 import zipfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-# Use defusedxml against XXE + billion-laughs entity expansion. Reports come
-# from arbitrary senders on the internet — bare xml.etree is unsafe here.
-import defusedxml.ElementTree as ET
+# Reports come from arbitrary senders on the internet, so the document is
+# hostile until proven otherwise. Both classic XML attacks, an entity that
+# expands into gigabytes and one that reads a local file, need a DTD to
+# declare the entity. A DMARC report never declares one, so `_reject_doctype`
+# refuses any document that has a prologue DTD and the standard library parses
+# the rest. An entity the document never declared is a parse error anyway.
 
 # Reporters declare XML namespaces inconsistently — Microsoft, Comcast,
 # Mimecast sometimes do; Google + Yahoo don't. Stripping the namespace
@@ -286,17 +289,41 @@ def _parse_record(rec: _stdET.Element) -> DmarcRecord | None:
     )
 
 
+# A DTD must appear before the root element, so everything up to the first real
+# element start tag is the only place one can legally hide.
+_FIRST_ELEMENT_RX = re.compile(rb"<[^?!]")
+_DOCTYPE_RX = re.compile(rb"<!DOCTYPE", re.IGNORECASE)
+
+
+def _reject_doctype(xml_bytes: bytes) -> None:
+    """Refuse a report that declares a DTD.
+
+    A DMARC aggregate report has no legitimate reason to declare an entity, and
+    both the billion-laughs expansion and the external-entity file read need one.
+    Refusing the whole declaration is simpler than policing what it contains.
+    """
+    match = _FIRST_ELEMENT_RX.search(xml_bytes)
+    prologue = xml_bytes[: match.start()] if match else xml_bytes
+    if _DOCTYPE_RX.search(prologue):
+        raise ValueError(
+            "this report declares a DOCTYPE, and a DMARC report never needs one. "
+            "Refusing it, because a declared entity is how an XML document is "
+            "made to expand into gigabytes or to read a file off this machine."
+        )
+
+
 def parse(raw: bytes) -> DmarcReport:
     """Parse a single DMARC aggregate report (XML, gzipped XML, or
     zipped XML). Raises ValueError on a structurally invalid feed.
 
-    Uses defusedxml for safety and strips XML namespaces before traversal
+    Refuses a document that declares a DTD, and strips XML namespaces before traversal
     so namespaced reports (Microsoft, Comcast) feed the same findall()
     paths as the un-namespaced ones (Google, Yahoo)."""
     xml_bytes = _decompress(raw)
+    _reject_doctype(xml_bytes)
     try:
-        root = ET.fromstring(xml_bytes)
-    except ET.ParseError as e:
+        root = _stdET.fromstring(xml_bytes)
+    except _stdET.ParseError as e:
         raise ValueError(f"DMARC XML parse error: {e}") from e
     _strip_ns(root)
     if root.tag != "feedback":

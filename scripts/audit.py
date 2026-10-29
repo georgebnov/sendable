@@ -4,7 +4,6 @@
 # dependencies = [
 #   "beautifulsoup4>=4.15",
 #   "dnspython>=2.8",
-#   "defusedxml>=0.7.1",
 #   "confusable-homoglyphs>=3.3.1",
 # ]
 # ///
