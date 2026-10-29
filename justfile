@@ -51,8 +51,8 @@ fix:
 audit file *FLAGS:
     uv run scripts/audit.py "{{ file }}" {{ FLAGS }}
 
-# Prove the packaged script runs with no project environment at all. This is the
-# path a user takes, so it is the one that must not break.
+# This is the path a user takes, so it is the one that must not break.
+# Prove the packaged script runs with no project environment at all.
 smoke:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -70,10 +70,11 @@ smoke:
     print(f'smoke ok: score={r["score"]} verdict={r["verdict"]} findings={len(r["findings"])}')
     PY
 
-# Model-check the DMARC policy ladder with TLC. Not part of `just check` and it
-# cannot be: it needs Java, and TLC is a jar this repo does not carry. Run it
-# when you change LADDER, _ladder_index, _relief_index, or dmarc_decision.
-# tests/formal/README.md says what the nine rules mean.
+# Not part of `just check` and it cannot be: it needs Java, and TLC is a jar this
+# repo does not carry. Run it when you change LADDER, _ladder_index,
+# _relief_index, or dmarc_decision. tests/formal/README.md says what the nine
+# rules mean and how to prove the model can still fail.
+# Model-check the DMARC policy ladder with TLC, over every reachable state.
 verify:
     #!/usr/bin/env bash
     set -euo pipefail

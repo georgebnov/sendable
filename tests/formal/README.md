@@ -64,10 +64,22 @@ hold, which reads exactly like a pass.
 ## Make sure it can still fail
 
 A model that cannot find a bug proves nothing. Before trusting a clean run,
-break the code on purpose and check the model catches it. Replacing the
-`Passed` branch of `LadderIndex` with the first rung of the policy, which is
-what the code did before the fix, breaks `AdvanceAlwaysStrengthens` at
-`quarantine` 75 with a zero-step path.
+break the model on purpose and check it catches it. Replace the `Passed` branch
+of `LadderIndex` with the first rung of the policy, which is what the code did
+before the fix:
+
+```
+ELSE IF SamePolicy(p) # {}
+  THEN CHOOSE i \in SamePolicy(p) : \A j \in SamePolicy(p) : i <= j
+```
+
+`just verify` then prints `Error: The invariant of LadderIndexIsMonotone is
+equal to FALSE` and exits 151.
+
+TLC stops at the first rule it finds broken, so one name is all you get. A tool
+that removes each broken rule and runs TLC again, as `statechart` does, lists
+every rule the same bug breaks. Expect the two to name different rules for the
+same mutation.
 
 ## What it leaves out
 
