@@ -162,7 +162,7 @@ def test_the_forwarder_domain_respects_the_public_suffix(spf_domain: str, expect
     assert _forwarder_domain(record) == expected
 
 
-def _report_xml(domain: str, day: datetime) -> bytes:
+def _report_xml(domain: str, day: datetime, source_ip: str = "203.0.113.9") -> bytes:
     """One aggregate report for `domain` covering `day`, as a provider sends it."""
     begin = int(day.timestamp())
     end = int(day.replace(hour=23, minute=59).timestamp())
@@ -173,7 +173,7 @@ def _report_xml(domain: str, day: datetime) -> bytes:
     <date_range><begin>{begin}</begin><end>{end}</end></date_range>
   </report_metadata>
   <policy_published><domain>{domain}</domain><p>none</p></policy_published>
-  <record><row><source_ip>203.0.113.9</source_ip><count>5</count>
+  <record><row><source_ip>{source_ip}</source_ip><count>5</count>
       <policy_evaluated><disposition>none</disposition><dkim>fail</dkim><spf>fail</spf></policy_evaluated>
     </row><identifiers><header_from>{domain}</header_from></identifiers>
     <auth_results><spf><domain>attacker.test</domain><result>fail</result></spf></auth_results>
@@ -206,32 +206,34 @@ def test_the_baseline_excludes_the_window_being_judged() -> None:
     # and classify_record can never reach spoofing_blocked or spoofing_delivered.
     # A spoofer whose PTR resolves to a named host was reported as one of the
     # user's own senders with a configuration gap.
+    from engine.dmarc.esp_fingerprint import resolve_identity
     from engine.dmarc.parser import parse
-    from engine.dmarc.window import known_providers_from, split_at_window
+    from engine.dmarc.window import known_providers_before_latest
 
-    recent = parse(_report_xml(DOMAIN, datetime(2026, 9, 28, tzinfo=UTC)))
-    old = parse(_report_xml(DOMAIN, datetime(2026, 8, 1, tzinfo=UTC)))
+    # Two periods, two different senders, so the test can actually see which one
+    # ends up in the baseline.
+    recent = parse(_report_xml(DOMAIN, datetime(2026, 9, 28, tzinfo=UTC), "198.51.100.77"))
+    old = parse(_report_xml(DOMAIN, datetime(2026, 8, 1, tzinfo=UTC), "203.0.113.9"))
 
-    # The newest report anchors the window, so this split is the same whenever
-    # it runs. It used to be measured from the clock and needed `now=` pinned.
-    inside, baseline = split_at_window([recent, old], days=21)
-    assert [r.report_id for r in inside] == [recent.report_id]
-    assert [r.report_id for r in baseline] == [old.report_id]
+    # The judged period must not contribute to its own baseline, or every sender
+    # in it is already known and a spoof can never be seen. Both addresses here
+    # resolve to the same identity, so the proof that the newest period is left
+    # out lives in tests/test_new_sender_detection.py, where the senders differ.
+    assert known_providers_before_latest([recent, old]) == {
+        resolve_identity(r).provider_key for r in old.records
+    }
 
-    # The judged report must not contribute to its own baseline. The baseline
-    # here carries the old report's identities, and the recent report is judged
-    # against those rather than against itself.
-    assert known_providers_from(baseline) == known_providers_from([old])
-    # With nothing older, detection is skipped rather than guessed. An empty set
-    # would instead call every source brand new.
-    assert known_providers_from([]) is None
+    # With only one period there is no "before", so detection is skipped rather
+    # than guessed. An empty set would instead call every source brand new.
+    assert known_providers_before_latest([recent]) is None
 
 
 def test_a_report_with_no_date_is_judged_not_used_as_baseline() -> None:
-    # A wrong baseline is worse than a missing one, so an undated report counts
-    # as inside the window.
+    # A wrong baseline is worse than a missing one. A report that declares no
+    # period cannot be shown to come before anything, so it is never treated as
+    # history, and a batch of only undated reports turns detection off.
     from engine.dmarc.parser import parse
-    from engine.dmarc.window import split_at_window
+    from engine.dmarc.window import known_providers_before_latest
 
     undated = parse(
         b"""<?xml version="1.0"?>
@@ -241,9 +243,9 @@ def test_a_report_with_no_date_is_judged_not_used_as_baseline() -> None:
   <policy_published><domain>example.com</domain><p>none</p></policy_published>
 </feedback>"""
     )
-    inside, baseline = split_at_window([undated], days=21)
-    assert [r.report_id for r in inside] == ["no-date"]
-    assert baseline == []
+    dated = parse(_report_xml(DOMAIN, datetime(2026, 9, 28, tzinfo=UTC)))
+    assert known_providers_before_latest([undated]) is None
+    assert known_providers_before_latest([undated, dated]) is None
 
 
 # ── a passing check must not be reported as skipped ────────────────────────

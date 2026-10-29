@@ -157,7 +157,7 @@ a real sender of yours is failing alignment, because that would start rejecting
 your own mail.
 
 This answers the one question an audit of a single message cannot: who else sends
-as you, and do they authenticate. Pass reports older than the window and it also
+as you, and do they authenticate. Pass reports from more than one day and it also
 separates "a spoof just started" from "your provider added an IP".
 
 ## When the audit is clean and the email still went to spam
