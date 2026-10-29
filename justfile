@@ -51,8 +51,8 @@ fix:
 audit file *FLAGS:
     uv run scripts/audit.py "{{ file }}" {{ FLAGS }}
 
-# Prove the packaged script runs with no project environment at all. This is the
-# path a user takes, so it is the one that must not break.
+# This is the path a user takes, so it is the one that must not break.
+# Prove the packaged script runs with no project environment at all.
 smoke:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -69,3 +69,31 @@ smoke:
     assert r["findings"], "no findings means the fan-out did not run"
     print(f'smoke ok: score={r["score"]} verdict={r["verdict"]} findings={len(r["findings"])}')
     PY
+
+# Not part of `just check` and it cannot be: it needs Java, and TLC is a jar this
+# repo does not carry. Run it when you change LADDER, _ladder_index,
+# _relief_index, or dmarc_decision. tests/formal/README.md says what the nine
+# rules mean and how to prove the model can still fail.
+# Model-check the DMARC policy ladder with TLC, over every reachable state.
+verify:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    jar="${TLA2TOOLS:-{{ justfile_directory() }}/.tla/tla2tools.jar}"
+    if [[ ! -f "$jar" ]]; then
+      echo "No TLC at $jar" >&2
+      echo "Get it once, into a folder git ignores:" >&2
+      echo "  mkdir -p .tla && curl -fsSL -o .tla/tla2tools.jar \\" >&2
+      echo "    https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar" >&2
+      echo "Or set TLA2TOOLS to a copy you already have." >&2
+      exit 1
+    fi
+    # Absolute before the cd. A relative TLA2TOOLS passes the check above and
+    # then java reports a missing main class from inside tests/formal.
+    jar="$(cd "$(dirname "$jar")" && pwd)/$(basename "$jar")"
+    cd "{{ justfile_directory() }}/tests/formal"
+    # -metadir, or TLC writes a timestamped states/ folder into the source tree
+    # on every run, including runs that fail.
+    meta="$(mktemp -d)"
+    trap 'rm -rf "$meta"' EXIT
+    java -XX:+UseParallelGC -cp "$jar" tlc2.TLC \
+      -metadir "$meta" -config Ladder.cfg -workers 1 Ladder.tla
