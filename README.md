@@ -27,8 +27,9 @@ contract an agent reads to know when and how to run it.
 
 ## Install
 
-You need [`uv`](https://docs.astral.sh/uv/). Each script declares its own
-dependencies, so there is nothing else to install and no environment to build.
+You need Python 3.11 or newer. Nothing else. Sendable has no dependencies, so
+there is nothing to install, no environment to build, and no package index to
+reach.
 
 **As a skill, so an agent can use it.** This is an
 [Agent Skill](https://agentskills.io): a folder with a `SKILL.md`, which is an
@@ -64,23 +65,23 @@ to run an audit, how to read the report, and what to tell you about it.
 
 ```bash
 git clone https://github.com/georgebnov/sendable.git && cd sendable
-uv run scripts/audit.py tests/fixtures/clean_bulk.eml --offline --pretty
+python3 scripts/audit.py tests/fixtures/clean_bulk.eml --offline --pretty
 ```
 
 ## Quick start
 
-Grade the bundled example. The first run takes a few seconds while `uv` resolves
-and caches. Later runs take 0.1 seconds.
+Grade the bundled example. There is nothing to resolve or cache, so the first
+run takes about as long as every run after it.
 
 ```bash
-uv run scripts/audit.py tests/fixtures/clean_bulk.eml --offline --pretty
+python3 scripts/audit.py tests/fixtures/clean_bulk.eml --offline --pretty
 ```
 
 Then grade your own. Save a message from your mail client as `.eml` and run:
 
 ```bash
-uv run scripts/audit.py mail.eml --pretty     # a message you sent
-uv run scripts/audit.py draft.eml --draft     # a message you have not sent yet
+python3 scripts/audit.py mail.eml --pretty     # a message you sent
+python3 scripts/audit.py draft.eml --draft     # a message you have not sent yet
 ```
 
 You get a score, a verdict, and a list of findings:
@@ -148,7 +149,7 @@ writes nothing anywhere, so a second run on the same bytes gives the same answer
 listing everything that sent mail claiming to be your domain. Pass them in.
 
 ```bash
-uv run scripts/dmarc.py ~/Downloads/*.xml.gz --pretty
+python3 scripts/dmarc.py ~/Downloads/*.xml.gz --pretty
 ```
 
 It returns one next step. It will not tell you to tighten your DMARC policy while

@@ -2,7 +2,7 @@
 name: sendable
 description: "Email deliverability audit before you send: inbox placement, spam and Promotions, SPF, DKIM, DMARC alignment, blocklists, copy, and DMARC aggregate reports."
 license: MIT
-compatibility: Requires uv and Python 3.11 or newer. Network access for the DNS, blocklist and SMTP checks; --offline skips those.
+compatibility: Python 3.11 or newer and nothing else. No dependencies, no install step. Network access for the DNS, blocklist and SMTP checks; --offline skips those.
 ---
 
 # Sendable
@@ -26,27 +26,39 @@ sends as you, and do they authenticate.
 
 ## Run it
 
-Nothing to install. `uv` reads each script's own dependency list and caches it.
-First run takes a few seconds, later runs take 0.1s.
+Nothing to install, and nothing to download. The audit uses the Python standard
+library only, so `python3` runs it where it stands.
+
+```bash
+python3 scripts/audit.py mail.eml
+```
+
+Use that form first. It works in a sandbox with no network and no package
+index, which is where an agent usually runs. If you have `uv`, the same command
+under `uv run` does the same thing and needs nothing extra either.
+
+Add `--offline` when there is no network. The DNS, blocklist and SMTP checks
+need one, so without it they report an error instead of a verdict. Everything
+about the message itself still runs, which is most of the audit.
 
 ```bash
 # Grade one saved email. Prints the report as JSON. Stores nothing.
-uv run scripts/audit.py mail.eml
+python3 scripts/audit.py mail.eml
 
 # Same, no outbound traffic at all: copy and structure checks only.
-uv run scripts/audit.py mail.eml --offline
+python3 scripts/audit.py mail.eml --offline
 
 # Grade something not sent yet. Use this for any draft an agent wrote.
-uv run scripts/audit.py draft.eml --draft
+python3 scripts/audit.py draft.eml --draft
 
 # From a pipe.
-cat mail.eml | uv run scripts/audit.py -
+cat mail.eml | python3 scripts/audit.py -
 
 # Read the aggregate reports a provider mailed. .xml, .xml.gz, and .zip all work.
-uv run scripts/dmarc.py ~/Downloads/*.xml.gz --pretty
+python3 scripts/dmarc.py ~/Downloads/*.xml.gz --pretty
 
 # Say which domain when one batch covers more than one.
-uv run scripts/dmarc.py ~/Downloads/*.xml.gz --domain example.com
+python3 scripts/dmarc.py ~/Downloads/*.xml.gz --domain example.com
 ```
 
 `dmarc.py` stores nothing either. You pass the reports you have, it reads them,
@@ -69,7 +81,7 @@ fetch it and pipe it:
 
 ```bash
 # whatever your mail access is, write the raw message to stdin
-uv run scripts/audit.py - --pretty
+python3 scripts/audit.py - --pretty
 ```
 
 **Fetch the raw message, not the rendered one.** A Gmail connector, the Gmail

@@ -199,6 +199,18 @@ service, no account, no database.
 
 ### Internal
 
+- Removed every dependency. The skill is standard library only, so
+  `python3 scripts/audit.py mail.eml` runs it with nothing installed and no
+  package index to reach. BeautifulSoup, dnspython, pydantic, lxml, cryptography,
+  pyasn1, defusedxml and confusable-homoglyphs are gone, replaced by code this
+  repository owns and the gates check. The replacements removed three false
+  findings on the way: a key that could not be read was reported as weak, a
+  Russian or Greek newsletter was reported as a homoglyph attack, and a hostile
+  aggregate report escaped as an unhandled exception.
+- Fixed a scoring bug nobody could see. Sub-scores were built by iterating a
+  set, and Python randomises string hashing per process, so two audits of the
+  same message printed their categories in a different order every run.
+
 - Deleted the configuration the removed SaaS left behind. Three files still
   excluded a `production/` directory that no longer exists, which contradicted
   the rule that nothing is excluded from the gates. Two comments described a
