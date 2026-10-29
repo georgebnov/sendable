@@ -15,9 +15,8 @@ from __future__ import annotations
 
 import re
 
-from bs4 import BeautifulSoup
-
 from ... import esp
+from ...htmltree import parse_html
 from ...parse import ParsedEmail
 from ...report import Finding
 from ...severity import Severity
@@ -141,7 +140,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
     if email.html is None:
         return []
 
-    soup = BeautifulSoup(email.html, "html.parser")
+    soup = parse_html(email.html)
     hits: list[dict] = []
 
     for el in soup.find_all(style=True):

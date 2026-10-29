@@ -14,8 +14,7 @@ from __future__ import annotations
 import re
 from urllib.parse import urlparse
 
-from bs4 import BeautifulSoup
-
+from ..htmltree import parse_html
 from ..parse import ParsedEmail
 from ..report import Finding
 from ..severity import Severity
@@ -124,7 +123,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
     if email.html is None:
         return findings
 
-    soup = BeautifulSoup(email.html, "html.parser")
+    soup = parse_html(email.html)
     anchors = soup.find_all("a", href=True)
 
     shortener_hits: list[dict] = []

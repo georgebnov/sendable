@@ -17,7 +17,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 dependencies = [
-    "beautifulsoup4>=4.15",
     "dnspython>=2.8",
 ]
 
@@ -28,7 +27,6 @@ dev = [
     "pytest-cov>=7.0",
     "mypy>=2.1",
     "ruff>=0.14",
-    "types-beautifulsoup4",
 ]
 
 [tool.ruff]

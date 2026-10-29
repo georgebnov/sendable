@@ -23,8 +23,7 @@ import dataclasses
 import re
 from dataclasses import replace
 
-from bs4 import BeautifulSoup, Tag
-
+from .htmltree import Node, parse_html
 from .parse import ParsedEmail
 from .report import Finding
 from .severity import Severity
@@ -150,12 +149,12 @@ def _strip_plain(plain: str | None) -> str | None:
 def _strip_html(html: str | None) -> str | None:
     if not html:
         return html
-    soup = BeautifulSoup(html, "html.parser")
+    soup = parse_html(html)
     quote = soup.find("div", class_="gmail_quote")
-    if not isinstance(quote, Tag):
+    if not isinstance(quote, Node):
         return html
     attr = quote.find("div", class_="gmail_attr")
-    if isinstance(attr, Tag):
+    if isinstance(attr, Node):
         attr.decompose()
     inner = quote.decode_contents().strip()
     return inner or html

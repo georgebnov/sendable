@@ -31,8 +31,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from bs4 import BeautifulSoup
-
+from ..htmltree import parse_html
 from ..parse import ParsedEmail
 
 # ─── Patterns ──────────────────────────────────────────────────────────
@@ -198,11 +197,11 @@ _BLOCK_TAGS = {
 def _strip_to_text(html: str) -> str:
     """HTML → plain text with paragraph boundaries preserved.
 
-    `BeautifulSoup.get_text(separator='\\n')` collapses adjacent block
+    `get_text(separator='\\n')` collapses adjacent block
     elements into a single newline, which breaks paragraph detection
     downstream. We insert a blank-line marker after every block element
     and after `<br>` so `_split_paragraphs` can see boundaries."""
-    soup = BeautifulSoup(html, "html.parser")
+    soup = parse_html(html)
     for tag in soup(["script", "style"]):
         tag.decompose()
     # Append a paragraph break sentinel after every block element. Use a
@@ -241,7 +240,7 @@ def _extract_preview_text(html: str | None) -> str | None:
     the original logic from `memory/store.py:_extract_preheader`."""
     if not html:
         return None
-    soup = BeautifulSoup(html, "html.parser")
+    soup = parse_html(html)
     for el in soup.find_all(style=True):
         style = el.get("style", "") or ""
         if not _HIDDEN_STYLE_RX.search(style):
@@ -258,7 +257,7 @@ def _extract_cta_blocks(html: str | None) -> list[CTABlock]:
     padding). De-duplicates on (text.lower(), href)."""
     if not html:
         return []
-    soup = BeautifulSoup(html, "html.parser")
+    soup = parse_html(html)
     seen: set[tuple[str, str]] = set()
     out: list[CTABlock] = []
     for a in soup.find_all("a"):

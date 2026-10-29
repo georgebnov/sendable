@@ -14,9 +14,8 @@ from __future__ import annotations
 
 import re
 
-from bs4 import BeautifulSoup
-
 from ... import esp
+from ...htmltree import parse_html
 from ...parse import ParsedEmail
 from ...report import Finding
 from ...severity import Severity
@@ -59,7 +58,7 @@ def _collect_visible_parts(email: ParsedEmail) -> list[tuple[str, str]]:
     if email.subject:
         parts.append(("subject", email.subject))
     if email.html:
-        soup = BeautifulSoup(email.html, "html.parser")
+        soup = parse_html(email.html)
         for el in soup.find_all(style=_HIDDEN_STYLE):
             el.decompose()
         parts.append(("body (html)", soup.get_text(separator=" ")))
