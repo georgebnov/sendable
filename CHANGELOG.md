@@ -65,6 +65,14 @@ service, no account, no database.
 
 ### Fixed
 
+- `dmarc.py` no longer refuses reports for being old. The period it judges now
+  ends at the newest report you pass instead of at today's date, so a batch from
+  last quarter is read rather than rejected. Sendable stores nothing between
+  runs, so the files you pass are the whole dataset, and second-guessing that
+  with a calendar was wrong. `--days` still sets how much of the batch counts as
+  current, measured back from the newest report, and the older part is still the
+  baseline that makes a new sender detectable.
+
 - Stop telling a sender to escalate an IP that does not exist. When the audit
   recognised the sending platform, it rewrote every failing reverse DNS finding
   to name that platform. One of those findings is the note saying no sending

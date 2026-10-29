@@ -26,7 +26,9 @@ reports the single most useful next step. The chain is deliberate: it will not
 tell you to tighten your policy while a real sender of yours is failing
 alignment, because that would start rejecting your own mail.
 
-Reports older than the window become the baseline for new-sender detection,
+The window ends at the newest report you pass, never at today, so reports from
+any date are judged. Reports older than the window become the baseline for
+new-sender detection,
 which is what separates "a spoof just started" from "your provider added an IP".
 Pass a wider spread of dates and that detection sharpens. Pass a single day and
 it is skipped rather than guessed.
@@ -100,7 +102,10 @@ def main() -> None:
         "--days",
         type=int,
         default=WINDOW_DAYS,
-        help=f"How far back to judge. Older reports become the baseline. Default: {WINDOW_DAYS}",
+        help=(
+            "How many days back from the NEWEST report to judge. Older reports "
+            f"become the baseline for new-sender detection. Default: {WINDOW_DAYS}"
+        ),
     )
     ap.add_argument(
         "--rua",
@@ -132,26 +137,26 @@ def main() -> None:
         raise SystemExit(1)
 
     mine = for_domain(reports, domain)
-    in_window, baseline = split_at_window(mine, days=args.days)
-
-    if not in_window:
+    if not mine:
+        found = sorted({r.policy.domain for r in reports if r.policy and r.policy.domain})
         print(
-            f"error: none of the {len(mine)} report(s) for {domain} fall inside the last "
-            f"{args.days} day(s). Widen the window with --days, or pass newer reports.",
+            f"error: none of the {len(reports)} report(s) cover {domain}.\n"
+            f"These do: {', '.join(found) if found else 'no policy domain in any report'}.\n"
+            f"Drop --domain to judge whichever domain the reports are about.",
             file=sys.stderr,
         )
         raise SystemExit(1)
 
+    # The window ends at the newest report, so the reports a user passes are
+    # always the reports they get judged on. No batch is ever refused for age.
+    in_window, baseline = split_at_window(mine, days=args.days)
     known_providers = known_providers_from(baseline)
 
     print(
-        f"[dmarc] {len(in_window)} report(s) for {domain} in the last {args.days} day(s)"
+        f"[dmarc] {len(in_window)} report(s) for {domain} in the {args.days} day(s) "
+        f"up to the newest one"
         + (f", {len(baseline)} older as baseline" if baseline else ", no baseline")
-        + (
-            ""
-            if baseline
-            else " (new-sender detection skipped: pass reports older than the window)"
-        ),
+        + ("" if baseline else " (new-sender detection skipped: pass reports from further back)"),
         file=sys.stderr,
     )
 
