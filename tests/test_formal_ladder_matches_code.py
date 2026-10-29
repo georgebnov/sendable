@@ -2,8 +2,8 @@
 
 `tests/formal/Ladder.tla` proves nine rules about the policy ladder across every
 reachable state. That proof is worth nothing the moment the spec and the code
-disagree, and nothing in the suite runs TLC: it needs Java and fetches a tool
-over the network, which rule 4 keeps out.
+disagree, and nothing in the suite runs TLC: it needs Java and a jar this repo
+does not carry, which rule 13 keeps out. `just verify` runs it by hand.
 
 So the suite checks the one thing that makes the proof transferable. The rungs
 in the spec, the policy ranking it compares them with, and the percentages it
@@ -92,9 +92,19 @@ def test_the_spec_explores_percentages_that_are_not_rungs() -> None:
     pcts = {int(n) for n in found.group(1).split(",")}
     rung_pcts = {pct for _, pct in LADDER}
     assert pcts - rung_pcts, "every percentage in the spec sits exactly on a rung"
-    assert 10 in pcts, "below the lowest rung is where the relief bug lived"
+
+    # The relief bug lived below the lowest rung, where a record acts on less
+    # mail than any rung does. Pin that band, not the literal value in it.
+    floor = min(pct for policy, pct in LADDER if policy != "none")
+    assert {p for p in pcts if 0 < p < floor}, (
+        f"no percentage below the lowest rung ({floor}). That band is where the "
+        f"relief bug lived, so the model would walk straight past it."
+    )
 
 
+# The nine rules, less two that cannot be listed here. `NoDeadlock` is TLC's
+# default and appears in no config. `TypeOK` is a type invariant, not a sentence
+# the reader agreed to.
 @pytest.mark.parametrize(
     "rule",
     [
