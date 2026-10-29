@@ -5,10 +5,15 @@ It lists every source IP that sent mail claiming to be your domain during one
 reporting period, how many messages each sent, and whether SPF and DKIM passed and
 aligned. One report is one receiver's snapshot.
 
-The question a sender actually has spans all of them: across everything I received
-recently, who sends for me, which of them are failing, and is it safe to tighten
-my DMARC policy yet. `build_window` answers that, and `policy_engine.evaluate`
-reads the answer to decide the next step.
+The question a sender has is about all of them together: in the reports I have,
+who sends for me, which of them are failing, and what is the next step for my
+DMARC policy. `summarise_reports` answers that, and `policy_engine.evaluate`
+reads the answer.
+
+There is no period here and no history, on purpose. A user can download one
+report today and the next six months from now, so the files are a pile and not
+a timeline. Counting the dates inside them and calling the result a span would
+claim something nobody watched.
 
 Three rules decide what the summary says.
 
@@ -30,14 +35,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 from engine.copywriting.link_quality import _registrable
 from engine.dmarc.classifier import classify_record
 from engine.dmarc.esp_fingerprint import classify as classify_ip
 from engine.dmarc.parser import DmarcRecord as ParsedRecord
 from engine.dmarc.parser import DmarcReport
-from engine.dmarc.policy_engine import Sender, Window
+from engine.dmarc.policy_engine import ReportSummary, Sender
 
 # How harshly a receiver acted, worst last. A merge keeps the worst, because a
 # sender being rejected anywhere is being rejected.
@@ -230,22 +235,17 @@ class _Bucket:
         )
 
 
-def build_window(reports: list[DmarcReport], *, domain: str) -> Window:
-    """Summarise every report the user passed into one Window.
+def summarise_reports(reports: list[DmarcReport], *, domain: str) -> ReportSummary:
+    """Summarise every report the user passed into one ReportSummary.
 
     This describes a batch of files and nothing else. Sendable stores nothing
     between runs, so there is no history to compare a sender against and no
     streak to carry forward: what the reports say is the whole answer.
     """
     by_key: dict[str, _Bucket] = {}
-    days: set[date] = set()
     total_volume = 0
 
     for report in reports:
-        day = report.date_end.date() if report.date_end else None
-        if day:
-            days.add(day)
-
         # The published alignment tags, which default to relaxed. They were parsed
         # into DmarcPolicyPublished and then never read, so a domain publishing
         # adkim=s was graded as if it had published the default.
@@ -277,9 +277,8 @@ def build_window(reports: list[DmarcReport], *, domain: str) -> Window:
 
     senders = [b.to_sender() for b in by_key.values()]
 
-    return Window(
+    return ReportSummary(
         senders=senders,
-        days_with_data=len(days),
         total_volume=total_volume,
     )
 
@@ -315,9 +314,9 @@ def _ends_at(report: DmarcReport) -> datetime | None:
 
 
 __all__ = [
-    "build_window",
     "for_domain",
     "include_for_provider",
     "legitimacy_from_classification",
     "pick_domain",
+    "summarise_reports",
 ]

@@ -6,9 +6,9 @@ and whether each one authenticated. One report is a snapshot from one receiver.
 The question a sender actually has is "across everything I received recently, who
 sends for me, which of them are failing, and can I tighten my policy yet".
 
-`build_window` answers that. It groups records by sender, sums volume, takes the
+`summarise_reports` answers that. It groups records by sender, sums volume, takes the
 worst case on every flag, and reports how many days of data it has. The policy
-engine then reads that Window and decides the next step.
+engine then reads that ReportSummary and decides the next step.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from engine.dmarc.parser import (
     DmarcReport,
 )
 from engine.dmarc.policy_engine import _is_blocker
-from engine.dmarc.window import build_window, include_for_provider
+from engine.dmarc.summary import include_for_provider, summarise_reports
 
 DOMAIN = "example.com"
 
@@ -65,18 +65,17 @@ def _report(*records: DmarcRecord, day: int = 1, policy: str = "none") -> DmarcR
 
 
 def test_no_reports_gives_an_empty_window() -> None:
-    window = build_window([], domain=DOMAIN)
-    assert window.senders == []
-    assert window.total_volume == 0
-    assert window.days_with_data == 0
+    summary = summarise_reports([], domain=DOMAIN)
+    assert summary.senders == []
+    assert summary.total_volume == 0
 
 
-def test_a_report_with_no_records_still_counts_as_a_day_of_data() -> None:
-    # A receiver that saw no mail for you still tells you it was watching. That
-    # is evidence the reporting pipeline works, which matters before advancing.
-    window = build_window([_report()], domain=DOMAIN)
-    assert window.senders == []
-    assert window.days_with_data == 1
+def test_a_report_with_no_records_is_read_and_adds_nobody() -> None:
+    # A receiver that saw no mail for you still sends a report. It is a valid
+    # file, it must not raise, and it must not invent a sender.
+    summary = summarise_reports([_report()], domain=DOMAIN)
+    assert summary.senders == []
+    assert summary.total_volume == 0
 
 
 # ── grouping and totals ────────────────────────────────────────────────────
@@ -87,27 +86,16 @@ def test_volume_sums_across_reports_for_one_sender() -> None:
         _report(_record("209.85.220.41", count=10), day=1),
         _report(_record("209.85.220.41", count=25), day=2),
     ]
-    window = build_window(reports, domain=DOMAIN)
-    assert len(window.senders) == 1
-    assert window.senders[0].volume == 35
-    assert window.total_volume == 35
-
-
-def test_days_with_data_counts_distinct_days_not_reports() -> None:
-    # Several receivers report the same day. Counting reports would overstate how
-    # long the sender has been observed, which gates policy advancement.
-    reports = [
-        _report(_record("1.2.3.4"), day=1),
-        _report(_record("1.2.3.4"), day=1),
-        _report(_record("1.2.3.4"), day=2),
-    ]
-    assert build_window(reports, domain=DOMAIN).days_with_data == 2
+    summary = summarise_reports(reports, domain=DOMAIN)
+    assert len(summary.senders) == 1
+    assert summary.senders[0].volume == 35
+    assert summary.total_volume == 35
 
 
 def test_two_different_sources_stay_separate() -> None:
     reports = [_report(_record("1.2.3.4"), _record("5.6.7.8"), day=1)]
-    window = build_window(reports, domain=DOMAIN)
-    assert len(window.senders) == 2
+    summary = summarise_reports(reports, domain=DOMAIN)
+    assert len(summary.senders) == 2
 
 
 def test_many_ips_from_one_provider_collapse_to_one_sender() -> None:
@@ -121,9 +109,9 @@ def test_many_ips_from_one_provider_collapse_to_one_sender() -> None:
             day=1,
         )
     ]
-    window = build_window(reports, domain=DOMAIN)
-    names = [s.name for s in window.senders]
-    assert len(window.senders) == len(set(names)), f"duplicate sender rows: {names}"
+    summary = summarise_reports(reports, domain=DOMAIN)
+    names = [s.name for s in summary.senders]
+    assert len(summary.senders) == len(set(names)), f"duplicate sender rows: {names}"
 
 
 # ── alignment, which is what DMARC actually measures ───────────────────────
@@ -131,7 +119,7 @@ def test_many_ips_from_one_provider_collapse_to_one_sender() -> None:
 
 def test_a_dkim_signature_on_your_own_domain_counts_as_aligned() -> None:
     reports = [_report(_record("1.2.3.4", dkim="pass", dkim_domain=DOMAIN), day=1)]
-    sender = build_window(reports, domain=DOMAIN).senders[0]
+    sender = summarise_reports(reports, domain=DOMAIN).senders[0]
     assert sender.dkim_aligned is True
     assert sender.dmarc_aligned is True
 
@@ -140,7 +128,7 @@ def test_a_dkim_signature_on_someone_elses_domain_is_not_aligned() -> None:
     # This is the single most common real failure: the provider signs with its own
     # key, so DKIM passes but does not align, and DMARC fails anyway.
     reports = [_report(_record("1.2.3.4", dkim="pass", dkim_domain="sendgrid.info"), day=1)]
-    sender = build_window(reports, domain=DOMAIN).senders[0]
+    sender = summarise_reports(reports, domain=DOMAIN).senders[0]
     assert sender.dkim_aligned is False
     assert sender.has_dkim_signature is True
 
@@ -154,7 +142,7 @@ def test_spf_passing_on_a_bounce_domain_is_authenticated_but_not_aligned() -> No
             day=1,
         )
     ]
-    sender = build_window(reports, domain=DOMAIN).senders[0]
+    sender = summarise_reports(reports, domain=DOMAIN).senders[0]
     assert sender.spf_authpassed is True
     assert sender.spf_aligned is False
     assert sender.dmarc_aligned is False
@@ -162,7 +150,7 @@ def test_spf_passing_on_a_bounce_domain_is_authenticated_but_not_aligned() -> No
 
 def test_a_subdomain_spf_domain_still_aligns() -> None:
     reports = [_report(_record("1.2.3.4", spf="pass", spf_domain=f"mail.{DOMAIN}"), day=1)]
-    assert build_window(reports, domain=DOMAIN).senders[0].spf_aligned is True
+    assert summarise_reports(reports, domain=DOMAIN).senders[0].spf_aligned is True
 
 
 def test_alignment_takes_the_best_case_across_reports() -> None:
@@ -173,7 +161,7 @@ def test_alignment_takes_the_best_case_across_reports() -> None:
         _report(_record("1.2.3.4", dkim="fail", dkim_domain=None), day=1),
         _report(_record("1.2.3.4", dkim="pass", dkim_domain=DOMAIN), day=2),
     ]
-    assert build_window(reports, domain=DOMAIN).senders[0].dkim_aligned is True
+    assert summarise_reports(reports, domain=DOMAIN).senders[0].dkim_aligned is True
 
 
 # ── legitimacy, which decides whether policy can advance ───────────────────
@@ -181,8 +169,8 @@ def test_alignment_takes_the_best_case_across_reports() -> None:
 
 def test_an_aligned_sender_is_not_a_blocker() -> None:
     reports = [_report(_record("209.85.220.41"), day=d) for d in (1, 2, 3)]
-    window = build_window(reports, domain=DOMAIN)
-    assert not [s for s in window.senders if _is_blocker(s)]
+    summary = summarise_reports(reports, domain=DOMAIN)
+    assert not [s for s in summary.senders if _is_blocker(s)]
 
 
 def test_a_recognised_sender_failing_alignment_blocks_the_policy(
@@ -208,8 +196,8 @@ def test_a_recognised_sender_failing_alignment_blocks_the_policy(
         )
         for d in (1, 2, 3)
     ]
-    window = build_window(reports, domain=DOMAIN)
-    sender = window.senders[0]
+    summary = summarise_reports(reports, domain=DOMAIN)
+    sender = summary.senders[0]
     assert sender.dmarc_aligned is False, "neither check aligned with the From domain"
     assert sender.legitimacy != "suspicious", "a recognised provider is not a spoof"
     assert _is_blocker(sender), "real mail that would start being rejected"
@@ -225,9 +213,9 @@ def test_an_unknown_source_failing_everything_does_not_block() -> None:
         )
         for d in (1, 2, 3)
     ]
-    window = build_window(reports, domain=DOMAIN)
-    assert window.senders[0].legitimacy == "suspicious"
-    assert not _is_blocker(window.senders[0]), "advancing is the fix for a spoof"
+    summary = summarise_reports(reports, domain=DOMAIN)
+    assert summary.senders[0].legitimacy == "suspicious"
+    assert not _is_blocker(summary.senders[0]), "advancing is the fix for a spoof"
 
 
 def test_a_recognised_provider_is_named_in_the_summary(
@@ -235,8 +223,8 @@ def test_a_recognised_provider_is_named_in_the_summary(
 ) -> None:
     # "SendGrid" tells the user where to go. "Unknown source 198.51.100.7" does not.
     ptr("198.51.100.7", "o1.sendgrid.net")
-    window = build_window([_report(_record("198.51.100.7"), day=1)], domain=DOMAIN)
-    assert window.senders[0].name == "SendGrid"
+    summary = summarise_reports([_report(_record("198.51.100.7"), day=1)], domain=DOMAIN)
+    assert summary.senders[0].name == "SendGrid"
 
 
 def test_a_recognised_provider_carries_its_spf_include(
@@ -245,8 +233,8 @@ def test_a_recognised_provider_carries_its_spf_include(
     # The include is what the user pastes into DNS, so it must come from the
     # verified map rather than being built from the provider's name.
     ptr("198.51.100.7", "o1.sendgrid.net")
-    window = build_window([_report(_record("198.51.100.7"), day=1)], domain=DOMAIN)
-    assert window.senders[0].esp_include == "include:sendgrid.net"
+    summary = summarise_reports([_report(_record("198.51.100.7"), day=1)], domain=DOMAIN)
+    assert summary.senders[0].esp_include == "include:sendgrid.net"
 
 
 # ── the SPF include map ────────────────────────────────────────────────────
@@ -271,9 +259,9 @@ def test_an_unknown_provider_returns_nothing_rather_than_a_guess() -> None:
 
 def test_a_record_with_no_auth_results_does_not_raise() -> None:
     record = DmarcRecord(source_ip="1.2.3.4", count=1, header_from=DOMAIN)
-    window = build_window([_report(record, day=1)], domain=DOMAIN)
-    assert len(window.senders) == 1
-    assert window.senders[0].dmarc_aligned is False
+    summary = summarise_reports([_report(record, day=1)], domain=DOMAIN)
+    assert len(summary.senders) == 1
+    assert summary.senders[0].dmarc_aligned is False
 
 
 def test_a_report_with_no_policy_block_does_not_raise() -> None:
@@ -284,11 +272,10 @@ def test_a_report_with_no_policy_block_does_not_raise() -> None:
         policy=None,
         records=[_record("1.2.3.4")],
     )
-    assert len(build_window([report], domain=DOMAIN).senders) == 1
+    assert len(summarise_reports([report], domain=DOMAIN).senders) == 1
 
 
 def test_a_report_with_no_dates_does_not_raise() -> None:
     report = DmarcReport(org_name="aol.com", records=[_record("1.2.3.4")])
-    window = build_window([report], domain=DOMAIN)
-    assert window.days_with_data == 0
-    assert window.total_volume == 10
+    summary = summarise_reports([report], domain=DOMAIN)
+    assert summary.total_volume == 10

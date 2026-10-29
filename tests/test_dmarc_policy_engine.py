@@ -5,17 +5,17 @@ from __future__ import annotations
 
 from engine.dmarc.policy_engine import (
     DmarcRecord,
+    ReportSummary,
     Sender,
     SpfRecord,
-    Window,
     evaluate,
 )
 
 RUA = "rua+reports@inboxhealth.app"
 
 
-def _result_for(rec, spf, window):
-    return evaluate(rec, spf, window, RUA)
+def _result_for(rec, spf, summary):
+    return evaluate(rec, spf, summary, RUA)
 
 
 def test_avateq_clean_ready_to_advance():
@@ -43,11 +43,11 @@ def test_avateq_clean_ready_to_advance():
             disposition="none",
         ),
     ]
-    window = Window(senders=senders, days_with_data=14, total_volume=52)
+    summary = ReportSummary(senders=senders, total_volume=52)
     rec = DmarcRecord(True, "reject", pct=50)
     spf = SpfRecord(True, 1, 6, "-")
 
-    result = _result_for(rec, spf, window)
+    result = _result_for(rec, spf, summary)
     assert result.ladder_decision is not None
     assert result.ladder_decision.code == "ADVANCE"
     assert result.ladder_decision.new_record is not None
@@ -72,11 +72,11 @@ def test_misconfigured_esp_blocks_advance():
             esp_include="include:sendgrid.net",
         ),
     ]
-    window = Window(senders=senders, days_with_data=14, total_volume=48)
+    summary = ReportSummary(senders=senders, total_volume=48)
     rec = DmarcRecord(True, "quarantine", pct=50)
     spf = SpfRecord(True, 1, 6, "~")
 
-    result = _result_for(rec, spf, window)
+    result = _result_for(rec, spf, summary)
     assert result.ladder_decision is not None
     assert result.ladder_decision.code == "BLOCKED_FIX_SENDERS"
     # A HIGH SPF finding for the unaligned legit sender should be primary.
@@ -100,11 +100,11 @@ def test_rollback_when_real_mail_being_rejected():
             esp_include="include:_spf.hubspot.com",
         ),
     ]
-    window = Window(senders=senders, days_with_data=10, total_volume=22)
+    summary = ReportSummary(senders=senders, total_volume=22)
     rec = DmarcRecord(True, "reject", pct=100)
     spf = SpfRecord(True, 1, 9, "-")
 
-    result = _result_for(rec, spf, window)
+    result = _result_for(rec, spf, summary)
     assert result.ladder_decision is not None
     assert result.ladder_decision.code == "ROLLBACK"
     # ROLLBACK is so urgent it takes primary over the SPF finding.
@@ -133,11 +133,11 @@ def test_single_low_volume_source_fixes_sender_not_policy():
             esp_include="include:_spf.hubspot.com",
         ),
     ]
-    window = Window(senders=senders, days_with_data=10, total_volume=52)
+    summary = ReportSummary(senders=senders, total_volume=52)
     rec = DmarcRecord(True, "reject", pct=50)
     spf = SpfRecord(True, 1, 9, "-")
 
-    result = _result_for(rec, spf, window)
+    result = _result_for(rec, spf, summary)
     assert result.ladder_decision.code == "FIX_SENDER"
     assert result.primary.code == "FIX_SENDER"
     # The policy is NOT touched — the fix lives on the sender.
@@ -165,33 +165,32 @@ def test_low_volume_gateway_bleed_is_reassurance_not_rollback():
             classification="gateway_relay",
         ),
     ]
-    window = Window(senders=senders, days_with_data=10, total_volume=51)
+    summary = ReportSummary(senders=senders, total_volume=51)
     rec = DmarcRecord(True, "reject", pct=50)
     spf = SpfRecord(True, 1, 6, "-")
 
-    result = _result_for(rec, spf, window)
+    result = _result_for(rec, spf, summary)
     assert result.ladder_decision.code == "FORWARD_BLEED_OK"
     assert result.ladder_decision.tier.value == "review"
     assert result.ladder_decision.new_record is None
 
 
 def test_light_traffic_still_gets_an_answer_and_says_how_light_it_is():
-    """2 messages over 2 days used to be held back with "keep collecting
-    reports, we'll prompt you". Nothing collects and nothing prompts, so the
-    answer is given and the size of the sample is stated for the reader."""
+    """2 messages used to be held back with "keep collecting reports, we'll
+    prompt you". Nothing collects and nothing prompts, so the answer is given
+    and the size of the sample is stated for the reader."""
     senders = [
         Sender("Microsoft 365", 2, True, True, True, True, "legit", "none"),
     ]
-    window = Window(senders=senders, days_with_data=2, total_volume=2)
+    summary = ReportSummary(senders=senders, total_volume=2)
     rec = DmarcRecord(True, "none")
     spf = SpfRecord(True, 1, 3, "-")
 
-    result = _result_for(rec, spf, window)
+    result = _result_for(rec, spf, summary)
     assert result.ladder_decision is not None
     assert result.ladder_decision.code == "ADVANCE"
-    assert "2 day(s)" in result.ladder_decision.detail
     assert "2 message(s)" in result.ladder_decision.detail
-    assert "once a month" in result.ladder_decision.detail
+    assert "did not send" in result.ladder_decision.detail
 
 
 def test_spf_lookup_limit_outranks_ladder():
@@ -200,11 +199,11 @@ def test_spf_lookup_limit_outranks_ladder():
     senders = [
         Sender("Microsoft 365", 40, True, True, True, True, "legit", "none"),
     ]
-    window = Window(senders=senders, days_with_data=14, total_volume=40)
+    summary = ReportSummary(senders=senders, total_volume=40)
     rec = DmarcRecord(True, "quarantine", pct=100)
     spf = SpfRecord(True, 1, 13, "-")
 
-    result = _result_for(rec, spf, window)
+    result = _result_for(rec, spf, summary)
     assert result.primary.code == "SPF_TOO_MANY_LOOKUPS"
     # Ladder still decides what its own answer would be (HOLD or ADVANCE).
     assert result.ladder_decision is not None

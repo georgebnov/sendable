@@ -1,6 +1,6 @@
 """Regressions for the defects the second review round found.
 
-Five of them sit in the DMARC window, which is what decides whether a sender is
+Five of them sit in the DMARC summary, which is what decides whether a sender is
 told it is safe to tighten their policy. Getting that wrong either tells someone
 to publish a policy that rejects their own mail, or tells them a spoofer is one of
 their own senders.
@@ -19,7 +19,7 @@ from engine.dmarc.parser import (
     DmarcReport,
 )
 from engine.dmarc.policy_engine import _build_record
-from engine.dmarc.window import _aligned, _forwarder_domain, build_window
+from engine.dmarc.summary import _aligned, _forwarder_domain, summarise_reports
 
 DOMAIN = "example.com"
 
@@ -81,25 +81,25 @@ def test_a_subdomain_dkim_signature_aligns_under_the_default_policy() -> None:
     # signing d=em.example.com for From: @example.com is correctly aligned, and
     # calling it unaligned told the user a working sender was failing DMARC and
     # that they must not tighten their policy.
-    window = build_window([_report(_rec(dkim_domain="em.example.com"), day=1)], domain=DOMAIN)
-    assert window.senders[0].dkim_aligned is True
+    summary = summarise_reports([_report(_rec(dkim_domain="em.example.com"), day=1)], domain=DOMAIN)
+    assert summary.senders[0].dkim_aligned is True
 
 
 def test_a_strict_policy_requires_an_exact_dkim_match() -> None:
     # adkim=s is published by domains that want exactly this. The tags were parsed
     # and then never read, so a strict domain got relaxed treatment.
-    window = build_window(
+    summary = summarise_reports(
         [_report(_rec(dkim_domain="em.example.com"), day=1, adkim="s")], domain=DOMAIN
     )
-    assert window.senders[0].dkim_aligned is False
+    assert summary.senders[0].dkim_aligned is False
 
 
 def test_a_strict_spf_policy_requires_an_exact_match() -> None:
-    window = build_window(
+    summary = summarise_reports(
         [_report(_rec(spf_domain="mail.example.com", dkim_domain=None), day=1, aspf="s")],
         domain=DOMAIN,
     )
-    assert window.senders[0].spf_aligned is False
+    assert summary.senders[0].spf_aligned is False
 
 
 # ── the worst disposition must survive a merge ─────────────────────────────
@@ -114,8 +114,10 @@ def test_a_rejection_reported_by_one_receiver_is_not_lost() -> None:
         _report(_rec(disposition="none"), day=1),
         _report(_rec(disposition="reject"), day=2),
     ]
-    assert build_window(reports, domain=DOMAIN).senders[0].disposition == "reject"
-    assert build_window(list(reversed(reports)), domain=DOMAIN).senders[0].disposition == "reject"
+    assert summarise_reports(reports, domain=DOMAIN).senders[0].disposition == "reject"
+    assert (
+        summarise_reports(list(reversed(reports)), domain=DOMAIN).senders[0].disposition == "reject"
+    )
 
 
 # ── the forwarder label is a registrable domain ────────────────────────────
@@ -207,7 +209,7 @@ def test_a_similar_domain_is_not_counted_as_another_sender() -> None:
     # [a-z0-9.-] to a dash, so "sub_example.com" became "sub-example.com" and was
     # counted against "example.com". The match is exact now.
     from engine.dmarc.parser import parse
-    from engine.dmarc.window import for_domain, pick_domain
+    from engine.dmarc.summary import for_domain, pick_domain
 
     day = datetime(2026, 9, 28, tzinfo=UTC)
     mine = parse(_report_xml("example.com", day))

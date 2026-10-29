@@ -17,9 +17,9 @@ from engine.dmarc.policy_engine import (
 )
 from engine.dmarc.policy_engine import (
     EngineResult,
+    ReportSummary,
     Sender,
     SpfRecord,
-    Window,
     evaluate,
 )
 from engine.parse import parse_eml
@@ -55,11 +55,11 @@ def _aligned_sender(*, volume: int = 200) -> Sender:
     )
 
 
-def _evaluate(window: Window, *, policy: str = "none", pct: int = 100) -> EngineResult:
+def _evaluate(summary: ReportSummary, *, policy: str = "none", pct: int = 100) -> EngineResult:
     return evaluate(
         PolicyRecord(exists=True, p=policy, pct=pct),
         SpfRecord(exists=True, record_count=1, lookups=3, all_qualifier="-"),
-        window,
+        summary,
         "dmarc@example.com",
     )
 
@@ -219,15 +219,14 @@ def test_an_uncontrollable_relay_is_not_told_to_authenticate_itself(
     # mailing list, a forwarder, a bounce notification. The sender cannot
     # authenticate any of them, yet the advice named them and said to add an SPF
     # include and aligned DKIM, which this file's own comments call impossible.
-    window = Window(
+    summary = ReportSummary(
         senders=[_aligned_sender(), _relay(classification)],
-        days_with_data=21,
         total_volume=210,
     )
     # The LADDER decision is the claim under test. The per-sender SPF findings are
     # a separate list and legitimately describe each source by name; what must not
     # happen is the ladder telling the user to authenticate a hop they do not own.
-    ladder = _evaluate(window).ladder_decision
+    ladder = _evaluate(summary).ladder_decision
     assert ladder is not None
     text = f"{ladder.title} {ladder.detail} {ladder.suggested_action}"
     assert "Mimecast relay" not in text, f"the ladder named a relay nobody can fix: {text}"
@@ -246,8 +245,8 @@ def test_a_real_unaligned_sender_is_still_named() -> None:
         disposition="none",
         classification="clean",
     )
-    window = Window(senders=[esp], days_with_data=21, total_volume=100)
-    ladder = _evaluate(window).ladder_decision
+    summary = ReportSummary(senders=[esp], total_volume=100)
+    ladder = _evaluate(summary).ladder_decision
     assert ladder is not None
     assert ladder.code == "BLOCKED_FIX_SENDERS"
     assert "SendGrid" in f"{ladder.detail} {ladder.suggested_action}", (
@@ -260,12 +259,11 @@ def test_a_rejected_relay_still_gets_the_reassurance() -> None:
     # blocked, this is expected". Dropping it from the blocker list entirely
     # silenced that, which is worse than the wrong advice it replaced.
     relay = _relay("gateway_relay", disposition="reject", volume=3)
-    window = Window(
+    summary = ReportSummary(
         senders=[_aligned_sender(volume=50), relay],
-        days_with_data=10,
         total_volume=60,
     )
-    decision = _evaluate(window, policy="reject", pct=50).ladder_decision
+    decision = _evaluate(summary, policy="reject", pct=50).ladder_decision
     assert decision is not None
     assert decision.code == "FORWARD_BLEED_OK"
 
@@ -275,7 +273,7 @@ def test_a_gateway_does_not_hold_the_policy_back() -> None:
 
     from engine.dmarc.parser import AuthResult, DmarcPolicyPublished, DmarcRecord, DmarcReport
     from engine.dmarc.policy_engine import _is_blocker
-    from engine.dmarc.window import build_window
+    from engine.dmarc.summary import summarise_reports
 
     def report(day: int) -> DmarcReport:
         return DmarcReport(
@@ -297,11 +295,11 @@ def test_a_gateway_does_not_hold_the_policy_back() -> None:
             ],
         )
 
-    window = build_window([report(d) for d in range(1, 9)], domain="example.com")
+    summary = summarise_reports([report(d) for d in range(1, 9)], domain="example.com")
     # A gateway on the recipient's side breaks alignment by design and the
     # sender cannot authenticate it, so it must never count as something to fix
     # before tightening.
-    assert not [s for s in window.senders if _is_blocker(s)]
+    assert not [s for s in summary.senders if _is_blocker(s)]
 
 
 # ── the MTA-STS fetch must not follow a redirect anywhere ──────────────────
