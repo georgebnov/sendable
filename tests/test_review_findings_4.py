@@ -179,9 +179,7 @@ def test_an_uncontrollable_gateway_never_triggers_a_rollback() -> None:
         disposition="none",
         classification="clean",
     )
-    window = Window(
-        senders=[aligned, relay], clean_streak_days=0, days_with_data=10, total_volume=100
-    )
+    window = Window(senders=[aligned, relay], days_with_data=10, total_volume=100)
     decision = dmarc_decision(PolicyRecord(exists=True, p="reject"), window, "dmarc@example.com")
     assert decision.code != "ROLLBACK", f"a gateway produced {decision.code}"
     assert decision.new_record is None, "no record weakening for an unfixable hop"
@@ -211,7 +209,7 @@ def test_a_controllable_sender_bleeding_still_can_roll_back() -> None:
         disposition="reject",
         classification="clean",
     )
-    window = Window(senders=[esp, other], clean_streak_days=0, days_with_data=10, total_volume=100)
+    window = Window(senders=[esp, other], days_with_data=10, total_volume=100)
     decision = dmarc_decision(PolicyRecord(exists=True, p="reject"), window, "dmarc@example.com")
     assert decision.code == "ROLLBACK"
 

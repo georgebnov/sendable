@@ -43,7 +43,7 @@ def test_avateq_clean_ready_to_advance():
             disposition="none",
         ),
     ]
-    window = Window(senders=senders, clean_streak_days=25, days_with_data=14, total_volume=52)
+    window = Window(senders=senders, days_with_data=14, total_volume=52)
     rec = DmarcRecord(True, "reject", pct=50)
     spf = SpfRecord(True, 1, 6, "-")
 
@@ -72,7 +72,7 @@ def test_misconfigured_esp_blocks_advance():
             esp_include="include:sendgrid.net",
         ),
     ]
-    window = Window(senders=senders, clean_streak_days=25, days_with_data=14, total_volume=48)
+    window = Window(senders=senders, days_with_data=14, total_volume=48)
     rec = DmarcRecord(True, "quarantine", pct=50)
     spf = SpfRecord(True, 1, 6, "~")
 
@@ -100,7 +100,7 @@ def test_rollback_when_real_mail_being_rejected():
             esp_include="include:_spf.hubspot.com",
         ),
     ]
-    window = Window(senders=senders, clean_streak_days=0, days_with_data=10, total_volume=22)
+    window = Window(senders=senders, days_with_data=10, total_volume=22)
     rec = DmarcRecord(True, "reject", pct=100)
     spf = SpfRecord(True, 1, 9, "-")
 
@@ -133,7 +133,7 @@ def test_single_low_volume_source_fixes_sender_not_policy():
             esp_include="include:_spf.hubspot.com",
         ),
     ]
-    window = Window(senders=senders, clean_streak_days=0, days_with_data=10, total_volume=52)
+    window = Window(senders=senders, days_with_data=10, total_volume=52)
     rec = DmarcRecord(True, "reject", pct=50)
     spf = SpfRecord(True, 1, 9, "-")
 
@@ -165,7 +165,7 @@ def test_low_volume_gateway_bleed_is_reassurance_not_rollback():
             classification="gateway_relay",
         ),
     ]
-    window = Window(senders=senders, clean_streak_days=0, days_with_data=10, total_volume=51)
+    window = Window(senders=senders, days_with_data=10, total_volume=51)
     rec = DmarcRecord(True, "reject", pct=50)
     spf = SpfRecord(True, 1, 6, "-")
 
@@ -175,19 +175,23 @@ def test_low_volume_gateway_bleed_is_reassurance_not_rollback():
     assert result.ladder_decision.new_record is None
 
 
-def test_light_traffic_holds():
-    """Only 2 messages in 2 days — too little to advance even on p=none."""
+def test_light_traffic_still_gets_an_answer_and_says_how_light_it_is():
+    """2 messages over 2 days used to be held back with "keep collecting
+    reports, we'll prompt you". Nothing collects and nothing prompts, so the
+    answer is given and the size of the sample is stated for the reader."""
     senders = [
         Sender("Microsoft 365", 2, True, True, True, True, "legit", "none"),
     ]
-    window = Window(senders=senders, clean_streak_days=25, days_with_data=2, total_volume=2)
+    window = Window(senders=senders, days_with_data=2, total_volume=2)
     rec = DmarcRecord(True, "none")
     spf = SpfRecord(True, 1, 3, "-")
 
     result = _result_for(rec, spf, window)
     assert result.ladder_decision is not None
-    assert result.ladder_decision.code == "HOLD_INSUFFICIENT_DATA"
-    assert result.primary.code == "HOLD_INSUFFICIENT_DATA"
+    assert result.ladder_decision.code == "ADVANCE"
+    assert "2 day(s)" in result.ladder_decision.detail
+    assert "2 message(s)" in result.ladder_decision.detail
+    assert "once a month" in result.ladder_decision.detail
 
 
 def test_spf_lookup_limit_outranks_ladder():
@@ -196,7 +200,7 @@ def test_spf_lookup_limit_outranks_ladder():
     senders = [
         Sender("Microsoft 365", 40, True, True, True, True, "legit", "none"),
     ]
-    window = Window(senders=senders, clean_streak_days=25, days_with_data=14, total_volume=40)
+    window = Window(senders=senders, days_with_data=14, total_volume=40)
     rec = DmarcRecord(True, "quarantine", pct=100)
     spf = SpfRecord(True, 1, 13, "-")
 

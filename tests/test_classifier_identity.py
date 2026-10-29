@@ -30,67 +30,80 @@ def _fail(ip, host, *, dispo="none"):
 def test_microsoft_ipv6_failure_is_auth_gap_not_impostor():
     # No PTR (like the real EOP range) → identified by CIDR, not spoof.
     r = _fail("2603:10b6:a03:2c6::201", None)
-    res = classify_record(r, _pol(), known_providers=set())
+    res = classify_record(r, _pol())
     assert res.classification == "sender_auth_gap"
     assert "Microsoft 365" in res.headline
 
 
 def test_avanan_reject_is_gateway_not_spoof():
     r = _fail("203.0.113.9", "relay.avanan.net", dispo="reject")
-    res = classify_record(r, _pol("reject"), known_providers=set())
+    res = classify_record(r, _pol("reject"))
     assert res.classification == "gateway_relay"
 
 
 def test_perception_point_is_gateway_not_spoof():
     r = _fail("54.227.64.76", "nat.perception-point.io")
-    res = classify_record(r, _pol(), known_providers=set())
+    res = classify_record(r, _pol())
     assert res.classification == "gateway_relay"
 
 
-def test_known_esp_failure_is_auth_gap():
-    # seout6 fails once; its provider was seen before → known, not new/spoof.
+def test_a_host_nobody_recognises_reads_as_a_possible_spoof():
+    # Behaviour change. This host used to read as an auth gap, but only when the
+    # user happened to pass an older report that also contained it. Recognition
+    # came from history, so the same sender was called a spoof or a gap
+    # depending on which files were in the folder.
+    #
+    # Nothing is stored now, so recognition comes from the curated identities
+    # alone. web-dns1.com is not one of them, and a host nobody recognises that
+    # fails both checks is reported as a possible spoof. The explainer asks the
+    # reader whether they recognise it, which is the honest question.
     r = _fail("192.99.215.29", "seout6.web-dns1.com")
-    res = classify_record(r, _pol(), known_providers={"web-dns1.com"})
-    assert res.classification == "sender_auth_gap"
+    res = classify_record(r, _pol())
+    assert res.classification == "spoofing_delivered"
 
 
 def test_unknown_failure_still_spoofs_delivered():
     r = _fail("45.62.170.230", None)
-    res = classify_record(r, _pol(), known_providers=set())
+    res = classify_record(r, _pol())
     assert res.classification == "spoofing_delivered"
 
 
-def test_seen_unknown_ipblock_still_spoofs_not_known():
-    # A spoofer's /24 fallback key having been seen before must NOT make it
-    # "known" — otherwise it downgrades from spoof to auth-gap.
+def test_a_repeat_spoofer_cannot_promote_itself_by_appearing_twice():
+    # A spoofer used to be able to downgrade itself from spoof to auth gap just
+    # by turning up in an earlier report. Recognition no longer comes from
+    # having been seen, so appearing twice buys nothing.
     r = _fail("45.62.170.230", None)
-    res = classify_record(r, _pol(), known_providers={"45.62.170.0/24"})
-    assert res.classification == "spoofing_delivered"
+    assert classify_record(r, _pol()).classification == "spoofing_delivered"
+    assert classify_record(r, _pol()).classification == "spoofing_delivered"
 
 
 def test_unknown_failure_blocked_still_spoofs():
     r = _fail("45.62.170.230", None, dispo="reject")
-    res = classify_record(r, _pol("reject"), known_providers=set())
+    res = classify_record(r, _pol("reject"))
     assert res.classification == "spoofing_blocked"
 
 
-def test_recurring_known_failure_escalates():
-    # Same known sender failing across prior periods = a pattern, not noise.
-    r = _fail("192.99.215.29", "seout6.web-dns1.com")
-    res = classify_record(
-        r, _pol(), known_providers={"web-dns1.com"}, fail_history={"web-dns1.com": 2}
-    )
-    assert res.classification == "sender_auth_gap"
-    assert "recurring" in res.headline.lower()
-    assert res.severity.value in ("MEDIUM", "HIGH")
-
-
-def test_one_off_known_failure_stays_low():
-    r = _fail("192.99.215.29", "seout6.web-dns1.com")
-    res = classify_record(r, _pol(), known_providers={"web-dns1.com"}, fail_history={})
+def test_a_recognised_sender_failing_is_a_gap_and_says_so_once():
+    # There used to be two severities here, one for a first failure and a higher
+    # one for a sender that had failed across several reporting periods. Counting
+    # periods needs a history nothing keeps, and the count depended on which
+    # files the user passed, so the escalation is gone.
+    #
+    # The concern it came from is real, so the explainer carries it: if the same
+    # sender shows up failing in report after report, fix it.
+    r = _fail("2603:10b6:a03:2c6::201", None)
+    res = classify_record(r, _pol())
     assert res.classification == "sender_auth_gap"
     assert "recurring" not in res.headline.lower()
-    assert res.severity.value == "LOW"
+    assert "report after report" in res.explainer
+
+
+def test_the_severity_of_a_gap_follows_the_policy_not_a_counter():
+    """Under p=none nothing is being lost yet. Under an enforcing policy the
+    sender's own mail is being filtered, which is worse."""
+    r = _fail("2603:10b6:a03:2c6::201", None)
+    assert classify_record(r, _pol()).severity.value == "LOW"
+    assert classify_record(r, _pol("quarantine")).severity.value == "MEDIUM"
 
 
 def test_spf_aligned_dkim_fail_is_clean():
@@ -104,5 +117,5 @@ def test_spf_aligned_dkim_fail_is_clean():
         policy_spf="pass",
         disposition="none",
     )
-    res = classify_record(r, _pol(), known_providers={"web-dns1.com"})
+    res = classify_record(r, _pol())
     assert res.classification == "clean"

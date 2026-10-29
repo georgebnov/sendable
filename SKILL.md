@@ -61,15 +61,17 @@ python3 scripts/dmarc.py ~/Downloads/*.xml.gz --pretty
 python3 scripts/dmarc.py ~/Downloads/*.xml.gz --domain example.com
 ```
 
-`dmarc.py` stores nothing either. You pass the reports you have, it reads them,
-and it prints the answer. Pass more reports to see further back.
+`dmarc.py` stores nothing either. You pass the reports you have, it reads every
+one of them, and it prints what they say: who sent as the domain, how much,
+whether each one authenticated, and what the receiver did about it. Then it
+names the next step on the policy ladder and writes the record for it.
 
-**Pass reports from more than one day and the answer sharpens.** A sender that
-appears only in the newest reporting period, and in none before it, is a new
-sender. That is what separates "a spoof just started" from "your provider added
-an IP". With reports covering a single day there is no "before", so that one
-judgement is skipped rather than guessed, and the output says so in
-`new_sender_detection`.
+**It tracks nothing between runs, and it does not pretend to.** There is no
+streak to keep and no history to compare against, so the answer describes the
+files you passed and nothing more. That is why the advice tells you how many
+days and messages the reports cover: you are the one who knows whether that is
+a fair sample of how you send. A sender that mails once a month will not appear
+in a week of reports, and it is the one that breaks when the policy tightens.
 
 Both commands print JSON on stdout and progress on stderr, so stdout always
 parses. Exit code is 0 on success and 1 when there is nothing to work with.

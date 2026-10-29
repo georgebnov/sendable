@@ -18,7 +18,7 @@ from engine.dmarc.parser import (
     DmarcRecord,
     DmarcReport,
 )
-from engine.dmarc.policy_engine import CLEAN_DAYS_REQUIRED, _build_record
+from engine.dmarc.policy_engine import _build_record
 from engine.dmarc.window import _aligned, _forwarder_domain, build_window
 
 DOMAIN = "example.com"
@@ -118,29 +118,6 @@ def test_a_rejection_reported_by_one_receiver_is_not_lost() -> None:
     assert build_window(list(reversed(reports)), domain=DOMAIN).senders[0].disposition == "reject"
 
 
-# ── the clean streak counts days, not reports ──────────────────────────────
-
-
-def test_the_streak_spans_the_window_even_when_a_day_has_no_report() -> None:
-    # The streak was the count of distinct report days, so a sender who mails on
-    # weekdays, or who loses one day to a provider that skips empty periods, never
-    # reached 21 and could never advance. A day with no report is not a dirty day.
-    reports = [_report(_rec(), day=d) for d in (1, 2, 5, 8, 9, 12, 15, 19, 22)]
-    window = build_window(reports, domain=DOMAIN)
-    assert window.days_with_data == 9
-    assert window.clean_streak_days >= CLEAN_DAYS_REQUIRED, (
-        f"22 clean days of sending read as {window.clean_streak_days}"
-    )
-
-
-def test_a_blocker_still_resets_the_streak() -> None:
-    reports = [
-        _report(_rec(dkim_domain="esp.net", spf_domain="bounce.esp.net"), day=d)
-        for d in (1, 10, 22)
-    ]
-    assert build_window(reports, domain=DOMAIN).clean_streak_days == 0
-
-
 # ── the forwarder label is a registrable domain ────────────────────────────
 
 
@@ -195,57 +172,6 @@ def test_the_suggested_record_does_not_double_the_mailto_scheme() -> None:
 
 def test_a_bare_address_still_gets_the_scheme() -> None:
     assert "rua=mailto:dmarc@example.com" in _build_record("none", 0, "dmarc@example.com")
-
-
-# ── the baseline must predate the window it judges ─────────────────────────
-
-
-def test_the_baseline_excludes_the_window_being_judged() -> None:
-    # Built from the same reports it classifies, every identity is already known
-    # before it is looked at, so _is_known_provider returns True for all of them
-    # and classify_record can never reach spoofing_blocked or spoofing_delivered.
-    # A spoofer whose PTR resolves to a named host was reported as one of the
-    # user's own senders with a configuration gap.
-    from engine.dmarc.esp_fingerprint import resolve_identity
-    from engine.dmarc.parser import parse
-    from engine.dmarc.window import known_providers_before_latest
-
-    # Two periods, two different senders, so the test can actually see which one
-    # ends up in the baseline.
-    recent = parse(_report_xml(DOMAIN, datetime(2026, 9, 28, tzinfo=UTC), "198.51.100.77"))
-    old = parse(_report_xml(DOMAIN, datetime(2026, 8, 1, tzinfo=UTC), "203.0.113.9"))
-
-    # The judged period must not contribute to its own baseline, or every sender
-    # in it is already known and a spoof can never be seen. Both addresses here
-    # resolve to the same identity, so the proof that the newest period is left
-    # out lives in tests/test_new_sender_detection.py, where the senders differ.
-    assert known_providers_before_latest([recent, old]) == {
-        resolve_identity(r).provider_key for r in old.records
-    }
-
-    # With only one period there is no "before", so detection is skipped rather
-    # than guessed. An empty set would instead call every source brand new.
-    assert known_providers_before_latest([recent]) is None
-
-
-def test_a_report_with_no_date_is_judged_not_used_as_baseline() -> None:
-    # A wrong baseline is worse than a missing one. A report that declares no
-    # period cannot be shown to come before anything, so it is never treated as
-    # history, and a batch of only undated reports turns detection off.
-    from engine.dmarc.parser import parse
-    from engine.dmarc.window import known_providers_before_latest
-
-    undated = parse(
-        b"""<?xml version="1.0"?>
-<feedback>
-  <report_metadata><org_name>google.com</org_name><report_id>no-date</report_id>
-  </report_metadata>
-  <policy_published><domain>example.com</domain><p>none</p></policy_published>
-</feedback>"""
-    )
-    dated = parse(_report_xml(DOMAIN, datetime(2026, 9, 28, tzinfo=UTC)))
-    assert known_providers_before_latest([undated]) is None
-    assert known_providers_before_latest([undated, dated]) is None
 
 
 # ── a passing check must not be reported as skipped ────────────────────────
@@ -321,34 +247,3 @@ def test_reading_only_unreadable_files_exits_non_zero(tmp_path) -> None:
 
 
 # ── the streak is only safe because evidence depth is gated first ──────────
-
-
-def test_a_wide_span_with_thin_evidence_cannot_advance() -> None:
-    """Two reports a month apart must not read as a month of clean sending.
-
-    `clean_streak_days` measures the span the clean run covers, so two reports 29
-    days apart return 30. On its own that would clear CLEAN_DAYS_REQUIRED on two
-    days of evidence.
-
-    It is safe only because `dmarc_decision` checks MIN_DAYS_WITH_DATA and
-    MIN_MESSAGES_IN_WINDOW first and returns HOLD_INSUFFICIENT_DATA before the
-    streak is ever consulted. That ordering is load-bearing, and nothing else
-    records it, so this test fails if the gates are reordered or removed.
-    """
-    from engine.dmarc.policy_engine import (
-        MIN_DAYS_WITH_DATA,
-        dmarc_decision,
-    )
-    from engine.dmarc.policy_engine import (
-        DmarcRecord as PolicyRecord,
-    )
-
-    reports = [_report(_rec(), day=1), _report(_rec(), day=30)]
-    window = build_window(reports, domain=DOMAIN)
-    assert window.clean_streak_days >= CLEAN_DAYS_REQUIRED, "the span is wide"
-    assert window.days_with_data < MIN_DAYS_WITH_DATA, "but the evidence is thin"
-
-    action = dmarc_decision(PolicyRecord(exists=True, p="none"), window, "mailto:dmarc@example.com")
-    assert action.code == "HOLD_INSUFFICIENT_DATA", (
-        f"a wide span with two days of data advanced anyway: {action.code}"
-    )

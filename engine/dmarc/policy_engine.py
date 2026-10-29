@@ -33,9 +33,6 @@ from engine.dmarc.spf_merge import merge_spf
 # ----------------------------------------------------------------------------
 # Tunable thresholds (config, not logic)
 # ----------------------------------------------------------------------------
-CLEAN_DAYS_REQUIRED = 21  # 3 clean weeks before advancing a rung
-MIN_MESSAGES_IN_WINDOW = 20  # confidence floor: don't advance on a trickle
-MIN_DAYS_WITH_DATA = 7  # must have seen mail on >= this many days
 SPF_LOOKUP_LIMIT = 10  # RFC 7208: >10 DNS lookups => PermError
 # A single low-volume unaligned source is a SOURCE problem (authenticate that
 # sender), never a reason to roll the whole domain's policy back. Only a bleed
@@ -86,12 +83,8 @@ class Sender:
     esp_include: str | None = None  # e.g. "include:sendgrid.net" if known ESP
     classification: str | None = None  # classifier's tag — used for grouping +
     # row copy. e.g. "forwarding_artifact", "clean", "esp_softfail_ok",
-    # "spoofing_blocked", "new_unknown_ip". The grouping layer routes off
-    # this when present, falls back to alignment heuristics when not.
-    # Earliest report date this sender appeared in across the rolling
-    # window. The UI uses it as the security-critical 'first seen' column
-    # — a new sender appearing yesterday is the novice's first alarm.
-    first_seen: str | None = None  # ISO date (YYYY-MM-DD) or None
+    # "spoofing_blocked". The grouping layer routes off this when present,
+    # and falls back to alignment heuristics when not.
 
     @property
     def dmarc_aligned(self) -> bool:
@@ -119,10 +112,15 @@ class SpfRecord:
 
 @dataclass
 class Window:
-    """Rolling-window summary (e.g. trailing 21 days) from your stored reports."""
+    """What the reports a user passed actually contain.
+
+    Nothing is stored between runs, so this describes one batch of files and
+    never a history. `days_with_data` and `total_volume` are here to be stated
+    back to the reader, so they can judge whether the batch is representative,
+    not to be scored against a target the tool cannot maintain.
+    """
 
     senders: list[Sender]
-    clean_streak_days: int  # consecutive days with zero legit-unaligned senders
     days_with_data: int
     total_volume: int
 
@@ -623,45 +621,32 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
             "Keep monitoring for new senders; nothing else to do.",
         )
 
-    # 4. Not enough data to advance confidently.
-    if window.total_volume < MIN_MESSAGES_IN_WINDOW or window.days_with_data < MIN_DAYS_WITH_DATA:
-        return Action(
-            "HOLD_INSUFFICIENT_DATA",
-            Tier.GOOD,
-            Severity.INFO,
-            "Too little traffic to advance safely",
-            f"Only {window.total_volume} messages over {window.days_with_data} "
-            "days. That's not enough to be sure nothing breaks at the next rung.",
-            "Keep collecting reports. We'll prompt you once there's enough clean volume.",
-        )
-
-    # 5. Clean, but not long enough yet.
-    if window.clean_streak_days < CLEAN_DAYS_REQUIRED:
-        left = CLEAN_DAYS_REQUIRED - window.clean_streak_days
-        return Action(
-            "HOLD_INSUFFICIENT_TIME",
-            Tier.GOOD,
-            Severity.INFO,
-            f"On track: {window.clean_streak_days} of {CLEAN_DAYS_REQUIRED} clean days",
-            "Everything's authenticated, but we wait for a sustained clean streak "
-            "before tightening so a once-a-week sender can't get caught out.",
-            f"Hold steady for {left} more clean day(s), then advance.",
-        )
-
-    # 6. ADVANCE one rung.
+    # 4. Nothing is failing, so name the next rung.
+    #
+    # There used to be two gates here: a message count and a 21 day clean
+    # streak. Both assumed a service was collecting reports and could count
+    # toward a target. Nothing collects now, so the gates only ever told a user
+    # to come back later, and the advice promised a reminder that no part of
+    # this can send. The caution behind them is real, so it is stated for the
+    # reader to weigh rather than enforced with a counter.
     nxt_p, nxt_pct = LADDER[idx + 1]
     label = (
         "monitor only"
         if nxt_p == "none"
         else (f"{nxt_p}" + (f" at {nxt_pct}%" if nxt_pct < 100 else " at 100%"))
     )
+    days = window.days_with_data
     return Action(
         "ADVANCE",
         Tier.GOOD,
         Severity.LOW,
-        f"Ready to advance to {label}",
-        f"{window.clean_streak_days} clean days, all senders aligned. Safe to tighten one step.",
-        f"Update your DMARC record to {label}.",
+        f"Nothing is failing. The next step is {label}",
+        f"Every sender in these reports is authenticated, across {days} "
+        f"day(s) and {window.total_volume} message(s). Before you change the "
+        f"record, check that is a fair sample of how you send: a sender that "
+        f"mails once a month does not appear in a few days of reports, and it "
+        f"is the one you would break.",
+        f"When the sample looks representative, update your DMARC record to {label}.",
         new_record=_build_record(nxt_p, nxt_pct, rua, current=rec),
     )
 

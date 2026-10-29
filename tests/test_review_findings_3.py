@@ -221,7 +221,6 @@ def test_an_uncontrollable_relay_is_not_told_to_authenticate_itself(
     # include and aligned DKIM, which this file's own comments call impossible.
     window = Window(
         senders=[_aligned_sender(), _relay(classification)],
-        clean_streak_days=30,
         days_with_data=21,
         total_volume=210,
     )
@@ -247,7 +246,7 @@ def test_a_real_unaligned_sender_is_still_named() -> None:
         disposition="none",
         classification="clean",
     )
-    window = Window(senders=[esp], clean_streak_days=30, days_with_data=21, total_volume=100)
+    window = Window(senders=[esp], days_with_data=21, total_volume=100)
     ladder = _evaluate(window).ladder_decision
     assert ladder is not None
     assert ladder.code == "BLOCKED_FIX_SENDERS"
@@ -263,7 +262,6 @@ def test_a_rejected_relay_still_gets_the_reassurance() -> None:
     relay = _relay("gateway_relay", disposition="reject", volume=3)
     window = Window(
         senders=[_aligned_sender(volume=50), relay],
-        clean_streak_days=0,
         days_with_data=10,
         total_volume=60,
     )
@@ -272,10 +270,11 @@ def test_a_rejected_relay_still_gets_the_reassurance() -> None:
     assert decision.code == "FORWARD_BLEED_OK"
 
 
-def test_a_gateway_does_not_hold_the_clean_streak_at_zero() -> None:
+def test_a_gateway_does_not_hold_the_policy_back() -> None:
     from datetime import UTC, datetime
 
     from engine.dmarc.parser import AuthResult, DmarcPolicyPublished, DmarcRecord, DmarcReport
+    from engine.dmarc.policy_engine import _is_blocker
     from engine.dmarc.window import build_window
 
     def report(day: int) -> DmarcReport:
@@ -299,7 +298,10 @@ def test_a_gateway_does_not_hold_the_clean_streak_at_zero() -> None:
         )
 
     window = build_window([report(d) for d in range(1, 9)], domain="example.com")
-    assert window.clean_streak_days > 0
+    # A gateway on the recipient's side breaks alignment by design and the
+    # sender cannot authenticate it, so it must never count as something to fix
+    # before tightening.
+    assert not [s for s in window.senders if _is_blocker(s)]
 
 
 # ── the MTA-STS fetch must not follow a redirect anywhere ──────────────────
