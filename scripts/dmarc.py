@@ -3,11 +3,9 @@
 # requires-python = ">=3.11"
 # dependencies = [
 #   "beautifulsoup4>=4.15",
-#   "lxml>=6.1",
 #   "dnspython>=2.8",
 #   "defusedxml>=0.7.1",
 #   "confusable-homoglyphs>=3.3.1",
-#   "publicsuffixlist>=1.0.2",
 #   "pydantic>=2.13",
 #   "cryptography>=46.0",
 #   "pyasn1>=0.6",

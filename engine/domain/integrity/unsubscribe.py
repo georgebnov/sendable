@@ -195,7 +195,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
 
     # Visible body unsubscribe link + clip risk.
     if email.html:
-        soup = BeautifulSoup(email.html, "lxml")
+        soup = BeautifulSoup(email.html, "html.parser")
         anchor = _find_unsub_anchor(soup)
         if anchor is None:
             findings.append(

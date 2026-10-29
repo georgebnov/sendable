@@ -200,7 +200,7 @@ def _strip_to_text(html: str) -> str:
     elements into a single newline, which breaks paragraph detection
     downstream. We insert a blank-line marker after every block element
     and after `<br>` so `_split_paragraphs` can see boundaries."""
-    soup = BeautifulSoup(html, "lxml")
+    soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style"]):
         tag.decompose()
     # Append a paragraph break sentinel after every block element. Use a
@@ -239,7 +239,7 @@ def _extract_preview_text(html: str | None) -> str | None:
     the original logic from `memory/store.py:_extract_preheader`."""
     if not html:
         return None
-    soup = BeautifulSoup(html, "lxml")
+    soup = BeautifulSoup(html, "html.parser")
     for el in soup.find_all(style=True):
         style = el.get("style", "") or ""
         if not _HIDDEN_STYLE_RX.search(style):
@@ -256,7 +256,7 @@ def _extract_cta_blocks(html: str | None) -> list[CTABlock]:
     padding). De-duplicates on (text.lower(), href)."""
     if not html:
         return []
-    soup = BeautifulSoup(html, "lxml")
+    soup = BeautifulSoup(html, "html.parser")
     seen: set[tuple[str, str]] = set()
     out: list[CTABlock] = []
     for a in soup.find_all("a"):

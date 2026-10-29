@@ -141,7 +141,7 @@ def _body_domains(email: ParsedEmail, sender_domain: str | None) -> list[str]:
     """Distinct registrable domains from <a href> in HTML body."""
     if not email.html:
         return []
-    soup = BeautifulSoup(email.html, "lxml")
+    soup = BeautifulSoup(email.html, "html.parser")
     out: list[str] = []
     seen: set[str] = set()
     for a in soup.find_all("a", href=True):

@@ -93,7 +93,11 @@ def parse_eml(source: bytes | str | Path) -> ParsedEmail:
     for part in parts:
         ctype = part.get_content_type()
         if ctype == "text/html" and html is None:
-            html = part.get_content()
+            # A mail transfer agent sends CRLF. lxml normalised it on the way
+            # through BeautifulSoup and every word count and newline regex
+            # relied on that. The stdlib parser does not, so normalise here and
+            # keep the behaviour in this repository instead of in a parser.
+            html = part.get_content().replace("\r\n", "\n").replace("\r", "\n")
         elif ctype == "text/plain" and plain is None:
             plain = part.get_content()
 

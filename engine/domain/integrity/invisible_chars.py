@@ -59,7 +59,7 @@ def _collect_visible_parts(email: ParsedEmail) -> list[tuple[str, str]]:
     if email.subject:
         parts.append(("subject", email.subject))
     if email.html:
-        soup = BeautifulSoup(email.html, "lxml")
+        soup = BeautifulSoup(email.html, "html.parser")
         for el in soup.find_all(style=_HIDDEN_STYLE):
             el.decompose()
         parts.append(("body (html)", soup.get_text(separator=" ")))

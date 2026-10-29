@@ -18,11 +18,9 @@ requires-python = ">=3.11"
 license = "MIT"
 dependencies = [
     "beautifulsoup4>=4.15",
-    "lxml>=6.1",
     "dnspython>=2.8",
     "defusedxml>=0.7.1",
     "confusable-homoglyphs>=3.3.1",
-    "publicsuffixlist>=1.0.2",
     "pydantic>=2.13",
     # DKIM public-key size. engine/domain/dns/dkim.py parses the p= tag to report
     # a weak key, and a 1024-bit key is a real finding. Without these it falls

@@ -102,7 +102,7 @@ def _check_empty_href(email: ParsedEmail) -> Finding:
             passed=True,
             message="No HTML body to scan for empty hrefs.",
         )
-    soup = BeautifulSoup(email.html, "lxml")
+    soup = BeautifulSoup(email.html, "html.parser")
     offenders: list[dict] = []
     for a in soup.find_all("a"):
         href = a.get("href")
@@ -139,7 +139,7 @@ def _check_empty_href(email: ParsedEmail) -> Finding:
 def _check_merge_tag_unfilled(email: ParsedEmail) -> Finding:
     sources: list[tuple[str, str]] = []
     if email.html:
-        soup = BeautifulSoup(email.html, "lxml")
+        soup = BeautifulSoup(email.html, "html.parser")
         for tag in soup(["script", "style"]):
             tag.decompose()
         _strip_empty_inline_tags(soup)
@@ -187,7 +187,7 @@ def _check_body_visible_text_min(email: ParsedEmail) -> Finding:
             passed=True,
             message="No HTML body to measure.",
         )
-    soup = BeautifulSoup(email.html, "lxml")
+    soup = BeautifulSoup(email.html, "html.parser")
     for tag in soup(["script", "style"]):
         tag.decompose()
     visible = soup.get_text(separator=" ", strip=True)
