@@ -81,6 +81,18 @@ that removes each broken rule and runs TLC again, as `statechart` does, lists
 every rule the same bug breaks. Expect the two to name different rules for the
 same mutation.
 
+`EventuallyFullyProtected` is the one rule the mutation above cannot reach,
+because it is a liveness property rather than an invariant. It holds only
+because `Spec` says the owner eventually acts. Drop that clause:
+
+```
+Spec == Init /\ [][Next]_vars
+```
+
+and TLC prints `Error: Temporal properties were violated.` and exits 13. A
+liveness property that nothing can break is a line in the table that proves
+nothing, so it is worth re-checking after any change to `Spec` or to the steps.
+
 ## What it leaves out
 
 The record, the ladder and three sender conditions. It does **not** model
