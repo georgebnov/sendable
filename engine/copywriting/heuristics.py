@@ -25,6 +25,8 @@ framework, friction-ack, hook quality) are a separate, future addition.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from engine.critic import (
     _check_body_emoji,
     _check_body_length,
@@ -51,7 +53,7 @@ def _relabel(findings: list[Finding]) -> list[Finding]:
     for f in findings:
         if f.check.startswith(_OLD_PREFIX):
             new_check = _NEW_PREFIX + f.check[len(_OLD_PREFIX) :]
-            f = f.model_copy(update={"check": new_check})
+            f = replace(f, check=new_check)
         out.append(f)
     return out
 

@@ -30,6 +30,8 @@ SendGrid's IP misleads marketers into chasing infra they don't own.)
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from ...report import Finding
 from ...severity import Severity
 from ..dns_client import query, reverse_lookup
@@ -152,16 +154,15 @@ def demote_to_info_when_esp(findings: list[Finding], esp_name: str) -> list[Find
             out.append(f)
             continue
         out.append(
-            f.model_copy(
-                update={
-                    "severity": Severity.INFO,
-                    "message": (
-                        f"[ESP outbound IP: {esp_name}] {f.message} "
-                        f"This IP is operated by {esp_name}, not by your domain; "
-                        f"forward the finding to their deliverability team."
-                    ),
-                    "source": "esp_owned",
-                }
+            replace(
+                f,
+                severity=Severity.INFO,
+                message=(
+                    f"[ESP outbound IP: {esp_name}] {f.message} "
+                    f"This IP is operated by {esp_name}, not by your domain; "
+                    f"forward the finding to their deliverability team."
+                ),
+                source="esp_owned",
             )
         )
     return out

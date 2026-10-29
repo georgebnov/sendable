@@ -29,9 +29,8 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+from dataclasses import dataclass
 from typing import Literal
-
-from pydantic import BaseModel
 
 from ..copywriting.link_quality import _registrable
 from .parser import DmarcRecord
@@ -122,7 +121,8 @@ _SUFFIX_TABLE: tuple[tuple[str, str, ESPKind], ...] = (
 )
 
 
-class ESPMatch(BaseModel):
+@dataclass
+class ESPMatch:
     name: str  # human-readable vendor ("Kit (ConvertKit)")
     kind: ESPKind
     hostname: str | None = None  # reverse-DNS result, when available
@@ -210,7 +210,8 @@ _PROVIDER_NETS = tuple(
 _LEGIT_VENDOR_KINDS = frozenset({"esp", "gateway", "microsoft", "google"})
 
 
-class SenderIdentity(BaseModel):
+@dataclass
+class SenderIdentity:
     """Best available identity for a DMARC record's sending source."""
 
     provider_key: str  # stable clustering / memory key

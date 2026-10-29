@@ -1,7 +1,7 @@
 """RFC 7489 DMARC aggregate-report parser.
 
 Input: bytes of one report (raw XML, or gzipped, or zipped).
-Output: DmarcReport pydantic model with N child DmarcRecord rows.
+Output: DmarcReport dataclass with N child DmarcRecord rows.
 
 The DMARC RUA schema is stable across reporters (Google, Microsoft,
 Mimecast, Cisco IronPort, Yahoo, etc.) so a single parser covers
@@ -36,12 +36,12 @@ import io
 import re
 import xml.etree.ElementTree as _stdET  # only for the Element TYPE annotation
 import zipfile
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 # Use defusedxml against XXE + billion-laughs entity expansion. Reports come
 # from arbitrary senders on the internet — bare xml.etree is unsafe here.
 import defusedxml.ElementTree as ET
-from pydantic import BaseModel, Field
 
 # Reporters declare XML namespaces inconsistently — Microsoft, Comcast,
 # Mimecast sometimes do; Google + Yahoo don't. Stripping the namespace
@@ -61,7 +61,8 @@ def _strip_ns(elem) -> None:
 # ─── Models ──────────────────────────────────────────────────────────
 
 
-class AuthResult(BaseModel):
+@dataclass
+class AuthResult:
     """One row inside <auth_results>/<dkim> or <auth_results>/<spf>."""
 
     domain: str | None = None
@@ -69,7 +70,8 @@ class AuthResult(BaseModel):
     result: str = "none"  # pass | fail | none | temperror | softfail
 
 
-class PolicyOverride(BaseModel):
+@dataclass
+class PolicyOverride:
     """One <reason> entry under <policy_evaluated>. Indicates the
     receiver overrode the policy (e.g. ARC chain trusted, forwarded
     email, mailing list)."""
@@ -78,7 +80,8 @@ class PolicyOverride(BaseModel):
     comment: str | None = None
 
 
-class DmarcRecord(BaseModel):
+@dataclass
+class DmarcRecord:
     """One <record> row inside a DMARC report. ~1 per source-IP-per-
     receiver-per-period combination."""
 
@@ -90,12 +93,13 @@ class DmarcRecord(BaseModel):
     header_from: str | None = None
     envelope_from: str | None = None
     envelope_to: str | None = None
-    auth_dkim: list[AuthResult] = Field(default_factory=list)
-    auth_spf: list[AuthResult] = Field(default_factory=list)
-    reasons: list[PolicyOverride] = Field(default_factory=list)
+    auth_dkim: list[AuthResult] = field(default_factory=list)
+    auth_spf: list[AuthResult] = field(default_factory=list)
+    reasons: list[PolicyOverride] = field(default_factory=list)
 
 
-class DmarcPolicyPublished(BaseModel):
+@dataclass
+class DmarcPolicyPublished:
     """<policy_published> block — what the reporter saw in your DNS at
     the time of the report."""
 
@@ -108,7 +112,8 @@ class DmarcPolicyPublished(BaseModel):
     fo: str | None = None
 
 
-class DmarcReport(BaseModel):
+@dataclass
+class DmarcReport:
     """One ingested aggregate report. Maps directly onto the
     <feedback> root of the XML."""
 
@@ -118,7 +123,7 @@ class DmarcReport(BaseModel):
     date_begin: datetime | None = None
     date_end: datetime | None = None
     policy: DmarcPolicyPublished | None = None
-    records: list[DmarcRecord] = Field(default_factory=list)
+    records: list[DmarcRecord] = field(default_factory=list)
 
 
 # ─── Decompression ───────────────────────────────────────────────────

@@ -11,6 +11,7 @@ surfaced as INFO findings; this runner never raises.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from email.utils import parseaddr
 
 from .. import esp as esp_detect
@@ -83,16 +84,15 @@ def _demote_to_info(findings: list[Finding], operator: str) -> list[Finding]:
             out.append(f)
             continue
         out.append(
-            f.model_copy(
-                update={
-                    "severity": Severity.INFO,
-                    "message": (
-                        f"[managed by {operator}] {f.message} "
-                        f"This is your mail-operator's infrastructure, not your "
-                        f"domain: there is nothing to fix here."
-                    ),
-                    "source": "domain_config",
-                }
+            replace(
+                f,
+                severity=Severity.INFO,
+                message=(
+                    f"[managed by {operator}] {f.message} "
+                    f"This is your mail-operator's infrastructure, not your "
+                    f"domain: there is nothing to fix here."
+                ),
+                source="domain_config",
             )
         )
     return out
