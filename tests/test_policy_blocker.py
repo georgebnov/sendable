@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from engine.dmarc.policy_engine import (
     DmarcRecord,
+    ReportSummary,
     Sender,
     SpfRecord,
-    Window,
     evaluate,
 )
 
@@ -33,10 +33,10 @@ def _s(name, classification, legitimacy, *, dispo="reject", aligned=False, vol=3
 
 
 def _decide(senders):
-    window = Window(senders=senders, days_with_data=10, total_volume=60)
+    summary = ReportSummary(senders=senders, total_volume=60)
     rec = DmarcRecord(True, "reject", pct=50)
     spf = SpfRecord(True, 1, 6, "-")
-    return evaluate(rec, spf, window, _RUA).ladder_decision
+    return evaluate(rec, spf, summary, _RUA).ladder_decision
 
 
 def test_gateway_kept_out_of_authenticate_instruction():

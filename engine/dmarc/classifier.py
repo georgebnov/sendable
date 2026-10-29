@@ -131,11 +131,6 @@ def _is_known_provider(ident) -> bool:
     return ident.kind in _CURATED_KINDS
 
 
-# A known sender's auth gap escalates from "quiet note" to "fix this" once
-# it has failed in this many PRIOR reporting periods — a pattern, not a
-# one-off forward. (Move D: recurrence/trend.)
-
-
 def classify_record(
     record: DmarcRecord,
     policy: DmarcPolicyPublished | None = None,

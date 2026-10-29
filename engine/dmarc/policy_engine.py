@@ -111,17 +111,19 @@ class SpfRecord:
 
 
 @dataclass
-class Window:
+class ReportSummary:
     """What the reports a user passed actually contain.
 
-    Nothing is stored between runs, so this describes one batch of files and
-    never a history. `days_with_data` and `total_volume` are here to be stated
-    back to the reader, so they can judge whether the batch is representative,
-    not to be scored against a target the tool cannot maintain.
+    This describes one batch of files and never a history. There is no span
+    here on purpose: a user can download one report today and the next six
+    months from now, so counting the dates inside a batch and calling the
+    result a period would claim something nobody watched.
+
+    `total_volume` is the plain sum of the message counts in the files, which
+    is a fact about the files rather than a claim about time.
     """
 
     senders: list[Sender]
-    days_with_data: int
     total_volume: int
 
 
@@ -209,7 +211,7 @@ _UNCONTROLLABLE_TAGS = {
     "gateway_relay",
     "policy_override_fwd",
     "policy_override_mailing_list",
-    # A delivery-status notification, not a send. window._LEGIT already says
+    # A delivery-status notification, not a send. summary._LEGIT already says
     # treating it as legit "keeps it out of the blocker list", which was not true
     # until _is_blocker consulted this set.
     "bounce",
@@ -432,7 +434,7 @@ def apply_live_spf_fixes(spf: SpfRecord, senders: list[Sender]) -> list[Sender]:
 
     A DMARC aggregate report describes mail that was sent days ago. When someone
     adds a provider's SPF include today, the reports keep showing that provider
-    failing SPF until the old reports age out of the window, which takes weeks.
+    failing SPF until the old reports age out of the summary, which takes weeks.
     This reads the live published SPF record instead: when the provider's include
     is in the record now, mark that sender as passing and aligned, so the alarm
     drops.
@@ -466,8 +468,8 @@ def apply_live_spf_fixes(spf: SpfRecord, senders: list[Sender]) -> list[Sender]:
 # ----------------------------------------------------------------------------
 # DMARC ladder decision  (gated by the blockers above)
 # ----------------------------------------------------------------------------
-def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
-    senders = window.senders
+def dmarc_decision(rec: DmarcRecord, summary: ReportSummary, rua: str) -> Action:
+    senders = summary.senders
     blockers = [s for s in senders if _is_blocker(s)]
 
     # 0. No record at all -> start at none/monitor.
@@ -503,7 +505,7 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
         primary = controllable or bleeding
         names = ", ".join(s.name for s in primary)
         bleeding_volume = sum(s.volume for s in primary)
-        share = bleeding_volume / max(window.total_volume, 1)
+        share = bleeding_volume / max(summary.total_volume, 1)
         # `bool(controllable)` first. When every bleeding source is a hop on the
         # recipient's side, `primary` falls back to that list and `share` is
         # computed from it, so a single gateway carrying 20% of volume reached
@@ -635,18 +637,17 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
         if nxt_p == "none"
         else (f"{nxt_p}" + (f" at {nxt_pct}%" if nxt_pct < 100 else " at 100%"))
     )
-    days = window.days_with_data
     return Action(
         "ADVANCE",
         Tier.GOOD,
         Severity.LOW,
         f"Nothing is failing. The next step is {label}",
-        f"Every sender in these reports is authenticated, across {days} "
-        f"day(s) and {window.total_volume} message(s). Before you change the "
-        f"record, check that is a fair sample of how you send: a sender that "
-        f"mails once a month does not appear in a few days of reports, and it "
-        f"is the one you would break.",
-        f"When the sample looks representative, update your DMARC record to {label}.",
+        f"Every sender in these reports is authenticated, across "
+        f"{summary.total_volume} message(s). A report only shows what sent while "
+        f"it was being written, so anything that did not send is simply absent "
+        f"here, and that is what breaks when the policy tightens. Make sure you "
+        f"recognise this list as how you really send.",
+        f"When you recognise every sender above, update your DMARC record to {label}.",
         new_record=_build_record(nxt_p, nxt_pct, rua, current=rec),
     )
 
@@ -654,10 +655,10 @@ def dmarc_decision(rec: DmarcRecord, window: Window, rua: str) -> Action:
 # ----------------------------------------------------------------------------
 # Orchestration: one call -> everything the UI needs
 # ----------------------------------------------------------------------------
-def evaluate(rec: DmarcRecord, spf: SpfRecord, window: Window, rua: str) -> EngineResult:
-    spf_out = spf_findings(spf, window.senders)
-    ladder = dmarc_decision(rec, window, rua)
-    blockers = [s for s in window.senders if _is_blocker(s)]
+def evaluate(rec: DmarcRecord, spf: SpfRecord, summary: ReportSummary, rua: str) -> EngineResult:
+    spf_out = spf_findings(spf, summary.senders)
+    ladder = dmarc_decision(rec, summary, rua)
+    blockers = [s for s in summary.senders if _is_blocker(s)]
 
     # Primary action = the single most urgent thing. A HIGH spf finding (e.g. a
     # blocking PermError, or a sender that fails DMARC) outranks a routine

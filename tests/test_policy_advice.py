@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from engine.dmarc.policy_engine import DmarcRecord, Sender, SpfRecord, Window, evaluate
+from engine.dmarc.policy_engine import DmarcRecord, ReportSummary, Sender, SpfRecord, evaluate
 
 RUA = "mailto:dmarc@example.com"
 
@@ -35,20 +35,20 @@ def _clean_sender(volume: int = 350) -> Sender:
     )
 
 
-def _window(days: int = 7, volume: int = 350) -> Window:
-    return Window(senders=[_clean_sender(volume)], days_with_data=days, total_volume=volume)
+def _window(volume: int = 350) -> ReportSummary:
+    return ReportSummary(senders=[_clean_sender(volume)], total_volume=volume)
 
 
 def _spf() -> SpfRecord:
     return SpfRecord(exists=True, record_count=1, lookups=3, all_qualifier="~")
 
 
-@pytest.mark.parametrize(("days", "volume"), [(1, 5), (1, 50), (3, 150), (7, 350), (60, 9000)])
-def test_clean_reports_always_get_the_next_step(days: int, volume: int) -> None:
-    """However few reports there are, a clean batch gets an answer rather than
-    being told to come back later."""
+@pytest.mark.parametrize("volume", [5, 50, 150, 350, 9000])
+def test_clean_reports_always_get_the_next_step(volume: int) -> None:
+    """However little there is, a clean batch gets an answer rather than being
+    told to come back later."""
     result = evaluate(
-        DmarcRecord(exists=True, p="none", sp="none", pct=100), _spf(), _window(days, volume), RUA
+        DmarcRecord(exists=True, p="none", sp="none", pct=100), _spf(), _window(volume), RUA
     )
     assert result.primary.code == "ADVANCE"
     assert result.primary.new_record is not None
@@ -58,7 +58,7 @@ def test_clean_reports_always_get_the_next_step(days: int, volume: int) -> None:
 def test_the_advice_never_promises_a_reminder() -> None:
     """Nothing runs between invocations, so nothing can prompt anyone."""
     result = evaluate(
-        DmarcRecord(exists=True, p="none", sp="none", pct=100), _spf(), _window(1, 5), RUA
+        DmarcRecord(exists=True, p="none", sp="none", pct=100), _spf(), _window(5), RUA
     )
     text = " ".join(
         [result.primary.title, result.primary.detail, result.primary.suggested_action]
@@ -73,14 +73,26 @@ def test_the_advice_never_promises_a_reminder() -> None:
         assert promise not in text, f"the advice still promises: {promise!r}"
 
 
-def test_the_advice_says_what_the_reports_actually_cover() -> None:
-    """The reader needs to judge whether the batch is representative, so the
-    size of it is stated instead of being scored against a target."""
+def test_the_advice_counts_messages_and_never_days() -> None:
+    """A batch can be one report from today and the next from six months from
+    now. Counting the dates in it and calling that a span claims a history that
+    was never watched, so the message count is stated and nothing else."""
     result = evaluate(
-        DmarcRecord(exists=True, p="none", sp="none", pct=100), _spf(), _window(3, 150), RUA
+        DmarcRecord(exists=True, p="none", sp="none", pct=100), _spf(), _window(150), RUA
     )
-    text = f"{result.primary.detail} {result.primary.suggested_action}"
-    assert "3" in text and "150" in text
+    text = f"{result.primary.detail} {result.primary.suggested_action}".lower()
+    assert "150" in text, "the message count is a plain fact about the files"
+    for claim in ("day", "week", "month", "streak", "period", "so far", "over time"):
+        assert claim not in text, f"the advice still implies a span: {claim!r}"
+
+
+def test_the_advice_warns_that_a_report_only_shows_what_sent() -> None:
+    """The real caution, said without pretending to measure anything: a sender
+    that did not send while these reports were generated is simply absent."""
+    result = evaluate(
+        DmarcRecord(exists=True, p="none", sp="none", pct=100), _spf(), _window(5), RUA
+    )
+    assert "did not send" in result.primary.detail
 
 
 def test_a_sender_that_is_failing_still_blocks_the_rung() -> None:
@@ -96,8 +108,8 @@ def test_a_sender_that_is_failing_still_blocks_the_rung() -> None:
         disposition="none",
         classification="legit_unaligned",
     )
-    window = Window(senders=[_clean_sender(), broken], days_with_data=30, total_volume=390)
-    result = evaluate(DmarcRecord(exists=True, p="none", sp="none", pct=100), _spf(), window, RUA)
+    summary = ReportSummary(senders=[_clean_sender(), broken], total_volume=390)
+    result = evaluate(DmarcRecord(exists=True, p="none", sp="none", pct=100), _spf(), summary, RUA)
     assert result.primary.code != "ADVANCE"
     assert result.blockers
 

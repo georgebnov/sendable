@@ -50,10 +50,10 @@ from engine.dmarc.dns_records import read_dmarc, read_spf
 from engine.dmarc.parser import DmarcReport
 from engine.dmarc.parser import parse as parse_report
 from engine.dmarc.policy_engine import apply_live_spf_fixes, evaluate
-from engine.dmarc.window import (
-    build_window,
+from engine.dmarc.summary import (
     for_domain,
     pick_domain,
+    summarise_reports,
 )
 
 
@@ -139,23 +139,22 @@ def main() -> None:
     # and the answer describes exactly them.
     print(f"[dmarc] {len(mine)} report(s) for {domain}", file=sys.stderr)
 
-    window = build_window(mine, domain=domain)
+    summary = summarise_reports(mine, domain=domain)
 
     # The live DNS read is what makes the advice current. A report describes mail
     # sent days ago, so a fix made today is invisible in it.
     spf = read_spf(domain)
     dmarc = read_dmarc(domain)
-    window.senders = apply_live_spf_fixes(spf, window.senders)
+    summary.senders = apply_live_spf_fixes(spf, summary.senders)
 
     rua = args.rua or f"mailto:dmarc@{domain}"
-    result = evaluate(dmarc, spf, window, rua)
+    result = evaluate(dmarc, spf, summary, rua)
 
     out = {
         "domain": domain,
         "reports_read": len(mine),
         "files_skipped": skipped,
-        "days_with_data": window.days_with_data,
-        "total_messages": window.total_volume,
+        "total_messages": summary.total_volume,
         "published": {
             "dmarc": {"exists": dmarc.exists, "p": dmarc.p, "sp": dmarc.sp, "pct": dmarc.pct},
             "spf": {
@@ -169,7 +168,7 @@ def main() -> None:
         "blockers": [asdict(s) for s in result.blockers],
         "spf_findings": [asdict(a) for a in result.spf_findings],
         "senders": [
-            asdict(s) for s in sorted(window.senders, key=lambda s: s.volume, reverse=True)
+            asdict(s) for s in sorted(summary.senders, key=lambda s: s.volume, reverse=True)
         ],
     }
     json.dump(out, sys.stdout, indent=2 if args.pretty else None)

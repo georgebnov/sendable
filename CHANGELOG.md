@@ -65,6 +65,14 @@ service, no account, no database.
 
 ### Fixed
 
+- The DMARC report reader makes no claim about time at all. It used to count
+  the distinct dates inside a batch and present the total as a span, which is
+  wrong: a user can download one report today and the next six months from now,
+  so the files are a pile and not a timeline. `days_with_data` has left the
+  output, the advice counts messages and never days, and the caution it carries
+  is the one that survives without a calendar: a report only shows what sent
+  while it was being written, so anything absent from it is what breaks when
+  the policy tightens.
 - `dmarc.py` stopped pretending to track anything. It reads the reports you
   pass, says what is in them, and gives the next step. The policy advice used to
   be gated on a 21 day clean streak and a message count, and told anyone with
