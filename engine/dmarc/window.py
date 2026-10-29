@@ -35,10 +35,8 @@ from datetime import UTC, date, datetime
 from engine.copywriting.link_quality import _registrable
 from engine.dmarc.classifier import classify_record
 from engine.dmarc.esp_fingerprint import classify as classify_ip
-from engine.dmarc.esp_fingerprint import resolve_identity
 from engine.dmarc.parser import DmarcRecord as ParsedRecord
 from engine.dmarc.parser import DmarcReport
-from engine.dmarc.policy_engine import _UNCONTROLLABLE_TAGS as _UNCONTROLLABLE
 from engine.dmarc.policy_engine import Sender, Window
 
 # How harshly a receiver acted, worst last. A merge keeps the worst, because a
@@ -195,7 +193,6 @@ class _Bucket:
     disposition: str = "none"
     esp_include: str | None = None
     classification: str | None = None
-    first_seen: str | None = None
 
     def absorb(self, other: _Bucket) -> None:
         """Merge another bucket in, taking the best case on each alignment flag
@@ -217,8 +214,6 @@ class _Bucket:
         if _DISPOSITION_RANK.get(other.disposition, 0) > _DISPOSITION_RANK.get(self.disposition, 0):
             self.disposition = other.disposition
             self.classification = other.classification
-        if other.first_seen and (self.first_seen is None or other.first_seen < self.first_seen):
-            self.first_seen = other.first_seen
 
     def to_sender(self) -> Sender:
         return Sender(
@@ -232,22 +227,15 @@ class _Bucket:
             disposition=self.disposition,
             esp_include=self.esp_include,
             classification=self.classification,
-            first_seen=self.first_seen,
         )
 
 
-def build_window(
-    reports: list[DmarcReport],
-    *,
-    domain: str,
-    known_providers: set[str] | None = None,
-) -> Window:
-    """Summarise every report into one Window for the policy engine.
+def build_window(reports: list[DmarcReport], *, domain: str) -> Window:
+    """Summarise every report the user passed into one Window.
 
-    `known_providers` is the set of sender identities seen in earlier reports. With
-    it, the classifier can tell a brand new source from one that has sent before,
-    which is the difference between "a spoof just started" and "your provider added
-    an IP". Without it, new-sender detection is skipped rather than guessed.
+    This describes a batch of files and nothing else. Sendable stores nothing
+    between runs, so there is no history to compare a sender against and no
+    streak to carry forward: what the reports say is the whole answer.
     """
     by_key: dict[str, _Bucket] = {}
     days: set[date] = set()
@@ -255,7 +243,6 @@ def build_window(
 
     for report in reports:
         day = report.date_end.date() if report.date_end else None
-        begin = report.date_begin.strftime("%Y-%m-%d") if report.date_begin else None
         if day:
             days.add(day)
 
@@ -266,9 +253,7 @@ def build_window(
         aspf_strict = bool(report.policy and (report.policy.aspf or "r").lower() == "s")
 
         for record in report.records:
-            verdict = classify_record(
-                record, report.policy, known_providers=known_providers
-            ).classification
+            verdict = classify_record(record, report.policy).classification
             bucket = _Bucket(
                 name=_sender_name(record, verdict),
                 volume=record.count,
@@ -280,7 +265,6 @@ def build_window(
                 disposition=record.disposition or "none",
                 esp_include=include_for_provider(classify_ip(record.source_ip).name),
                 classification=verdict,
-                first_seen=begin,
             )
             total_volume += record.count
 
@@ -293,39 +277,8 @@ def build_window(
 
     senders = [b.to_sender() for b in by_key.values()]
 
-    # The streak counts days with no blocker. A blocker is a sender that failed
-    # alignment but is not a spoof: real mail that would start being rejected if
-    # the policy tightened now. One anywhere in the window resets it to zero,
-    # which is the conservative reading and the one that protects the user.
-    # A blocker here means "something I must fix before advancing". A hop on the
-    # recipient's side is not that: their gateway, mailing list, or forwarder
-    # breaks alignment by design and the sender cannot authenticate it. Counting
-    # them held the streak at zero permanently, so no domain whose recipients used
-    # a security gateway could ever advance.
-    has_blocker = any(
-        (not s.dmarc_aligned)
-        and s.legitimacy != "suspicious"
-        and s.classification not in _UNCONTROLLABLE
-        for s in senders
-    )
-
-    # The streak is how many days the clean run covers, not how many reports
-    # arrived. Counting report-days meant a sender who mails on weekdays, or who
-    # loses a day to a provider that skips empty periods or to one unreadable
-    # file, could never reach CLEAN_DAYS_REQUIRED and so could never advance. A
-    # day with no report is not a dirty day.
-    #
-    # With a blocker present this stays 0. Working out when the blocker started
-    # needs per-day aggregation the summary does not do, and 0 is the answer that
-    # protects the user.
-    clean_streak_days = 0
-    if not has_blocker and days:
-        span = (max(days) - min(days)).days + 1
-        clean_streak_days = span
-
     return Window(
         senders=senders,
-        clean_streak_days=clean_streak_days,
         days_with_data=len(days),
         total_volume=total_volume,
     )
@@ -361,39 +314,10 @@ def _ends_at(report: DmarcReport) -> datetime | None:
     return end.replace(tzinfo=UTC) if end.tzinfo is None else end
 
 
-def known_providers_before_latest(reports: Sequence[DmarcReport]) -> set[str] | None:
-    """The sender identities that already sent before the newest reporting period.
-
-    A DMARC report declares the period it covers, usually one day. That is the
-    only ordering new-sender detection needs: a sender present in an earlier
-    period is one you have seen, and one appearing only in the newest period is
-    new. No calendar is involved, so a batch of any age or shape works.
-
-    This replaced a 21 day cut measured back from the newest report. That cut
-    assumed reports arrive continuously, which was true when a service collected
-    them and is not true now. A user downloads a handful of recent files, every
-    one of them lands on the recent side, nothing is left for the baseline, and
-    detection switches itself off exactly when someone is looking.
-
-    Returns None, not an empty set, when the batch covers a single period. An
-    empty set would mean "nothing has ever sent here" and call every source
-    brand new.
-    """
-    periods = sorted({end for end in (_ends_at(r) for r in reports) if end is not None})
-    if len(periods) < 2:
-        return None
-    latest = periods[-1]
-    earlier = [r for r in reports if (end := _ends_at(r)) is not None and end < latest]
-    if not earlier:
-        return None
-    return {resolve_identity(record).provider_key for r in earlier for record in r.records}
-
-
 __all__ = [
     "build_window",
     "for_domain",
     "include_for_provider",
-    "known_providers_before_latest",
     "legitimacy_from_classification",
     "pick_domain",
 ]

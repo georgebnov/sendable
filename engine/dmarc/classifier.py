@@ -2,7 +2,7 @@
 
 Encodes every pattern from the reference DMARC conversation
 into a rules engine. Input: one DmarcRecord + the report's policy +
-optional baseline of known sending IPs. Output: ClassificationResult
+a curated identity list. Output: ClassificationResult
 with classification tag, severity, plain-English explainer, and
 optional suggested action.
 
@@ -62,7 +62,6 @@ Classification = Literal[
     "gateway_relay",
     "sender_auth_gap",
     "new_legit_esp",
-    "new_unknown_ip",
     "esp_softfail_ok",
     "clean",
     "unclassified",
@@ -77,7 +76,6 @@ class ClassificationResult:
     explainer: str  # plain-English paragraph
     suggested_action: str | None = None
     source_match: ESPMatch | None = None
-    is_new_ip: bool = False  # only true when baseline was provided and ip absent
     details: dict = field(default_factory=dict)
 
 
@@ -118,52 +116,42 @@ def _dkim_domain_aligned(record: DmarcRecord, header_from: str) -> bool:
     return any((d.domain or "").lower() == h and d.result == "pass" for d in record.auth_dkim)
 
 
-def _is_known_provider(ident, known_providers: set[str] | None) -> bool:
-    """True when the source is a recognised sender — either a curated
-    identity (CIDR/vendor match) or a real provider identity (a named
-    domain/host) seen in past reports. A failing message from a known
-    provider is an auth gap, not a spoof.
+def _is_known_provider(ident) -> bool:
+    """True when the source is a sender we recognise by name.
 
-    Crucially, an IP-block fallback key (kind 'unknown'/'cloud') seen
-    before does NOT count: otherwise a repeat spoofer downgrades itself
-    from spoof to auth-gap just by having appeared once. Only resolved
-    'domain'/'infra' identities carry history weight."""
-    if ident.kind in _CURATED_KINDS:
-        return True
-    if ident.kind in ("domain", "infra"):
-        return known_providers is not None and ident.provider_key in known_providers
-    return False
+    Recognition comes from the curated identities: a CIDR or vendor match that
+    says "this is Microsoft 365" or "this is SendGrid". A failing message from
+    one of those is an auth gap, not a spoof.
+
+    It used to also count any named host seen in an earlier report, which meant
+    the answer depended on which files a user happened to pass. Nothing is
+    stored between runs, so there is no history to consult and a judgement that
+    changes with the size of a folder is not a judgement worth making.
+    """
+    return ident.kind in _CURATED_KINDS
 
 
 # A known sender's auth gap escalates from "quiet note" to "fix this" once
 # it has failed in this many PRIOR reporting periods — a pattern, not a
 # one-off forward. (Move D: recurrence/trend.)
-_RECUR_PERIODS = 2
 
 
 def classify_record(
     record: DmarcRecord,
     policy: DmarcPolicyPublished | None = None,
-    known_providers: set[str] | None = None,
-    fail_history: dict[str, int] | None = None,
 ) -> ClassificationResult:
     """Run the rule cascade and return the first match.
 
-    `known_providers` is the per-domain baseline of sender identities
-    (esp_fingerprint provider_key) seen in past reports. When provided,
-    the classifier keys new-sender / known-sender rules on provider, not
-    raw IP; when None, new-sender detection is skipped.
-
-    `fail_history` maps provider_key → number of PRIOR reporting periods
-    that provider failed alignment. Used to escalate a recurring auth gap
-    from noise to an actionable pattern; absent/None means treat every gap
-    as a first occurrence.
+    Every judgement comes from this one record and from the curated identities,
+    so the same row always classifies the same way. Nothing here consults a
+    history, because nothing keeps one. A sender is recognised by name or it is
+    not, and that answer does not change with how many files a user passed.
     """
     src = _classify_ip(record.source_ip)
     # Composite identity drives the spoof-vs-known decision (src, the raw
     # PTR match, is kept only for the source_match metadata field).
     ident = resolve_identity(record)
-    known = _is_known_provider(ident, known_providers)
+    known = _is_known_provider(ident)
     header_from = (record.header_from or "").lower()
     domain = (policy.domain if policy else header_from).lower()
     policy_p = policy.p if policy else None
@@ -372,52 +360,35 @@ def classify_record(
     # reports) failed alignment. NOT a spoof — and never hidden. Surfaced
     # as a fixable auth gap, framed by cumulative risk, not this one email.
     if fail_both and known:
-        prior_periods = (fail_history or {}).get(ident.provider_key, 0)
-        recurring = prior_periods >= _RECUR_PERIODS
-        # Enforcing policy (blocking real mail) is worse than monitoring; a
-        # recurring pattern is worse than a one-off. Escalate on both axes.
-        if policy_p in (None, "none"):
-            gap_sev = Severity.MEDIUM if recurring else Severity.LOW
-        else:
-            gap_sev = Severity.HIGH if recurring else Severity.MEDIUM
+        # Enforcing policy, which blocks real mail, is worse than monitoring.
+        # There used to be a second axis here that escalated a gap seen across
+        # several reporting periods, but counting periods needs a history this
+        # keeps no part of.
+        gap_sev = Severity.LOW if policy_p in (None, "none") else Severity.MEDIUM
 
-        if recurring:
-            headline = f"{ident.name}: recurring authentication gap"
-            explainer = (
-                f"{ident.name} has now failed to authenticate as {header_from} "
-                f"across {prior_periods + 1} reporting periods. DKIM and SPF "
-                f"both fail to align. This is a pattern, not a stray forward, "
-                f"and a persistent unauthenticated stream drags your inbox "
-                f"placement. Fix the sender's setup."
-            )
+        headline = f"{ident.name}: authentication gap, not a spoof"
+        explainer = (
+            f"{record.count} email from {ident.name} sent as "
+            f"{header_from} but didn't authenticate as you. DKIM and SPF "
+            f"both failed to align. This is a sender you use, not an "
+            f"impostor. A single miss is almost always a forward or list "
+            f"and won't hurt you. A rising share from the same source can "
+            f"drag your inbox placement over time, so if you see it in "
+            f"report after report, fix the sender."
+        )
+        if policy_p in (None, "none"):
             gap_action = (
-                f"Set up {ident.name} to sign with DKIM and pass SPF for "
-                f"{domain}. It has failed repeatedly, so this is costing you "
-                f"deliverability until it's fixed."
+                f"A one-off miss from a sender you use is usually a forward "
+                f"or mailing list: safe to ignore. If mail from "
+                f"{ident.name} keeps failing, check its SPF and DKIM so it "
+                f"authenticates as {domain}."
             )
         else:
-            headline = f"{ident.name}: authentication gap, not a spoof"
-            explainer = (
-                f"{record.count} email from {ident.name} sent as "
-                f"{header_from} but didn't authenticate as you. DKIM and SPF "
-                f"both failed to align. This is a sender you use, not an "
-                f"impostor. A single miss is almost always a forward or list "
-                f"and won't hurt you; a rising share from the same source can "
-                f"drag your inbox placement over time."
+            gap_action = (
+                f"Your p={policy_p} policy means these are being filtered "
+                f"or blocked. Set up {ident.name} to sign with DKIM and "
+                f"pass SPF for {domain}, or this mail keeps getting lost."
             )
-            if policy_p in (None, "none"):
-                gap_action = (
-                    f"A one-off miss from a sender you use is usually a forward "
-                    f"or mailing list: safe to ignore. If mail from "
-                    f"{ident.name} keeps failing, check its SPF and DKIM so it "
-                    f"authenticates as {domain}."
-                )
-            else:
-                gap_action = (
-                    f"Your p={policy_p} policy means these are being filtered "
-                    f"or blocked. Set up {ident.name} to sign with DKIM and "
-                    f"pass SPF for {domain}, or this mail keeps getting lost."
-                )
         return ClassificationResult(
             classification="sender_auth_gap",
             severity=gap_sev,
@@ -470,69 +441,6 @@ def classify_record(
             ),
             suggested_action=action,
             source_match=src,
-            details=base,
-        )
-
-    # ─── 9 / 10. New-IP rules (only when baseline provided) ──────
-    # Only fire when the record itself has SOMETHING to flag —
-    # auth failure or non-none disposition. A new IP that's also
-    # fully clean (DKIM pass + SPF pass + disposition=none) just
-    # means a recognised sender showed up for the first time, which
-    # is exactly the desired state. Falling through to the clean
-    # rule below avoids alert-fatigue on legitimate first sends.
-    fully_clean = dkim_pass and spf_pass and dispo == "none"
-    if (
-        known_providers is not None
-        and ident.provider_key not in known_providers
-        and not fully_clean
-    ):
-        is_new = True
-        if ident.kind in ("esp", "microsoft", "google"):
-            return ClassificationResult(
-                classification="new_legit_esp",
-                severity=Severity.MEDIUM,
-                headline=f"New sender: {src.name}",
-                explainer=(
-                    f"First time {src.name} ({record.source_ip}) "
-                    f"appears in your DMARC history for {domain}. "
-                    f"Looks legitimate based on reverse-DNS. If you "
-                    f"recently added {src.name} as a sender, make "
-                    f"sure SPF includes their range so future reports "
-                    f"come back clean."
-                ),
-                suggested_action=(
-                    f"If you started using {src.name}, add their SPF "
-                    f"include to your {domain} record."
-                ),
-                source_match=src,
-                is_new_ip=is_new,
-                details=base,
-            )
-        # Cloud / unknown IP — escalate.
-        if dispo == "none" and (dkim_pass or spf_pass):
-            # Authenticated but new — milder.
-            severity = Severity.MEDIUM
-        else:
-            severity = Severity.HIGH
-        return ClassificationResult(
-            classification="new_unknown_ip",
-            severity=severity,
-            headline=f"New unknown sender: {record.source_ip}",
-            explainer=(
-                f"{record.source_ip} ({src.name}) has never been seen "
-                f"in your DMARC history for {domain}. Reverse-DNS "
-                f"doesn't match any recognised ESP or gateway. If you "
-                f"don't recognise this server, treat as a spoofing "
-                f"probe: your policy will catch it on the next send."
-            ),
-            suggested_action=(
-                f"Check if anyone on your team has spun up a new tool "
-                f"on {src.name or 'this host'} that sends as {domain}. "
-                f"If not, the policy is doing its job; monitor for "
-                f"repeats."
-            ),
-            source_match=src,
-            is_new_ip=is_new,
             details=base,
         )
 

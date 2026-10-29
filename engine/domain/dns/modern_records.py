@@ -95,8 +95,8 @@ def _parse_mta_sts_policy(text: str) -> tuple[dict[str, list[str]], list[str]]:
             continue
         if ":" not in line:
             # The line's content is deliberately not quoted. This body came
-            # from a host the audited email chose, and the finding is written to
-            # the user's stored report.
+            # from a host the audited email chose, and the finding is printed
+            # straight to the user.
             issues.append(f"line {lineno} has no ':' separator")
             continue
         key, _, val = line.partition(":")

@@ -65,6 +65,23 @@ service, no account, no database.
 
 ### Fixed
 
+- `dmarc.py` stopped pretending to track anything. It reads the reports you
+  pass, says what is in them, and gives the next step. The policy advice used to
+  be gated on a 21 day clean streak and a message count, and told anyone with
+  less "Keep collecting reports. We'll prompt you once there's enough clean
+  volume." Nothing collects and nothing prompts, so that advice could never be
+  acted on. The advice now always names the next rung, states how many days and
+  messages the reports cover, and leaves the reader to judge whether that is a
+  fair sample of how they send.
+- A sender is recognised by the curated list of providers, not by having
+  appeared in an older file you happened to pass. A named host nobody
+  recognises, failing both SPF and DKIM, now reads as a possible spoof rather
+  than as an authentication gap. The old answer changed depending on which
+  files were in the folder, which is not a judgement worth making.
+- Gone with the tracking: the clean streak, the new-sender flag, the recurring
+  gap escalation, and the `first_seen` column. `clean_streak_days`,
+  `new_sender_detection`, `window_days` and `reports_as_baseline` have left the
+  JSON output.
 - `dmarc.py` reads every report you pass and the `--days` flag is gone. It used
   to judge a trailing window and treat anything older as the baseline, which
   only works when reports arrive continuously, the way they did when a service

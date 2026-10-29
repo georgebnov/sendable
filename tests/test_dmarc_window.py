@@ -22,6 +22,7 @@ from engine.dmarc.parser import (
     DmarcRecord,
     DmarcReport,
 )
+from engine.dmarc.policy_engine import _is_blocker
 from engine.dmarc.window import build_window, include_for_provider
 
 DOMAIN = "example.com"
@@ -68,7 +69,6 @@ def test_no_reports_gives_an_empty_window() -> None:
     assert window.senders == []
     assert window.total_volume == 0
     assert window.days_with_data == 0
-    assert window.clean_streak_days == 0
 
 
 def test_a_report_with_no_records_still_counts_as_a_day_of_data() -> None:
@@ -182,14 +182,14 @@ def test_alignment_takes_the_best_case_across_reports() -> None:
 def test_an_aligned_sender_is_not_a_blocker() -> None:
     reports = [_report(_record("209.85.220.41"), day=d) for d in (1, 2, 3)]
     window = build_window(reports, domain=DOMAIN)
-    assert window.clean_streak_days == window.days_with_data
+    assert not [s for s in window.senders if _is_blocker(s)]
 
 
-def test_a_recognised_sender_failing_alignment_blocks_the_clean_streak(
+def test_a_recognised_sender_failing_alignment_blocks_the_policy(
     ptr: Callable[[str, str], None],
 ) -> None:
-    # This is the whole point of the streak. Tightening policy while a real sender
-    # fails alignment starts rejecting that sender's own mail.
+    # Tightening policy while a real sender fails alignment starts rejecting that
+    # sender's own mail, so it has to hold the policy back.
     #
     # The sender must be recognisable for this to be the blocker case. An unknown
     # IP failing both checks is a spoof, and a spoof does not block: tightening
@@ -212,7 +212,7 @@ def test_a_recognised_sender_failing_alignment_blocks_the_clean_streak(
     sender = window.senders[0]
     assert sender.dmarc_aligned is False, "neither check aligned with the From domain"
     assert sender.legitimacy != "suspicious", "a recognised provider is not a spoof"
-    assert window.clean_streak_days == 0
+    assert _is_blocker(sender), "real mail that would start being rejected"
 
 
 def test_an_unknown_source_failing_everything_does_not_block() -> None:
@@ -227,7 +227,7 @@ def test_an_unknown_source_failing_everything_does_not_block() -> None:
     ]
     window = build_window(reports, domain=DOMAIN)
     assert window.senders[0].legitimacy == "suspicious"
-    assert window.clean_streak_days == window.days_with_data
+    assert not _is_blocker(window.senders[0]), "advancing is the fix for a spoof"
 
 
 def test_a_recognised_provider_is_named_in_the_summary(

@@ -33,7 +33,7 @@ def _s(name, classification, legitimacy, *, dispo="reject", aligned=False, vol=3
 
 
 def _decide(senders):
-    window = Window(senders=senders, clean_streak_days=0, days_with_data=10, total_volume=60)
+    window = Window(senders=senders, days_with_data=10, total_volume=60)
     rec = DmarcRecord(True, "reject", pct=50)
     spf = SpfRecord(True, 1, 6, "-")
     return evaluate(rec, spf, window, _RUA).ladder_decision

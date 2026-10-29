@@ -53,7 +53,6 @@ from engine.dmarc.policy_engine import apply_live_spf_fixes, evaluate
 from engine.dmarc.window import (
     build_window,
     for_domain,
-    known_providers_before_latest,
     pick_domain,
 )
 
@@ -135,23 +134,12 @@ def main() -> None:
         )
         raise SystemExit(1)
 
-    # Every report the user passed is judged. Nothing collects reports for them,
-    # so the files on the command line are the whole dataset, and discarding any
-    # of them by date would throw away the only data there is.
-    known_providers = known_providers_before_latest(mine)
+    # Every report the user passed is read. Nothing collects reports for them
+    # and nothing is kept between runs, so these files are the whole dataset
+    # and the answer describes exactly them.
+    print(f"[dmarc] {len(mine)} report(s) for {domain}", file=sys.stderr)
 
-    print(
-        f"[dmarc] {len(mine)} report(s) for {domain}"
-        + (
-            ", comparing the newest period against what sent before it"
-            if known_providers is not None
-            else " covering one period, so new-sender detection is off "
-            "(add a report from an earlier day to turn it on)"
-        ),
-        file=sys.stderr,
-    )
-
-    window = build_window(mine, domain=domain, known_providers=known_providers)
+    window = build_window(mine, domain=domain)
 
     # The live DNS read is what makes the advice current. A report describes mail
     # sent days ago, so a fix made today is invisible in it.
@@ -168,8 +156,6 @@ def main() -> None:
         "files_skipped": skipped,
         "days_with_data": window.days_with_data,
         "total_messages": window.total_volume,
-        "clean_streak_days": window.clean_streak_days,
-        "new_sender_detection": known_providers is not None,
         "published": {
             "dmarc": {"exists": dmarc.exists, "p": dmarc.p, "sp": dmarc.sp, "pct": dmarc.pct},
             "spf": {
