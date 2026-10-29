@@ -19,7 +19,13 @@ import re
 
 import pytest
 
-from engine.dmarc.policy_engine import LADDER, _strength
+from engine.dmarc.policy_engine import (
+    LADDER,
+    DmarcRecord,
+    _ladder_index,
+    _relief_index,
+    _strength,
+)
 
 SPEC = pathlib.Path(__file__).parent / "formal" / "Ladder.tla"
 CONFIG = pathlib.Path(__file__).parent / "formal" / "Ladder.cfg"
@@ -105,24 +111,126 @@ def test_the_spec_explores_percentages_that_are_not_rungs() -> None:
 # The nine rules, less two that cannot be listed here. `NoDeadlock` is TLC's
 # default and appears in no config. `TypeOK` is a type invariant, not a sentence
 # the reader agreed to.
-@pytest.mark.parametrize(
-    "rule",
-    [
-        "AdvanceAlwaysStrengthens",
-        "ReliefAlwaysWeakens",
-        "ReliefOfferedWheneverOneExists",
-        "MovesOneRung",
-        "AdviceIsNeverANoOp",
-        "LadderIndexIsMonotone",
-        "NeverTightenWhileBleeding",
-    ],
-)
-def test_every_rule_is_defined_and_checked(rule: str) -> None:
-    """A rule defined but left out of the config is not checked, and the report
-    still says the others hold. That reads like a pass."""
-    assert re.search(rf"^{rule} ==", SPEC.read_text(), re.M), f"{rule} is not defined"
-    assert f"INVARIANT {rule}" in CONFIG.read_text(), f"{rule} is not in the config"
+def _rules_in_spec() -> list[str]:
+    """Every operator defined under the spec's `The rules.` banner.
+
+    Read out of the file rather than listed here. A list is a set of names
+    somebody remembered, and the drift this guards against is the one nobody
+    remembers: a rule added to the spec and left out of `Ladder.cfg` is never
+    checked, and TLC still reports that the others hold, which reads exactly
+    like a pass."""
+    parts = SPEC.read_text().split("The rules.", 1)
+    assert len(parts) == 2, "the spec no longer has a rules section"
+    names = re.findall(r"^([A-Z]\w*) ==", parts[1], re.M)
+    assert names, "no rule could be read out of the spec"
+    return names
 
 
-def test_the_liveness_property_is_checked_too() -> None:
-    assert "PROPERTY EventuallyFullyProtected" in CONFIG.read_text()
+def _rules_in_config() -> list[str]:
+    return re.findall(r"^(?:INVARIANT|PROPERTY) (\w+)", CONFIG.read_text(), re.M)
+
+
+def test_every_rule_in_the_spec_is_checked_and_nothing_else_is() -> None:
+    assert sorted(_rules_in_spec()) == sorted(_rules_in_config()), (
+        "tests/formal/Ladder.tla and tests/formal/Ladder.cfg disagree about "
+        "which rules exist. A rule in the spec and not the config is never "
+        "checked, and the run still reports a pass. List it in Ladder.cfg as "
+        "INVARIANT for a state rule or PROPERTY for a temporal one."
+    )
+
+
+def test_the_documented_rule_count_is_the_real_one() -> None:
+    """AGENTS.md and tests/formal/README.md both say nine rules. A tenth rule
+    that leaves the prose alone makes the prose wrong."""
+    checked = _rules_in_config()
+    assert len(checked) == 9, (
+        f"Ladder.cfg now checks {len(checked)} rules, not nine. Say the new "
+        f"number in AGENTS.md and tests/formal/README.md, and give the rule a "
+        f"row in that README's table, then update this count."
+    )
+
+
+# ---------------------------------------------------------------------------
+# The two algorithms the spec rewrites by hand, transcribed back out of
+# tests/formal/Ladder.tla. The spec is 1-indexed and the code is 0-indexed.
+#
+# The rungs above are data, and data drift is loud. These two are logic, they
+# are what `just verify` tells you to re-run the model after changing, and all
+# three bugs the model exists for lived in them. Rewritten logic that nothing
+# compares is the quieter drift: the proof stays green about an algorithm this
+# repo no longer runs.
+# ---------------------------------------------------------------------------
+TOP = len(LADDER)
+
+
+def _spec_ladder_index(policy: str, pct: int) -> int:
+    """`LadderIndex` in Ladder.tla."""
+    for i in range(1, TOP + 1):
+        rung_p, rung_pct = LADDER[i - 1]
+        if rung_p == policy and (policy == "none" or rung_pct == pct):
+            return i
+    passed = [
+        i for i in range(1, TOP + 1) if LADDER[i - 1][0] == policy and LADDER[i - 1][1] <= pct
+    ]
+    if passed:
+        return max(passed)
+    same = [i for i in range(1, TOP + 1) if LADDER[i - 1][0] == policy]
+    if same:
+        return max(min(same) - 1, 1)
+    return 1
+
+
+def _spec_strength(policy: str, pct: int) -> tuple[int, int]:
+    """`Strength` in Ladder.tla, built on the `Rank` read out of the spec.
+
+    Transcribed rather than imported. `_spec_relief_index` decides which rung is
+    weaker, so importing `_strength` for that would put the same function on
+    both sides of the comparison and hide a drift in it. The spec's `Below` is a
+    pair compared left to right, which is what Python does to a tuple, so the
+    comparison itself needs no transcription."""
+    rank = _rank_in_spec()[policy]
+    return (rank, 0 if rank == 0 else pct)
+
+
+@pytest.mark.parametrize("policy", ["none", "quarantine", "reject"])
+@pytest.mark.parametrize("pct", [0, 10, 25, 50, 75, 90, 100])
+def test_the_spec_measures_strength_the_way_the_code_does(policy: str, pct: int) -> None:
+    """The rank alone is not enough. `Strength` breaks a tie on the percentage
+    and reads it as 0 under `none`, where the percentage means nothing, and that
+    tie-break is what orders two records under the same policy."""
+    assert _spec_strength(policy, pct) == _strength(policy, pct), (
+        f"at p={policy}, pct={pct} the spec's Strength and _strength part. "
+        f"Every rule the proof states about one record acting on more mail "
+        f"than another is then about a different measure."
+    )
+
+
+def _spec_relief_index(policy: str, pct: int) -> int | None:
+    """`ReliefIndex` in Ladder.tla, with `HasRelief` as the None case."""
+    weaker = [
+        i for i in range(1, TOP + 1) if _spec_strength(*LADDER[i - 1]) < _spec_strength(policy, pct)
+    ]
+    return max(weaker) if weaker else None
+
+
+@pytest.mark.parametrize("policy", ["none", "quarantine", "reject"])
+@pytest.mark.parametrize("pct", [0, 10, 25, 50, 75, 90, 100])
+def test_the_spec_counts_the_rung_the_way_the_code_does(policy: str, pct: int) -> None:
+    rec = DmarcRecord(exists=True, p=policy, pct=pct)
+    assert _spec_ladder_index(policy, pct) == _ladder_index(rec) + 1, (
+        f"at p={policy}, pct={pct} the spec's LadderIndex and _ladder_index "
+        f"part. Every rule the proof states about a rung is then about a "
+        f"different rung than the code reads."
+    )
+
+
+@pytest.mark.parametrize("policy", ["none", "quarantine", "reject"])
+@pytest.mark.parametrize("pct", [0, 10, 25, 50, 75, 90, 100])
+def test_the_spec_finds_the_same_relief_rung_as_the_code(policy: str, pct: int) -> None:
+    rec = DmarcRecord(exists=True, p=policy, pct=pct)
+    code = _relief_index(rec)
+    assert _spec_relief_index(policy, pct) == (None if code is None else code + 1), (
+        f"at p={policy}, pct={pct} the spec's ReliefIndex and _relief_index "
+        f"part. ReliefAlwaysWeakens and MovesOneRung then prove nothing about "
+        f"the rollback a user is actually offered."
+    )

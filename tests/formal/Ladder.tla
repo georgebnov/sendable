@@ -9,11 +9,12 @@
 (*                                                                         *)
 (* The percentages model real records, not only the rungs, because a record *)
 (* can hold any value and the three bugs found so far all lived between     *)
-(* rungs.                                                                  *)
+(* rungs. 0 is in the set because p=quarantine with pct=0 is a record a      *)
+(* domain really publishes, and it is the percentage of rung 1.              *)
 (***************************************************************************)
 EXTENDS Integers, Sequences, FiniteSets
 
-Pcts == {10, 25, 50, 75, 100}
+Pcts == {0, 10, 25, 50, 75, 100}
 
 \* LADDER in policy_engine.py, as <<policy, pct>> pairs, 1-indexed here.
 Ladder == << <<"none", 0>>,
@@ -52,6 +53,15 @@ Weaker(p, pc) == { i \in 1..Top : Below(Strength(Ladder[i][1], Ladder[i][2]),
 HasRelief(p, pc) == Weaker(p, pc) # {}
 ReliefIndex(p, pc) ==
   CHOOSE i \in Weaker(p, pc) : \A j \in Weaker(p, pc) : j <= i
+
+\* The lowest rung acting on more mail than this record. This is where an
+\* advance has to land, read from strength rather than from the rung count, the
+\* same way relief is. MovesOneRung compares the two, and that comparison is
+\* what the old _ladder_index got wrong.
+Stronger(p, pc) == { i \in 1..Top : Below(Strength(p, pc),
+                                          Strength(Ladder[i][1], Ladder[i][2])) }
+AdvanceIndex(p, pc) ==
+  CHOOSE i \in Stronger(p, pc) : \A j \in Stronger(p, pc) : i <= j
 
 (***************************************************************************)
 (* State                                                                   *)
@@ -110,7 +120,6 @@ TheSenderGetsAuthenticated ==
 \* A correct end state still needs a step out, or TLC calls it a deadlock.
 NothingLeftToDo ==
   /\ Verdict \in {"AT_GOAL", "FIX_SENDER"}
-  /\ senders = "clean" \/ Verdict = "FIX_SENDER"
   /\ UNCHANGED vars
 
 Init ==
@@ -147,11 +156,19 @@ ReliefOfferedWheneverOneExists ==
   (senders = "bleeding" /\ Rank(policy) > 0) => Verdict = "ROLLBACK"
 
 \* "A step never jumps over a rung."
+\*
+\* Both arms hold the rung count against strength, the pair that disagreed in
+\* all three bugs. Reading the advance target back out of LadderIndex would
+\* prove nothing, because the target is itself a rung and LadderIndex then
+\* answers here + 1 by construction. AdvanceIndex is an independent answer.
 MovesOneRung ==
   Verdict \in {"ADVANCE", "ROLLBACK"} =>
     LET here == LadderIndex(policy, pct)
-        there == IF Verdict = "ADVANCE" THEN here + 1 ELSE ReliefIndex(policy, pct)
-    IN there >= here - 1 /\ there <= here + 1
+    IN IF Verdict = "ADVANCE"
+         THEN /\ Stronger(policy, pct) # {}
+              /\ AdvanceIndex(policy, pct) = here + 1
+         ELSE LET there == ReliefIndex(policy, pct)
+              IN there >= here - 1 /\ there <= here + 1
 
 \* "Advice never hands me back the record I already publish."
 AdviceIsNeverANoOp ==

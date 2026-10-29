@@ -24,7 +24,7 @@ just verify
 
 TLC is one jar. Fetch it once into `.tla/`, which git ignores, or set
 `TLA2TOOLS` to a copy you already have. A clean run ends with `Model checking
-completed. No error has been found.` after 41 distinct states. A broken rule
+completed. No error has been found.` after 49 distinct states. A broken rule
 names itself and exits non-zero.
 
 `just verify` is not part of `just check` and cannot be. It needs Java and a
@@ -32,20 +32,23 @@ jar this repo does not carry, and rule 13 keeps the skill at zero
 dependencies. Run it by hand whenever you change `LADDER`, `_ladder_index`,
 `_relief_index`, or `dmarc_decision`.
 
-`view.ts` is for drawing the reachable states as a chart rather than checking
-them. It is the view module of the `statechart` tool and needs that tool. The
-rules above do not.
-
 ### What runs in the suite
 
 `tests/test_formal_ladder_matches_code.py` runs with every `just check`, needs
 neither Java nor the network, and holds the spec against the code. It fails if
 the rungs in `Ladder.tla` stop matching `LADDER`, if `Rank` stops matching
 `_strength`, if the model starts admitting a policy that is not on the ladder,
-if `Pcts` stops exploring percentages between the rungs, or if a rule is
-defined in the spec but missing from `Ladder.cfg`. The last one matters most:
-an unlisted rule is not checked, and the run still reports that the others
-hold, which reads exactly like a pass.
+if `Pcts` stops exploring percentages between the rungs, if `LadderIndex` or
+`ReliefIndex` stop answering what `_ladder_index` and `_relief_index` answer,
+or if a rule is defined in the spec but missing from `Ladder.cfg`.
+
+Two of those matter most. `LadderIndex` and `ReliefIndex` are logic the spec
+rewrites by hand, and all three bugs lived in them, so the suite reads both
+back out of the spec and compares them against the code at every percentage on
+a rung, between rungs, and below the lowest. And an unlisted rule is not
+checked while the run still reports that the others hold, which reads exactly
+like a pass, so the suite reads the rule names out of the spec instead of
+holding a list of its own.
 
 ## The nine rules
 
@@ -58,8 +61,12 @@ hold, which reads exactly like a pass.
 | `AdviceIsNeverANoOp` | advice never hands back the record I already publish |
 | `LadderIndexIsMonotone` | a stronger record is never counted as a lower rung than a weaker one |
 | `NeverTightenWhileBleeding` | while my mail is blocked I am never told to tighten |
-| `NoDeadlock` | no state the owner cannot act from |
+| `TypeOK` | the state never holds a policy, percentage or sender condition the model does not name |
 | `EventuallyFullyProtected` | with clean senders, following the advice reaches full enforcement |
+
+TLC also reports a deadlock, a state the owner cannot act from, on every run
+without being asked. That is a default rather than a line in `Ladder.cfg`, so
+`NothingLeftToDo` keeps the two correct end states out of it.
 
 ## Make sure it can still fail
 
