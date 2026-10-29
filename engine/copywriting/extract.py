@@ -29,9 +29,9 @@ checks would rather analyze too much than too little.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 
 from bs4 import BeautifulSoup
-from pydantic import BaseModel, Field
 
 from ..parse import ParsedEmail
 
@@ -128,7 +128,8 @@ _SIGNOFF_RX = re.compile(
 # ─── Data model ────────────────────────────────────────────────────────
 
 
-class CTABlock(BaseModel):
+@dataclass
+class CTABlock:
     """A button-shaped or action-verb anchor in the body."""
 
     text: str
@@ -136,7 +137,8 @@ class CTABlock(BaseModel):
     has_button_styling: bool = False  # inline style background/padding hints
 
 
-class StructuredEmail(BaseModel):
+@dataclass
+class StructuredEmail:
     """All writing-craft blocks isolated from a parsed email.
 
     Conventions:
@@ -155,9 +157,9 @@ class StructuredEmail(BaseModel):
     subject: str | None = None
     preview_text: str | None = None
     greeting: str | None = None
-    body_blocks: list[str] = Field(default_factory=list)
-    section_headers: list[str] = Field(default_factory=list)
-    cta_blocks: list[CTABlock] = Field(default_factory=list)
+    body_blocks: list[str] = field(default_factory=list)
+    section_headers: list[str] = field(default_factory=list)
+    cta_blocks: list[CTABlock] = field(default_factory=list)
     ps: str | None = None
     signature: str | None = None
     footer: str | None = None

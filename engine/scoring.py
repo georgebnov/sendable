@@ -227,9 +227,13 @@ def _category_subscore(category: str, penalty_sum: int) -> int:
     return max(0, min(100, round(100 * (1 - capped / budget))))
 
 
-def _composite_geometric(sub_scores: dict[str, int], present: set[str]) -> int:
+def _composite_geometric(sub_scores: dict[str, int], present: tuple[str, ...]) -> int:
     """Weighted geometric mean over present categories.
-    Renormalises weights when a category is absent (e.g. no drift)."""
+    Renormalises weights when a category is absent (e.g. no drift).
+
+    `present` is ordered, not a set. Floating point addition is not
+    associative, so summing the logs in a different order can move the result
+    by enough to change the rounded score."""
     if not present:
         return 100
     total_weight = sum(CATEGORY_WEIGHTS[c] for c in present)
@@ -268,7 +272,10 @@ def score_findings(
         penalty_by_category[cat] = penalty_by_category.get(cat, 0) + SEVERITY_PENALTY[f.severity]
 
     sub_scores: dict[str, int] = {}
-    present = set(CATEGORY_WEIGHTS)
+    # Ordered by the weights table. Iterating a set of strings gives a
+    # different order in every new interpreter, because Python randomises
+    # string hashing, and that leaked into the printed sub_scores.
+    present = tuple(CATEGORY_WEIGHTS)
     for cat in present:
         pen = penalty_by_category.get(cat, 0)
         sub_scores[cat] = _category_subscore(cat, pen)

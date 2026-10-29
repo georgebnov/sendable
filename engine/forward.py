@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import dataclasses
 import re
+from dataclasses import replace
 
 from bs4 import BeautifulSoup, Tag
 
@@ -202,24 +203,14 @@ def calibrate_for_forward(findings: list[Finding]) -> list[Finding]:
         elif f.check.startswith(_FORWARDER_ALIGN_PREFIX):
             muted_any = True
             out.append(
-                f.model_copy(
-                    update={
-                        "severity": Severity.INFO,
-                        "hard_gate": False,
-                        "message": _forwarder_signing_note(f),
-                    }
+                replace(
+                    f, severity=Severity.INFO, hard_gate=False, message=_forwarder_signing_note(f)
                 )
             )
         elif f.check.startswith(_QUIET_MUTE_PREFIXES):
             muted_any = True
             out.append(
-                f.model_copy(
-                    update={
-                        "severity": Severity.INFO,
-                        "hard_gate": False,
-                        "message": f.message + _MUTE_NOTE,
-                    }
-                )
+                replace(f, severity=Severity.INFO, hard_gate=False, message=f.message + _MUTE_NOTE)
             )
         else:
             out.append(f)

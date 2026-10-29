@@ -2,23 +2,26 @@
 
 A Finding is one check's verdict. A Report is every finding plus the composite
 score, the verdict, and the per-category sub-scores the scorer derived from them.
-Both are pydantic models, so `report.model_dump(mode="json")` is the wire format
-every entry point prints.
+Both are dataclasses, so `to_jsonable(report)` is the wire format every entry
+point prints. The standard library is the whole dependency.
 """
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+import dataclasses
+from dataclasses import dataclass, field
+from typing import Any
 
 from .severity import Severity
 
 
-class Finding(BaseModel):
+@dataclass
+class Finding:
     check: str
     severity: Severity
     passed: bool
     message: str
-    details: dict = Field(default_factory=dict)
+    details: dict = field(default_factory=dict)
     # ─── Scoring metadata (added in scoring rewrite) ────────────────
     # `category` — one of "authentication", "infrastructure", "content",
     # "domain_records", "engagement". Auto-derived from `check` prefix
@@ -41,7 +44,8 @@ class Finding(BaseModel):
     source: str = "user_content"
 
 
-class ModeInfo(BaseModel):
+@dataclass
+class ModeInfo:
     """How the audit decided whether this is a test send or production
     send, and what cleanup was applied before scoring.
 
@@ -52,13 +56,14 @@ class ModeInfo(BaseModel):
     """
 
     label: str = "PRODUCTION"
-    signals: list[str] = Field(default_factory=list)
+    signals: list[str] = field(default_factory=list)
     cleanup_subject_prefix_stripped: str | None = None
-    cleanup_headers_stripped: list[str] = Field(default_factory=list)
-    cleanup_placeholders_substituted: list[dict] = Field(default_factory=list)
+    cleanup_headers_stripped: list[str] = field(default_factory=list)
+    cleanup_placeholders_substituted: list[dict] = field(default_factory=list)
 
 
-class Report(BaseModel):
+@dataclass
+class Report:
     score: int
     verdict: str  # GO | REVIEW | NO_GO
     findings: list[Finding]
@@ -67,10 +72,23 @@ class Report(BaseModel):
     # ─── Scoring breakdown (populated by audit.scoring) ─────────────
     # Per-category sub-scores 0-100 (skipped categories omitted).
     # Top-level `score` is geometric mean of these weighted by category.
-    sub_scores: dict[str, int] = Field(default_factory=dict)
-    hard_gates_failed: list[str] = Field(default_factory=list)
-    soft_multipliers_applied: list[str] = Field(default_factory=list)
+    sub_scores: dict[str, int] = field(default_factory=dict)
+    hard_gates_failed: list[str] = field(default_factory=list)
+    soft_multipliers_applied: list[str] = field(default_factory=list)
     # ─── Test-vs-production framing ─────────────────────────────────
     # Default = PRODUCTION (no signals, no cleanup) so existing call
     # sites that don't pass mode info still produce valid Reports.
-    mode: ModeInfo = Field(default_factory=ModeInfo)
+    mode: ModeInfo = field(default_factory=ModeInfo)
+
+
+def to_jsonable(value: Any) -> Any:
+    """Turn a report into plain JSON types.
+
+    `dataclasses.asdict` walks nested dataclasses, lists and dicts on its own,
+    and `Severity` is a `StrEnum`, so it is already a string by the time it
+    reaches `json.dumps`. Nothing here needs a custom encoder, which is the
+    point: the wire format costs one standard library call.
+    """
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return dataclasses.asdict(value)
+    return value

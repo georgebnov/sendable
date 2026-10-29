@@ -35,9 +35,8 @@ in the reference conversation.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Literal
-
-from pydantic import BaseModel, Field
 
 from engine.severity import Severity
 
@@ -70,7 +69,8 @@ Classification = Literal[
 ]
 
 
-class ClassificationResult(BaseModel):
+@dataclass
+class ClassificationResult:
     classification: Classification
     severity: Severity
     headline: str  # one-line summary
@@ -78,7 +78,7 @@ class ClassificationResult(BaseModel):
     suggested_action: str | None = None
     source_match: ESPMatch | None = None
     is_new_ip: bool = False  # only true when baseline was provided and ip absent
-    details: dict = Field(default_factory=dict)
+    details: dict = field(default_factory=dict)
 
 
 def _has_reason(record: DmarcRecord, type_name: str) -> bool:

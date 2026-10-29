@@ -6,7 +6,6 @@
 #   "dnspython>=2.8",
 #   "defusedxml>=0.7.1",
 #   "confusable-homoglyphs>=3.3.1",
-#   "pydantic>=2.13",
 # ]
 # ///
 """Audit one email for deliverability, inbox placement, and copy problems.
@@ -39,7 +38,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from engine.parse import parse_eml
-from engine.report import Report
+from engine.report import Report, to_jsonable
 from engine.runner import audit
 
 
@@ -129,7 +128,7 @@ def main() -> None:
             file=sys.stderr,
         )
 
-    json.dump(report.model_dump(mode="json"), sys.stdout, indent=2 if args.pretty else None)
+    json.dump(to_jsonable(report), sys.stdout, indent=2 if args.pretty else None)
     sys.stdout.write("\n")
 
 
