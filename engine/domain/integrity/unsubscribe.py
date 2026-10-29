@@ -20,8 +20,7 @@ from __future__ import annotations
 
 import re
 
-from bs4 import BeautifulSoup
-
+from ...htmltree import Node, parse_html
 from ...parse import ParsedEmail
 from ...report import Finding
 from ...severity import Severity
@@ -58,7 +57,7 @@ def _is_bulk(email: ParsedEmail) -> bool:
     return bool(any(v.strip().lower() == "bulk" for v in precedence))
 
 
-def _find_unsub_anchor(soup: BeautifulSoup):
+def _find_unsub_anchor(soup: Node):
     """Return the first <a> element whose visible text or href looks like an
     unsubscribe link. Returns None if none found."""
     for a in soup.find_all("a"):
@@ -195,7 +194,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
 
     # Visible body unsubscribe link + clip risk.
     if email.html:
-        soup = BeautifulSoup(email.html, "html.parser")
+        soup = parse_html(email.html)
         anchor = _find_unsub_anchor(soup)
         if anchor is None:
             findings.append(

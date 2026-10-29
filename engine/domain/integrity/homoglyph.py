@@ -17,8 +17,7 @@ from __future__ import annotations
 
 import unicodedata
 
-from bs4 import BeautifulSoup
-
+from ...htmltree import parse_html
 from ...parse import ParsedEmail
 from ...report import Finding
 from ...severity import Severity
@@ -138,7 +137,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
     if email.subject:
         samples.append(("subject", email.subject))
     if email.html:
-        soup = BeautifulSoup(email.html, "html.parser")
+        soup = parse_html(email.html)
         body_text = soup.get_text(separator=" ", strip=True)
         if body_text:
             samples.append(("body", body_text))

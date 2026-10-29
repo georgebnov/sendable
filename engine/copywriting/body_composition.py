@@ -10,8 +10,7 @@ ratio detection.
 
 from __future__ import annotations
 
-from bs4 import BeautifulSoup
-
+from ..htmltree import parse_html
 from ..parse import ParsedEmail
 from ..report import Finding
 from ..severity import Severity
@@ -53,7 +52,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
 
     # Image-to-text ratio check. Only runs when HTML is present.
     if email.html:
-        soup = BeautifulSoup(email.html, "html.parser")
+        soup = parse_html(email.html)
         # Strip scripts/styles before counting visible text.
         for tag in soup.find_all(["script", "style"]):
             tag.decompose()

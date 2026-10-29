@@ -28,9 +28,8 @@ from __future__ import annotations
 import asyncio
 from urllib.parse import urlparse
 
-from bs4 import BeautifulSoup
-
 from ...copywriting.link_quality import _registrable
+from ...htmltree import parse_html
 from ...parse import ParsedEmail
 from ...report import Finding
 from ...severity import Severity
@@ -141,7 +140,7 @@ def _body_domains(email: ParsedEmail, sender_domain: str | None) -> list[str]:
     """Distinct registrable domains from <a href> in HTML body."""
     if not email.html:
         return []
-    soup = BeautifulSoup(email.html, "html.parser")
+    soup = parse_html(email.html)
     out: list[str] = []
     seen: set[str] = set()
     for a in soup.find_all("a", href=True):

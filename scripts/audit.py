@@ -2,7 +2,6 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
-#   "beautifulsoup4>=4.15",
 #   "dnspython>=2.8",
 # ]
 # ///
