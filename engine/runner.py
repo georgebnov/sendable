@@ -224,5 +224,5 @@ async def audit(
         hard_gates_failed=result["hard_gates_failed"],
         soft_multipliers_applied=result["soft_multipliers_applied"],
         mode=mode_info,
-        opportunities=opportunities_from(findings),
+        opportunities=opportunities_from(findings, cleaned_email.from_addr),
     )

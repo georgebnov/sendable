@@ -115,9 +115,9 @@ service, no account, no database.
   be gated on a 21 day clean streak and a message count, and told anyone with
   less "Keep collecting reports. We'll prompt you once there's enough clean
   volume." Nothing collects and nothing prompts, so that advice could never be
-  acted on. The advice now always names the next rung, states how many days and
-  messages the reports cover, and leaves the reader to judge whether that is a
-  fair sample of how they send.
+  acted on. The advice now always names the next rung, says how many messages
+  the reports hold, and leaves the reader to judge whether that is a fair sample
+  of how they send.
 - A sender is recognised by the curated list of providers, not by having
   appeared in an older file you happened to pass. A named host nobody
   recognises, failing both SPF and DKIM, now reads as a possible spoof rather
@@ -132,11 +132,9 @@ service, no account, no database.
   only works when reports arrive continuously, the way they did when a service
   collected them. Nothing collects them now, so a normal batch of a few recent
   files landed entirely inside the window, left nothing for the baseline, and
-  switched new-sender detection off exactly when someone was looking. A sender
-  is now new when it appears only in the newest reporting period and in none
-  before it, which needs no calendar and works for a batch of any age or shape.
-  A week of daily reports used to report `new_sender_detection: false`. It now
-  reports `true` and names the sender that just appeared.
+  switched new-sender detection off exactly when someone was looking. The
+  detection was removed outright later in the same release, along with the rest
+  of the multi-day reasoning, so no part of it survives.
 
 - Stop telling a sender to escalate an IP that does not exist. When the audit
   recognised the sending platform, it rewrote every failing reverse DNS finding
@@ -220,9 +218,9 @@ service, no account, no database.
 
   **Neither entry point writes to disk now.** The audit prints its report and
   keeps nothing. `scripts/dmarc.py` lost its subcommands: you pass the report
-  files and it prints the answer. Reports older than the window become the
-  baseline for new-sender detection, so that capability survives with no state
-  on disk, and the output says in `new_sender_detection` whether it had one.
+  files and it prints the answer. New-sender detection went with the store, and
+  the attempts to rebuild it without one are recorded above: every version of it
+  depended on reports arriving continuously, which nothing makes happen.
 
 - Every call to a third-party API, and the checks that made them. The audit asked
   a model to judge five things about the copy: whether the subject matched the

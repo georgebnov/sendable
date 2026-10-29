@@ -26,11 +26,13 @@ reports the single most useful next step. The chain is deliberate: it will not
 tell you to tighten your policy while a real sender of yours is failing
 alignment, because that would start rejecting your own mail.
 
-Every report you pass is judged, whatever its date. A sender that appears only
-in the newest reporting period, and in none before it, is a new sender,
-which is what separates "a spoof just started" from "your provider added an IP".
-Pass a wider spread of dates and that detection sharpens. Pass a single day and
-it is skipped rather than guessed.
+Every report you pass is read, whatever its date. The output describes exactly
+those files: who sent as the domain, how much, whether each one authenticated,
+and what the receiver did about it. Then it names the next step on the policy
+ladder and writes the record for it.
+
+Nothing is kept between runs and nothing is measured over time, so a sender is
+reported as it appears in these reports and never as "new" or "returning".
 
 Progress goes to stderr. The report goes to stdout as JSON, so an agent can read
 it and a person can pipe it.

@@ -68,10 +68,11 @@ names the next step on the policy ladder and writes the record for it.
 
 **It tracks nothing between runs, and it does not pretend to.** There is no
 streak to keep and no history to compare against, so the answer describes the
-files you passed and nothing more. That is why the advice tells you how many
-days and messages the reports cover: you are the one who knows whether that is
-a fair sample of how you send. A sender that mails once a month will not appear
-in a week of reports, and it is the one that breaks when the policy tightens.
+files you passed and nothing more. The advice says how many messages they hold
+and never how long they span, because a user can download one report today and
+the next six months from now. A report shows only what sent while it was being
+written, so anything absent from it is what breaks when the policy tightens,
+and you are the one who knows what that is.
 
 Both commands print JSON on stdout and progress on stderr, so stdout always
 parses. Exit code is 0 on success and 1 when there is nothing to work with.
@@ -208,12 +209,11 @@ not a single command. `references/PLAYBOOKS.md` holds them:
    the receiving provider saying why, in writing. The playbook maps every code
    Gmail and Microsoft send to its cause and to the check that names it.
 
-## Connect more data
+## Being recognised in the inbox
 
-The audit needs nothing but the message itself. Each connection in
-`references/INBOX_PRESENCE.md` covers the two ways to be recognised in the
-inbox, which the report lists under `opportunities` rather than `findings`
-because neither is a defect and neither changes the score.
+The report carries an `opportunities` list beside `findings`. Neither entry in
+it is a defect, so neither changes the score: an email with no logo is not a
+worse email. `references/INBOX_PRESENCE.md` holds both in full.
 
 **Raise the free one even when the audit is clean.** Gmail shows a photo beside
 the sender name when the sending address has a Google Account with a photo on
@@ -221,12 +221,17 @@ it, which costs nothing and applies to mail already sent. The step people get
 wrong is that a Google Account is a login, not a mailbox: it can be made on the
 address they already use, on any host, and accepting Google's offer of a
 `gmail.com` address is the mistake. Say so before they start, because the page
-that offers it reads like a warning.
+that offers it reads like a warning. A sender already on a Google mailbox skips
+all of that and only sets the photo, which the opportunity's own steps reflect.
 
 The logo record is the paid route and only works once DMARC is at quarantine or
 reject. The audit reports which state they are in, so do not suggest buying a
-certificate before checking it.
+certificate before checking it. When the DNS lookup failed, the opportunity is
+absent rather than guessing, so its silence is not a verdict.
 
+## Connect more data
+
+The audit needs nothing but the message itself. Each connection in
 `references/CONNECTIONS.md` answers a question that one message cannot:
 
 | Connection | Answers |

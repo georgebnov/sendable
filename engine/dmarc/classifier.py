@@ -61,7 +61,6 @@ Classification = Literal[
     "spoofing_delivered",
     "gateway_relay",
     "sender_auth_gap",
-    "new_legit_esp",
     "esp_softfail_ok",
     "clean",
     "unclassified",

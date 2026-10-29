@@ -271,7 +271,7 @@ less, because one number can move for several reasons at once.
    It sends unaligned mail as you, and your whole domain pays for it.
 
    ```bash
-   uv run scripts/dmarc.py senders --domain example.app --pretty
+   python3 scripts/dmarc.py ~/Downloads/dmarc/*.gz --domain example.app --pretty
    ```
 
 3. **Your ESP moved you to a different IP pool.** Compare the sending IP in the

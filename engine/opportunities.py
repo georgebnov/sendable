@@ -20,6 +20,9 @@ that goes with it.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
+from .free_mailbox import is_free_mailbox
 from .report import Finding, Opportunity
 
 # The picture a recipient sees beside your name in Gmail comes from a Google
@@ -54,6 +57,21 @@ _PROFILE_PICTURE = Opportunity(
 )
 
 
+# A sender already on a Google mailbox has the account. Telling them to sign up
+# with an existing address, and to confirm a code sent to it, describes a path
+# they cannot take, and the warning about declining a gmail.com address is about
+# the address they already use.
+_GOOGLE_MAILBOXES = frozenset({"gmail.com", "googlemail.com"})
+
+_PICTURE_STEPS_FOR_A_GOOGLE_MAILBOX = [
+    "You already have the account, so there is nothing to create. Open your "
+    "Google account's profile page and upload a photo. A square image of at "
+    "least 250 by 250 pixels, as a JPEG or a PNG.",
+    "Set who can see the photo to anyone. A photo nobody can see is a photo Gmail will not show.",
+    "Wait. It can take a day to appear.",
+]
+
+
 def _bimi(findings: list[Finding]) -> Opportunity | None:
     """The logo record, when the audit actually looked at the domain.
 
@@ -64,6 +82,13 @@ def _bimi(findings: list[Finding]) -> Opportunity | None:
     """
     found = next((f for f in findings if f.check == "bimi.published"), None)
     if found is None:
+        return None
+
+    # A lookup that did not answer tells us nothing about the domain. Without
+    # this, a timeout on _dmarc.<domain> read as `eligible=False, policy=None`
+    # and the advice announced "Your DMARC policy is p=none" to a domain that
+    # may well publish p=reject.
+    if found.details.get("dns_error"):
         return None
 
     policy = found.details.get("dmarc_policy")
@@ -131,9 +156,12 @@ def _bimi(findings: list[Finding]) -> Opportunity | None:
     )
 
 
-def opportunities_from(findings: list[Finding]) -> list[Opportunity]:
+def opportunities_from(findings: list[Finding], from_addr: str | None = None) -> list[Opportunity]:
     """Everything worth offering, cheapest and most certain first."""
-    items = [_PROFILE_PICTURE]
+    picture = _PROFILE_PICTURE
+    if is_free_mailbox(from_addr) in _GOOGLE_MAILBOXES:
+        picture = replace(picture, steps=_PICTURE_STEPS_FOR_A_GOOGLE_MAILBOX)
+    items = [picture]
     bimi = _bimi(findings)
     if bimi is not None:
         items.append(bimi)

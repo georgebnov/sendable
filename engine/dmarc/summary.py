@@ -35,7 +35,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
 
 from engine.copywriting.link_quality import _registrable
 from engine.dmarc.classifier import classify_record
@@ -54,7 +53,6 @@ _LEGIT = frozenset(
         "clean",
         "esp_softfail_ok",
         "forwarding_artifact",
-        "new_legit_esp",
         "gateway_relay",
         "dkim_temperror",
         "policy_override_arc",
@@ -303,14 +301,6 @@ def for_domain(reports: Sequence[DmarcReport], domain: str) -> list[DmarcReport]
     `example.com`. One sender's mail must never be judged as another's.
     """
     return [r for r in reports if r.policy and r.policy.domain == domain]
-
-
-def _ends_at(report: DmarcReport) -> datetime | None:
-    """When a report's period ends, as an aware datetime."""
-    end = report.date_end or report.date_begin
-    if end is None:
-        return None
-    return end.replace(tzinfo=UTC) if end.tzinfo is None else end
 
 
 __all__ = [
