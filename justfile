@@ -69,3 +69,22 @@ smoke:
     assert r["findings"], "no findings means the fan-out did not run"
     print(f'smoke ok: score={r["score"]} verdict={r["verdict"]} findings={len(r["findings"])}')
     PY
+
+# Model-check the DMARC policy ladder with TLC. Not part of `just check` and it
+# cannot be: it needs Java, and TLC is a jar this repo does not carry. Run it
+# when you change LADDER, _ladder_index, _relief_index, or dmarc_decision.
+# tests/formal/README.md says what the nine rules mean.
+verify:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    jar="${TLA2TOOLS:-{{ justfile_directory() }}/.tla/tla2tools.jar}"
+    if [[ ! -f "$jar" ]]; then
+      echo "No TLC at $jar" >&2
+      echo "Get it once, into a folder git ignores:" >&2
+      echo "  mkdir -p .tla && curl -fsSL -o .tla/tla2tools.jar \\" >&2
+      echo "    https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar" >&2
+      echo "Or set TLA2TOOLS to a copy you already have." >&2
+      exit 1
+    fi
+    cd "{{ justfile_directory() }}/tests/formal"
+    java -XX:+UseParallelGC -cp "$jar" tlc2.TLC -config Ladder.cfg -workers 1 Ladder.tla

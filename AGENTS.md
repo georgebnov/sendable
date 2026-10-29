@@ -15,6 +15,10 @@ engine/           every check. No database, no network state, and no globals tha
   htmltree.py       the HTML tree the content checks read, on `html.parser`
   dnswire.py        the DNS client, speaking RFC 1035 over a socket
 tests/            the suite. No network and no database.
+  formal/           the policy ladder as a TLA+ model, and the nine rules TLC
+                    checks against every reachable state. `just verify` runs it,
+                    outside `just check`, because it needs Java. The suite keeps
+                    the model honest: the spec cannot drift from the code.
 references/       what an agent loads on demand. CONNECTIONS.md (the data sources
                   a sender can connect), PLAYBOOKS.md (the questions one audit
                   cannot answer), CHECKS.md (every check and its thresholds),

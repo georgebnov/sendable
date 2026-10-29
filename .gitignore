@@ -41,3 +41,6 @@ docs/superpowers/
 coverage.xml
 htmlcov/
 .mypy_cache/
+
+# TLC, fetched by hand for `just verify`. Not a dependency of the skill.
+.tla/
