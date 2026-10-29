@@ -22,11 +22,6 @@ dependencies = [
     "defusedxml>=0.7.1",
     "confusable-homoglyphs>=3.3.1",
     "pydantic>=2.13",
-    # DKIM public-key size. engine/domain/dns/dkim.py parses the p= tag to report
-    # a weak key, and a 1024-bit key is a real finding. Without these it falls
-    # back to guessing the size from the DER byte length.
-    "cryptography>=46.0",
-    "pyasn1>=0.6",
 ]
 
 [dependency-groups]
