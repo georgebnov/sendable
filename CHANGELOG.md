@@ -14,6 +14,24 @@ service, no account, no database.
 
 ### Added
 
+- A new part of the report, `opportunities`, for the two ways to be recognised
+  in the inbox. Neither is a defect, so neither changes the score: an email
+  with no logo is not a worse email, and marking it down would push a correct
+  message below a threshold it should pass.
+- The free one, which the audit always offers because nothing in a message
+  reveals whether it is done. Gmail shows a picture beside the sender name when
+  the sending address has a Google Account with a photo on it, and it applies
+  to mail already sent. The step people get wrong is that a Google Account is a
+  login and not a mailbox: it can be made on the address they already use, on
+  any host, and accepting Google's offer of an address ending in `gmail.com` is
+  the mistake. The page that offers it reads like a warning, so the steps say
+  so before anyone meets it.
+- The paid one, a logo record, whose state the audit reads from DNS: already
+  published, ready to add, or blocked until the DMARC policy reaches quarantine
+  or reject. It names the yearly certificate cost up front, because finding
+  that out after publishing the record is the wrong order.
+- `references/INBOX_PRESENCE.md` holds both in full.
+
 - A section in `SKILL.md` telling the host agent to make the five copy
   judgements the audit stopped making: whether the subject promises what the body
   delivers, whether the opening leaves a question open, how many central ideas

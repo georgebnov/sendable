@@ -18,7 +18,9 @@ tests/            the suite. No network and no database.
 references/       what an agent loads on demand. CONNECTIONS.md (the data sources
                   a sender can connect), PLAYBOOKS.md (the questions one audit
                   cannot answer), CHECKS.md (every check and its thresholds),
-                  MECHANISMS.md (how the subtle checks decide).
+                  MECHANISMS.md (how the subtle checks decide),
+                  INBOX_PRESENCE.md (the profile picture and the logo record,
+                  which are opportunities and never scored).
 docs/             maintainer docs. RELEASING.md only.
 ```
 

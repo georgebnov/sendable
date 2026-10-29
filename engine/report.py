@@ -45,6 +45,23 @@ class Finding:
 
 
 @dataclass
+class Opportunity:
+    """One thing a sender could do to be recognised, and how to do it.
+
+    `state` is "available" when they can act today, "blocked" when something
+    has to happen first, and "done" when the audit can see it is already in
+    place. `blocked_by` names the prerequisite in the reader's own terms.
+    """
+
+    id: str
+    title: str
+    state: str
+    detail: str
+    steps: list[str] = field(default_factory=list)
+    blocked_by: str | None = None
+
+
+@dataclass
 class ModeInfo:
     """How the audit decided whether this is a test send or production
     send, and what cleanup was applied before scoring.
@@ -79,6 +96,9 @@ class Report:
     # Default = PRODUCTION (no signals, no cleanup) so existing call
     # sites that don't pass mode info still produce valid Reports.
     mode: ModeInfo = field(default_factory=ModeInfo)
+    # Ways to be recognised in the inbox. Not defects, so they never
+    # reach the scorer: see engine/opportunities.py.
+    opportunities: list[Opportunity] = field(default_factory=list)
 
 
 def to_jsonable(value: Any) -> Any:
