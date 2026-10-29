@@ -154,3 +154,101 @@ def test_a_policy_nobody_recognises_counts_as_the_bottom() -> None:
 
 def test_the_top_of_the_ladder_is_still_the_end() -> None:
     assert _advice("reject", 100).code == "AT_GOAL"
+
+
+# ── stepping down, which the advance fix broke ───────────────────────────
+
+
+def _bleeding() -> ReportSummary:
+    """A real sender whose mail the policy is blocking right now. This is the
+    only situation that puts the policy lever on the table."""
+    return ReportSummary(
+        senders=[
+            Sender(
+                "Old CRM",
+                400,
+                False,
+                False,
+                False,
+                False,
+                "legit",
+                "quarantine",
+                classification="legit_unaligned",
+            )
+        ],
+        total_volume=400,
+    )
+
+
+def _relief(p: str, pct: int):
+    return evaluate(DmarcRecord(exists=True, p=p, sp=p, pct=pct), _spf(), _bleeding(), RUA).primary
+
+
+def _strength(policy: str, pct: int) -> tuple[int, int]:
+    rank = {"none": 0, "quarantine": 1, "reject": 2}.get(policy, 0)
+    return (rank, 0 if rank == 0 else pct)
+
+
+def _published_in(record: str) -> tuple[int, int]:
+    policy, pct = "none", 100
+    for part in record.split(";"):
+        key, _, value = part.strip().partition("=")
+        if key.strip() == "p":
+            policy = value.strip()
+        elif key.strip() == "pct":
+            pct = int(value)
+    return _strength(policy, pct)
+
+
+@pytest.mark.parametrize(
+    ("policy", "pct"),
+    [
+        ("quarantine", 10),
+        ("quarantine", 25),
+        ("quarantine", 50),
+        ("quarantine", 75),
+        ("quarantine", 100),
+        ("reject", 10),
+        ("reject", 25),
+        ("reject", 51),
+        ("reject", 90),
+        ("reject", 100),
+    ],
+)
+def test_relief_is_always_weaker_than_what_is_published(policy: str, pct: int) -> None:
+    """A step offered as relief has to act on less mail than the record does
+    now. Offering a stronger one calls more blocking a rescue."""
+    advice = _relief(policy, pct)
+    if advice.new_record is None:
+        return
+    assert _published_in(advice.new_record) < _strength(policy, pct), (
+        f"at p={policy}; pct={pct} the relief offered is {advice.new_record!r}, "
+        f"which acts on more mail than what they publish now"
+    )
+
+
+def test_a_domain_just_above_none_is_offered_none() -> None:
+    """p=quarantine; pct=10 is a normal first enforcement step. It used to be
+    told "you're already at the lowest enforcement" while 10 percent of its own
+    mail was being quarantined and p=none sat right below it."""
+    advice = _relief("quarantine", 10)
+    assert advice.code == "ROLLBACK", advice.code
+    assert advice.new_record is not None
+    assert "p=none" in advice.new_record
+
+
+def test_relief_never_skips_a_rung() -> None:
+    """From reject at 10 percent the step down is quarantine at 100, not
+    quarantine at 50. Skipping a rung drops further than asked."""
+    advice = _relief("reject", 10)
+    assert advice.new_record is not None
+    assert "p=quarantine" in advice.new_record
+    assert "pct=" not in advice.new_record, "quarantine at 100 omits pct"
+
+
+def test_at_the_bottom_there_is_nothing_to_relax() -> None:
+    """At p=none the lever is gone and authenticating the sender is the only
+    fix left, which is what the message should say."""
+    advice = _relief("none", 100)
+    assert advice.new_record is None
+    assert "lowest enforcement" in advice.detail

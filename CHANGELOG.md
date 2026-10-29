@@ -83,6 +83,14 @@ service, no account, no database.
 
 ### Fixed
 
+- The DMARC advice offers relief that is genuinely weaker than the record you
+  publish. A domain at `p=quarantine; pct=10`, a normal first enforcement step,
+  was told "You're already at the lowest enforcement, so the only fix is to
+  authenticate the sender" while 10 percent of its own mail was being
+  quarantined and `p=none` sat right below it. No record was offered at all.
+  A domain at `p=reject; pct=10` was offered quarantine at 50 percent as
+  relief, which acts on five times more mail and skips a rung.
+
 - The DMARC advice no longer offers a weaker record than the one already
   published. A domain is placed on the policy ladder by the highest rung it has
   passed, not by the first rung of its policy. A domain at `p=reject; pct=90`
