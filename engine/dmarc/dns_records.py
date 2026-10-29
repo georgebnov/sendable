@@ -11,11 +11,10 @@ from __future__ import annotations
 import re
 import time
 
-import dns.exception
-import dns.resolver
-
 from engine.dmarc.policy_engine import DmarcRecord, SpfRecord
 from engine.dmarc.spf_parser import parse as parse_spf
+
+from ..dnswire import DnsError, resolve
 
 _CACHE_TTL_SECONDS = 24 * 60 * 60
 _SPF_PREFIX_RX = re.compile(r"^\s*v\s*=\s*spf1\b", re.IGNORECASE)
@@ -30,25 +29,17 @@ def _now() -> float:
     return time.time()
 
 
-def _strip_txt(value: str) -> str:
-    """dnspython returns TXT values as quoted strings; unwrap and concat."""
-    # value usually looks like '"v=spf1 …"' or '"part1" "part2"'.
-    parts = re.findall(r'"([^"]*)"', value)
-    if parts:
-        return "".join(parts)
-    return value.strip()
-
-
 def _query_txt(name: str) -> list[str]:
-    """One TXT lookup. Returns empty list on any failure."""
+    """One TXT lookup. Returns an empty list on any failure.
+
+    The resolver already joins the pieces of a split record and hands back the
+    value itself, so there is no quoting to undo here. Undoing it was also
+    wrong for a record that legitimately contains a quotation mark.
+    """
     try:
-        answer = dns.resolver.resolve(name, "TXT", lifetime=5)
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.exception.DNSException):
+        return resolve(name, "TXT", timeout=5)
+    except DnsError:
         return []
-    out: list[str] = []
-    for rdata in answer:
-        out.append(_strip_txt(rdata.to_text()))
-    return out
 
 
 # ─── SPF ──────────────────────────────────────────────────────────────
