@@ -8,10 +8,12 @@ the contract that an agent reads. This file is the contract for work on the code
 
 ```
 SKILL.md          the contract for agents. Update it when a flag or an output changes.
-scripts/          the two entry points. Each script declares its own dependencies.
+scripts/          the two entry points. Standard library only, so `python3` runs them.
   audit.py          grades one email
   dmarc.py          reads aggregate reports and reports the next step
 engine/           every check. No database, no network state, and no globals that it owns.
+  htmltree.py       the HTML tree the content checks read, on `html.parser`
+  dnswire.py        the DNS client, speaking RFC 1035 over a socket
 tests/            the suite. No network and no database.
 references/       what an agent loads on demand. CONNECTIONS.md (the data sources
                   a sender can connect), PLAYBOOKS.md (the questions one audit
@@ -98,8 +100,9 @@ stays so that code comments and pull requests keep citing the same one.
     production. Tests alone are not a contract.
 
 11. **Put imports at module scope.** Do not import lazily for convenience. Never
-    catch `ImportError` to fall back silently. There is no exception: every
-    dependency this repo declares is required, and each one is imported.
+    catch `ImportError` to fall back silently. There is no exception. The repo
+    declares no dependency at all today, so an import either comes from the
+    standard library or from this repo, and both are always there.
 
 12. **Public text follows the brand.** The name is **Sendable**. Do not use
     dashes in text that a user reads. Use a comma, a colon, or a period. Describe
@@ -107,11 +110,22 @@ stays so that code comments and pull requests keep citing the same one.
     line, the preview text field, or the link URL. Never name an HTML tag, a CSS
     property, or an RFC number.
 
-13. **Each script carries its own dependencies.** Each file in `scripts/*.py` has
-    a PEP 723 header, so a user needs only `uv`. Add each dependency to that
-    header and to `pyproject.toml`. If you add it to only 1 place, the packaged
-    path breaks while the development path passes. The `packaged-script` CI job
-    finds this error.
+13. **The skill has no dependencies. Keep it that way.** A user needs Python
+    3.11 or newer and nothing else, so `python3 scripts/audit.py mail.eml` runs
+    where it stands. That is not tidiness. A sandbox with no package index is
+    where an agent usually runs, and a single third-party import is a wall the
+    user hits before the first audit.
+
+    Before you add one, write the standard library version. `engine/htmltree.py`
+    replaced BeautifulSoup, `engine/dnswire.py` replaced dnspython, and the DKIM
+    key reader replaced a compiled OpenSSL binding. Each is a few hundred lines
+    this repo owns and the gates check, and each one removed a false finding the
+    library was producing.
+
+    If a dependency is genuinely unavoidable, say so first, then add it to the
+    PEP 723 header in every `scripts/*.py` **and** to `pyproject.toml`. Adding it
+    to only 1 place breaks the packaged path while the development path passes,
+    and the `packaged-script` CI job is what catches that.
 
 14. **Conventional Commits, and do not amend.** `feat|fix|refactor|build|ci|
     chore|docs|style|perf|test`, a lowercase imperative subject of 50 characters
