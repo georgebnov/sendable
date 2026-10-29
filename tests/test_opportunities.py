@@ -119,3 +119,66 @@ def test_every_opportunity_carries_steps_a_reader_can_follow() -> None:
         assert item.title and item.detail
         assert item.steps, f"{item.id} has nothing to do"
         assert item.state in ("available", "blocked", "done")
+
+
+# ── a lookup that failed is not a fact about the domain ──────────────────
+
+
+def _bimi_after_dns_failure(error: str) -> Finding:
+    """What modern_records emits when the DMARC lookup itself did not answer.
+    `eligible` is False and `dmarc_policy` is None, but only because nothing
+    came back, not because the domain publishes p=none."""
+    return Finding(
+        check="bimi.published",
+        severity=Severity.INFO,
+        passed=False,
+        message="",
+        details={"dns_error": error, "eligible": False, "dmarc_policy": None},
+    )
+
+
+@pytest.mark.parametrize("error", ["timeout", "no_nameservers", "error:OSError"])
+def test_a_failed_lookup_says_nothing_rather_than_guessing(error: str) -> None:
+    """It used to announce "Your DMARC policy is p=none" to a domain it could
+    not reach, which may well publish p=reject. Silence is the honest answer
+    and the function's own docstring already promised it."""
+    assert (
+        _by_id(opportunities_from([_bimi_after_dns_failure(error)]), "inbox_presence.bimi") is None
+    )
+
+
+def test_a_real_p_none_still_reports_blocked() -> None:
+    """The fix must not swallow the case it exists for: the lookup worked and
+    the policy really is none."""
+    bimi = _by_id(opportunities_from([_bimi(False, "none")]), "inbox_presence.bimi")
+    assert bimi is not None and bimi.state == "blocked"
+
+
+# ── the sender who already has a Google Account ──────────────────────────
+
+
+@pytest.mark.parametrize("address", ["Someone <me@gmail.com>", "me@googlemail.com"])
+def test_a_gmail_sender_is_not_told_to_make_an_account(address: str) -> None:
+    """They have one. Telling them to sign up with an existing address and
+    confirm a code describes a path they cannot take."""
+    picture = _by_id(opportunities_from([], from_addr=address), "inbox_presence.profile_picture")
+    assert picture is not None
+    joined = " ".join(picture.steps).lower()
+    assert "sign-up" not in joined and "sign up" not in joined
+    assert "confirm the code" not in joined
+    assert "photo" in joined, "they still need to set one"
+
+
+def test_a_sender_on_their_own_domain_gets_the_full_steps() -> None:
+    picture = _by_id(
+        opportunities_from([], from_addr="hello@example.com"),
+        "inbox_presence.profile_picture",
+    )
+    assert picture is not None
+    assert "existing" in " ".join(picture.steps).lower()
+
+
+def test_no_address_at_all_gets_the_full_steps() -> None:
+    """Offline, or a message with no From, must not lose the opportunity."""
+    picture = _by_id(opportunities_from([]), "inbox_presence.profile_picture")
+    assert picture is not None and picture.steps

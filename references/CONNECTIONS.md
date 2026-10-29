@@ -96,12 +96,13 @@ contractor's account, or somebody spoofing you.
 4. Read them and act.
 
    ```bash
-   uv run scripts/dmarc.py ~/Downloads/dmarc/*.gz --pretty
+   python3 scripts/dmarc.py ~/Downloads/dmarc/*.gz --pretty
    ```
 
-   Nothing is stored, so keep the files. Pass the whole folder each time. Every
-   report is read, and the periods before the newest one are what tell a brand
-   new source from a provider you already use.
+   Nothing is stored, so keep the files and pass the whole folder each time.
+   Every report in it is read and the answer describes all of them together.
+   Nothing is compared across them, so a source is reported as these reports
+   show it and never as new or returning.
 
 **Sending reports to two places.** Each address needs its own `mailto:` scheme.
 This is the most common mistake in a DMARC record:

@@ -141,7 +141,7 @@ def test_the_forwarder_domain_respects_the_public_suffix(spf_domain: str, expect
     assert _forwarder_domain(record) == expected
 
 
-def _report_xml(domain: str, day: datetime, source_ip: str = "203.0.113.9") -> bytes:
+def _report_xml(domain: str, day: datetime) -> bytes:
     """One aggregate report for `domain` covering `day`, as a provider sends it."""
     begin = int(day.timestamp())
     end = int(day.replace(hour=23, minute=59).timestamp())
@@ -152,7 +152,7 @@ def _report_xml(domain: str, day: datetime, source_ip: str = "203.0.113.9") -> b
     <date_range><begin>{begin}</begin><end>{end}</end></date_range>
   </report_metadata>
   <policy_published><domain>{domain}</domain><p>none</p></policy_published>
-  <record><row><source_ip>{source_ip}</source_ip><count>5</count>
+  <record><row><source_ip>203.0.113.9</source_ip><count>5</count>
       <policy_evaluated><disposition>none</disposition><dkim>fail</dkim><spf>fail</spf></policy_evaluated>
     </row><identifiers><header_from>{domain}</header_from></identifiers>
     <auth_results><spf><domain>attacker.test</domain><result>fail</result></spf></auth_results>
