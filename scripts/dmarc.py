@@ -26,9 +26,8 @@ reports the single most useful next step. The chain is deliberate: it will not
 tell you to tighten your policy while a real sender of yours is failing
 alignment, because that would start rejecting your own mail.
 
-The window ends at the newest report you pass, never at today, so reports from
-any date are judged. Reports older than the window become the baseline for
-new-sender detection,
+Every report you pass is judged, whatever its date. A sender that appears only
+in the newest reporting period, and in none before it, is a new sender,
 which is what separates "a spoof just started" from "your provider added an IP".
 Pass a wider spread of dates and that detection sharpens. Pass a single day and
 it is skipped rather than guessed.
@@ -52,12 +51,10 @@ from engine.dmarc.parser import DmarcReport
 from engine.dmarc.parser import parse as parse_report
 from engine.dmarc.policy_engine import apply_live_spf_fixes, evaluate
 from engine.dmarc.window import (
-    WINDOW_DAYS,
     build_window,
     for_domain,
-    known_providers_from,
+    known_providers_before_latest,
     pick_domain,
-    split_at_window,
 )
 
 
@@ -99,15 +96,6 @@ def main() -> None:
         help="The domain to judge. Only needed when the batch covers more than one.",
     )
     ap.add_argument(
-        "--days",
-        type=int,
-        default=WINDOW_DAYS,
-        help=(
-            "How many days back from the NEWEST report to judge. Older reports "
-            f"become the baseline for new-sender detection. Default: {WINDOW_DAYS}"
-        ),
-    )
-    ap.add_argument(
         "--rua",
         default=None,
         help="The address providers should send reports to. Used in any record this suggests.",
@@ -147,20 +135,23 @@ def main() -> None:
         )
         raise SystemExit(1)
 
-    # The window ends at the newest report, so the reports a user passes are
-    # always the reports they get judged on. No batch is ever refused for age.
-    in_window, baseline = split_at_window(mine, days=args.days)
-    known_providers = known_providers_from(baseline)
+    # Every report the user passed is judged. Nothing collects reports for them,
+    # so the files on the command line are the whole dataset, and discarding any
+    # of them by date would throw away the only data there is.
+    known_providers = known_providers_before_latest(mine)
 
     print(
-        f"[dmarc] {len(in_window)} report(s) for {domain} in the {args.days} day(s) "
-        f"up to the newest one"
-        + (f", {len(baseline)} older as baseline" if baseline else ", no baseline")
-        + ("" if baseline else " (new-sender detection skipped: pass reports from further back)"),
+        f"[dmarc] {len(mine)} report(s) for {domain}"
+        + (
+            ", comparing the newest period against what sent before it"
+            if known_providers is not None
+            else " covering one period, so new-sender detection is off "
+            "(add a report from an earlier day to turn it on)"
+        ),
         file=sys.stderr,
     )
 
-    window = build_window(in_window, domain=domain, known_providers=known_providers)
+    window = build_window(mine, domain=domain, known_providers=known_providers)
 
     # The live DNS read is what makes the advice current. A report describes mail
     # sent days ago, so a fix made today is invisible in it.
@@ -173,14 +164,12 @@ def main() -> None:
 
     out = {
         "domain": domain,
-        "window_days": args.days,
-        "reports_read": len(in_window),
-        "reports_as_baseline": len(baseline),
+        "reports_read": len(mine),
         "files_skipped": skipped,
         "days_with_data": window.days_with_data,
         "total_messages": window.total_volume,
         "clean_streak_days": window.clean_streak_days,
-        "new_sender_detection": bool(baseline),
+        "new_sender_detection": known_providers is not None,
         "published": {
             "dmarc": {"exists": dmarc.exists, "p": dmarc.p, "sp": dmarc.sp, "pct": dmarc.pct},
             "spf": {

@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 
 from engine.copywriting.link_quality import _registrable
 from engine.dmarc.classifier import classify_record
@@ -44,10 +44,6 @@ from engine.dmarc.policy_engine import Sender, Window
 # How harshly a receiver acted, worst last. A merge keeps the worst, because a
 # sender being rejected anywhere is being rejected.
 _DISPOSITION_RANK = {"none": 0, "quarantine": 1, "reject": 2}
-
-# The trailing period the summary covers. 21 days is long enough that a weekly
-# sender appears more than once, and short enough that a fix shows up quickly.
-WINDOW_DAYS = 21
 
 # Classifier verdicts that mean "this is your mail, working as intended".
 _LEGIT = frozenset(
@@ -365,64 +361,39 @@ def _ends_at(report: DmarcReport) -> datetime | None:
     return end.replace(tzinfo=UTC) if end.tzinfo is None else end
 
 
-def split_at_window(
-    reports: Sequence[DmarcReport], *, days: int
-) -> tuple[list[DmarcReport], list[DmarcReport]]:
-    """Split a batch into (inside the window, older than it).
+def known_providers_before_latest(reports: Sequence[DmarcReport]) -> set[str] | None:
+    """The sender identities that already sent before the newest reporting period.
 
-    **The window ends at the newest report in the batch, not at today.** Nothing
-    is stored between runs, so the files a user passes are the whole dataset, and
-    refusing them for being old second-guesses the only choice the user made.
-    Reports from last quarter are still the reports they asked about. It also
-    drops a clock dependency, so the same batch always splits the same way, and
-    it means the newest report is always inside its own window: no batch can
-    produce nothing.
+    A DMARC report declares the period it covers, usually one day. That is the
+    only ordering new-sender detection needs: a sender present in an earlier
+    period is one you have seen, and one appearing only in the newest period is
+    new. No calendar is involved, so a batch of any age or shape works.
 
-    The older half is the baseline for new-sender detection. Judging a source
-    against the very records it appears in makes every identity already known,
-    `_is_known_provider` returns True for all of them, and `classify_record` can
-    never reach spoofing_blocked or spoofing_delivered. A spoofer whose PTR
-    resolves to a named host, failing both SPF and DKIM, then reads as one of the
-    sender's own providers with a configuration gap.
+    This replaced a 21 day cut measured back from the newest report. That cut
+    assumed reports arrive continuously, which was true when a service collected
+    them and is not true now. A user downloads a handful of recent files, every
+    one of them lands on the recent side, nothing is left for the baseline, and
+    detection switches itself off exactly when someone is looking.
 
-    A report with no date lands inside the window, because it cannot be shown to
-    predate it and a wrong baseline is worse than a missing one.
+    Returns None, not an empty set, when the batch covers a single period. An
+    empty set would mean "nothing has ever sent here" and call every source
+    brand new.
     """
-    dated = [end for end in (_ends_at(r) for r in reports) if end is not None]
-    if not dated:
-        return list(reports), []
-
-    edge = max(dated) - timedelta(days=days)
-    inside: list[DmarcReport] = []
-    older: list[DmarcReport] = []
-    for report in reports:
-        end = _ends_at(report)
-        if end is not None and end < edge:
-            older.append(report)
-        else:
-            inside.append(report)
-    return inside, older
-
-
-def known_providers_from(reports: Sequence[DmarcReport]) -> set[str] | None:
-    """The sender identities in these reports, or None when there are none.
-
-    None rather than an empty set: `build_window` reads None as "skip new-sender
-    detection" and an empty set as "nothing has ever sent here", and the second
-    would call every source brand new.
-    """
-    if not reports:
+    periods = sorted({end for end in (_ends_at(r) for r in reports) if end is not None})
+    if len(periods) < 2:
         return None
-    return {resolve_identity(record).provider_key for r in reports for record in r.records}
+    latest = periods[-1]
+    earlier = [r for r in reports if (end := _ends_at(r)) is not None and end < latest]
+    if not earlier:
+        return None
+    return {resolve_identity(record).provider_key for r in earlier for record in r.records}
 
 
 __all__ = [
-    "WINDOW_DAYS",
     "build_window",
     "for_domain",
     "include_for_provider",
-    "known_providers_from",
+    "known_providers_before_latest",
     "legitimacy_from_classification",
     "pick_domain",
-    "split_at_window",
 ]

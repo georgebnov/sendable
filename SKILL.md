@@ -64,9 +64,10 @@ python3 scripts/dmarc.py ~/Downloads/*.xml.gz --domain example.com
 `dmarc.py` stores nothing either. You pass the reports you have, it reads them,
 and it prints the answer. Pass more reports to see further back.
 
-**Pass reports older than the window and the answer sharpens.** Anything older
-than `--days` becomes the baseline, which is what separates "a spoof just
-started" from "your provider added an IP". With a single day of reports that one
+**Pass reports from more than one day and the answer sharpens.** A sender that
+appears only in the newest reporting period, and in none before it, is a new
+sender. That is what separates "a spoof just started" from "your provider added
+an IP". With reports covering a single day there is no "before", so that one
 judgement is skipped rather than guessed, and the output says so in
 `new_sender_detection`.
 

@@ -99,9 +99,9 @@ contractor's account, or somebody spoofing you.
    uv run scripts/dmarc.py ~/Downloads/dmarc/*.gz --pretty
    ```
 
-   Nothing is stored, so keep the files. Pass the whole folder each time: the
-   reports older than the window become the baseline that tells a brand new
-   source from a provider you already use.
+   Nothing is stored, so keep the files. Pass the whole folder each time. Every
+   report is read, and the periods before the newest one are what tell a brand
+   new source from a provider you already use.
 
 **Sending reports to two places.** Each address needs its own `mailto:` scheme.
 This is the most common mistake in a DMARC record:
