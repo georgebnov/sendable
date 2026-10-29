@@ -141,7 +141,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
     if email.html is None:
         return []
 
-    soup = BeautifulSoup(email.html, "lxml")
+    soup = BeautifulSoup(email.html, "html.parser")
     hits: list[dict] = []
 
     for el in soup.find_all(style=True):

@@ -27,7 +27,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
     if email.subject:
         samples.append(("subject", email.subject))
     if email.html:
-        soup = BeautifulSoup(email.html, "lxml")
+        soup = BeautifulSoup(email.html, "html.parser")
         body_text = soup.get_text(separator=" ", strip=True)
         if body_text:
             samples.append(("body", body_text))

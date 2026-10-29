@@ -124,7 +124,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
     if email.html is None:
         return findings
 
-    soup = BeautifulSoup(email.html, "lxml")
+    soup = BeautifulSoup(email.html, "html.parser")
     anchors = soup.find_all("a", href=True)
 
     shortener_hits: list[dict] = []

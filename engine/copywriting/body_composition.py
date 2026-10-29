@@ -53,7 +53,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
 
     # Image-to-text ratio check. Only runs when HTML is present.
     if email.html:
-        soup = BeautifulSoup(email.html, "lxml")
+        soup = BeautifulSoup(email.html, "html.parser")
         # Strip scripts/styles before counting visible text.
         for tag in soup.find_all(["script", "style"]):
             tag.decompose()

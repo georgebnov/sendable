@@ -149,7 +149,7 @@ def _strip_plain(plain: str | None) -> str | None:
 def _strip_html(html: str | None) -> str | None:
     if not html:
         return html
-    soup = BeautifulSoup(html, "lxml")
+    soup = BeautifulSoup(html, "html.parser")
     quote = soup.find("div", class_="gmail_quote")
     if not isinstance(quote, Tag):
         return html
