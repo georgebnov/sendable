@@ -87,6 +87,9 @@ verify:
       echo "Or set TLA2TOOLS to a copy you already have." >&2
       exit 1
     fi
+    # Absolute before the cd. A relative TLA2TOOLS passes the check above and
+    # then java reports a missing main class from inside tests/formal.
+    jar="$(cd "$(dirname "$jar")" && pwd)/$(basename "$jar")"
     cd "{{ justfile_directory() }}/tests/formal"
     # -metadir, or TLC writes a timestamped states/ folder into the source tree
     # on every run, including runs that fail.
