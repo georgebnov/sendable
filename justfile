@@ -88,4 +88,9 @@ verify:
       exit 1
     fi
     cd "{{ justfile_directory() }}/tests/formal"
-    java -XX:+UseParallelGC -cp "$jar" tlc2.TLC -config Ladder.cfg -workers 1 Ladder.tla
+    # -metadir, or TLC writes a timestamped states/ folder into the source tree
+    # on every run, including runs that fail.
+    meta="$(mktemp -d)"
+    trap 'rm -rf "$meta"' EXIT
+    java -XX:+UseParallelGC -cp "$jar" tlc2.TLC \
+      -metadir "$meta" -config Ladder.cfg -workers 1 Ladder.tla
