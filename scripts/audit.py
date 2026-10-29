@@ -2,7 +2,6 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
-#   "dnspython>=2.8",
 # ]
 # ///
 """Audit one email for deliverability, inbox placement, and copy problems.

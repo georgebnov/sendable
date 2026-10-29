@@ -17,7 +17,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 dependencies = [
-    "dnspython>=2.8",
 ]
 
 [dependency-groups]

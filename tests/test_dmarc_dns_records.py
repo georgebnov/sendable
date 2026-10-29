@@ -17,7 +17,7 @@ from __future__ import annotations
 import pytest
 
 from engine.dmarc import dns_records
-from engine.dmarc.dns_records import _parse_dmarc_txt, _strip_txt, read_dmarc, read_spf
+from engine.dmarc.dns_records import _parse_dmarc_txt, _query_txt, read_dmarc, read_spf
 
 
 @pytest.fixture(autouse=True)
@@ -154,17 +154,38 @@ def test_two_domains_do_not_share_a_cache_entry(txt) -> None:
     assert read_spf("b.test").lookups == 2
 
 
-# ── the TXT unwrapping ────────────────────────────────────────────────
+# ── the TXT lookup ────────────────────────────────────────────────────
+#
+# A record over 255 characters is published in pieces and the resolver joins
+# them, which `tests/test_dnswire.py` checks against the wire bytes. These two
+# check the seam above it: the value arrives whole and untouched. An earlier
+# version unwrapped quotation marks here, because dnspython added them, and
+# that would have corrupted a record that contains one of its own.
 
 
-def test_a_txt_value_split_across_quoted_strings_is_joined() -> None:
-    # A TXT record over 255 characters arrives as several quoted strings, and
-    # dnspython hands them back with the quotes. Joining without stripping them
-    # leaves quote marks inside a mechanism.
-    assert _strip_txt('"v=spf1 include:a.example.com " "include:b.example.com -all"') == (
-        "v=spf1 include:a.example.com include:b.example.com -all"
-    )
+def test_the_value_arrives_exactly_as_the_resolver_gives_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    joined = "v=spf1 include:a.example.com include:b.example.com -all"
+    monkeypatch.setattr(dns_records, "resolve", lambda name, rdtype, timeout=5: [joined])
+    assert _query_txt("example.com") == [joined]
 
 
-def test_an_unquoted_txt_value_is_passed_through() -> None:
-    assert _strip_txt("  v=spf1 -all  ") == "v=spf1 -all"
+def test_a_record_containing_a_quotation_mark_keeps_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = 'v=spf1 exists:%{i}."quoted".example.com -all'
+    monkeypatch.setattr(dns_records, "resolve", lambda name, rdtype, timeout=5: [value])
+    assert _query_txt("example.com") == [value]
+
+
+def test_a_failed_lookup_is_an_empty_list_not_an_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from engine.dnswire import DnsError
+
+    def refuse(name: str, rdtype: str, timeout: float = 5) -> list[str]:
+        raise DnsError("nxdomain")
+
+    monkeypatch.setattr(dns_records, "resolve", refuse)
+    assert _query_txt("example.com") == []

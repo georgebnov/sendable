@@ -1,4 +1,4 @@
-"""Thin async-friendly wrapper around dnspython.
+"""Thin async-friendly wrapper around the DNS client.
 
 Centralizes timeout, error swallowing, and an in-process TTL cache so we
 don't fan out the same TXT/MX/A lookup per check during a single audit
@@ -14,9 +14,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-import dns.exception
-import dns.resolver
-import dns.reversename
+from ..dnswire import DnsError, resolve, reverse_name
 
 _DEFAULT_TIMEOUT = 3.0
 _CACHE_TTL = 3600.0
@@ -40,31 +38,10 @@ class DnsAnswer:
 _cache: dict[tuple[str, str], tuple[float, DnsAnswer]] = {}
 
 
-def _resolver() -> dns.resolver.Resolver:
-    r = dns.resolver.Resolver(configure=True)
-    r.timeout = _DEFAULT_TIMEOUT
-    r.lifetime = _DEFAULT_TIMEOUT
-    return r
-
-
 def _classify_error(exc: BaseException) -> str:
-    if isinstance(exc, dns.resolver.NXDOMAIN):
-        return "nxdomain"
-    if isinstance(exc, dns.resolver.NoAnswer):
-        return "no_answer"
-    if isinstance(exc, dns.resolver.NoNameservers):
-        return "no_nameservers"
-    if isinstance(exc, dns.exception.Timeout):
-        return "timeout"
+    if isinstance(exc, DnsError):
+        return exc.category
     return f"error:{type(exc).__name__}"
-
-
-def _txt_to_str(rdata) -> str:
-    """TXT records arrive as multiple byte-strings concatenated; normalize."""
-    parts = []
-    for s in rdata.strings:
-        parts.append(s.decode("utf-8", errors="replace"))
-    return "".join(parts)
 
 
 def _query_sync(name: str, rdtype: str) -> DnsAnswer:
@@ -74,18 +51,9 @@ def _query_sync(name: str, rdtype: str) -> DnsAnswer:
     if cached is not None and (now - cached[0]) < _CACHE_TTL:
         return cached[1]
 
-    r = _resolver()
     started = time.monotonic()
     try:
-        ans = r.resolve(name, rdtype, raise_on_no_answer=True, search=False)
-        records: list[str] = []
-        for rdata in ans:
-            if rdtype.upper() == "TXT":
-                records.append(_txt_to_str(rdata))
-            elif rdtype.upper() == "MX":
-                records.append(f"{rdata.preference} {rdata.exchange.to_text().rstrip('.')}")
-            else:
-                records.append(rdata.to_text().rstrip("."))
+        records = resolve(name, rdtype, timeout=_DEFAULT_TIMEOUT)
         out = DnsAnswer(
             rdtype=rdtype.upper(),
             name=name,
@@ -106,8 +74,8 @@ def _query_sync(name: str, rdtype: str) -> DnsAnswer:
 
 
 async def query(name: str, rdtype: str) -> DnsAnswer:
-    """Async wrapper. dnspython has an async API but sync-in-threadpool is
-    simpler and avoids resolver-state issues across asyncio loops."""
+    """Async wrapper. The client is synchronous, and a thread per lookup keeps
+    it that way without an event loop of its own."""
     return await asyncio.to_thread(_query_sync, name, rdtype)
 
 
@@ -118,8 +86,8 @@ async def query_many(targets: Iterable[tuple[str, str]]) -> list[DnsAnswer]:
 async def reverse_lookup(ip: str) -> DnsAnswer:
     """PTR lookup for an IPv4/IPv6 address."""
     try:
-        ptr_name = dns.reversename.from_address(ip).to_text()
-    except Exception:
+        ptr_name = reverse_name(ip)
+    except ValueError:
         return DnsAnswer(
             rdtype="PTR",
             name=ip,

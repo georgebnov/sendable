@@ -2,7 +2,6 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
-#   "dnspython>=2.8",
 # ]
 # ///
 """Read DMARC aggregate reports and say what to do next about your domain.
