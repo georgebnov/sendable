@@ -7,8 +7,6 @@
 #   "defusedxml>=0.7.1",
 #   "confusable-homoglyphs>=3.3.1",
 #   "pydantic>=2.13",
-#   "cryptography>=46.0",
-#   "pyasn1>=0.6",
 # ]
 # ///
 """Audit one email for deliverability, inbox placement, and copy problems.

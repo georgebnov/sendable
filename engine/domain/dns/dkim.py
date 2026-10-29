@@ -27,11 +27,6 @@ import asyncio
 import base64
 import re
 
-from cryptography.exceptions import UnsupportedAlgorithm
-from cryptography.hazmat.primitives.serialization import load_der_public_key
-from pyasn1.codec.der.decoder import decode as der_decode
-from pyasn1.error import PyAsn1Error
-
 from ...copywriting.link_quality import _registrable
 from ...report import Finding
 from ...severity import Severity
@@ -100,14 +95,66 @@ _COMMON_SELECTORS = (
 _DKIM_KEY_BITS_FLOOR = 1024
 
 
-def _key_bits(p_value: str, k_alg: str = "rsa") -> int | None:
-    """Real key-size extraction via `cryptography.hazmat`. Real-world DKIM
-    records publish either a SubjectPublicKeyInfo (what `openssl rsa -pubout`
-    emits) or a bare `RSAPublicKey` per strict RFC 6376; verifiers must
-    accept both, so we fall back via pyasn1 if SPKI loading fails.
+def _der_tlv(data: bytes, pos: int) -> tuple[int, bytes, int]:
+    """Read one DER tag-length-value. Returns the tag, the value, and where the
+    next one starts. Raises ValueError on anything malformed."""
+    if pos + 2 > len(data):
+        raise ValueError("truncated DER header")
+    tag = data[pos]
+    length = data[pos + 1]
+    pos += 2
+    if length & 0x80:
+        count = length & 0x7F
+        # A 4-byte length covers any key anyone publishes. Longer means the
+        # record is not a key, so refuse rather than allocate on its say-so.
+        if count == 0 or count > 4 or pos + count > len(data):
+            raise ValueError("bad DER length")
+        length = int.from_bytes(data[pos : pos + count], "big")
+        pos += count
+    if pos + length > len(data):
+        raise ValueError("truncated DER value")
+    return tag, data[pos : pos + length], pos + length
 
-    Returns the bit count, or None if the key is unparseable.
+
+def _rsa_modulus_bits(der: bytes) -> int | None:
+    """Bit length of the RSA modulus, read straight from the DER.
+
+    A sender publishes one of two shapes. Most publish a SubjectPublicKeyInfo,
+    which is what `openssl rsa -pubout` writes: a sequence holding the algorithm
+    identifier and a bit string that wraps the real key. Strict RFC 6376 asks for
+    a bare RSAPublicKey, which is a sequence of the modulus and the exponent. A
+    verifier accepts both, so this reads both.
+
+    Returns None for anything it cannot read. The caller reports no finding in
+    that case, which is right: a guessed length printed as fact sends a sender to
+    fix a key that works.
     """
+    sequence, integer, bit_string = 0x30, 0x02, 0x03
+    try:
+        tag, body, _ = _der_tlv(der, 0)
+        if tag != sequence:
+            return None
+        tag, value, pos = _der_tlv(body, 0)
+        if tag == sequence:
+            # SubjectPublicKeyInfo. Step over the algorithm identifier we just
+            # read, take the bit string, and drop its first byte, which counts
+            # unused trailing bits rather than carrying key material.
+            tag, value, _ = _der_tlv(body, pos)
+            if tag != bit_string or not value:
+                return None
+            tag, body, _ = _der_tlv(value[1:], 0)
+            if tag != sequence:
+                return None
+            tag, value, _ = _der_tlv(body, 0)
+        if tag != integer or not value:
+            return None
+        return int.from_bytes(value, "big").bit_length()
+    except (ValueError, IndexError):
+        return None
+
+
+def _key_bits(p_value: str, k_alg: str = "rsa") -> int | None:
+    """Size of the published signing key, or None when it cannot be read."""
     cleaned = "".join(p_value.split())
     if not cleaned:
         return None
@@ -119,38 +166,7 @@ def _key_bits(p_value: str, k_alg: str = "rsa") -> int | None:
     if k_alg == "ed25519":
         return 256  # Ed25519 is fixed-size
 
-    # SubjectPublicKeyInfo first, which is what most published keys use.
-    # ValueError covers a key that is not valid DER; UnsupportedAlgorithm covers
-    # one this build of cryptography cannot read. Both mean "try the next form".
-    try:
-        key = load_der_public_key(der)
-    except (ValueError, UnsupportedAlgorithm):
-        pass
-    else:
-        bits = getattr(key, "key_size", None)
-        if bits:
-            return bits
-
-    # Strict RFC 6376 is a bare RSAPublicKey: an ASN.1 sequence of (n, e).
-    # Several verifiers accept both forms, so a key in this shape is still valid.
-    try:
-        decoded, _ = der_decode(der)
-        return int(decoded[0]).bit_length()
-    except (PyAsn1Error, IndexError, TypeError, ValueError):
-        pass
-
-    # Neither form parsed. Estimate from the DER length, which is accurate enough
-    # to tell a 1024-bit key from a 2048-bit one.
-    n = len(der)
-    if n < 130:
-        return 512
-    if n < 230:
-        return 1024
-    if n < 380:
-        return 2048
-    if n < 700:
-        return 3072
-    return 4096
+    return _rsa_modulus_bits(der)
 
 
 def _canonicalization(c_value: str | None) -> tuple[str, str]:
@@ -359,7 +375,7 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
                 )
             )
 
-            # Key bit-length sanity. cryptography.hazmat parses both SPKI
+            # Key bit-length sanity. The DER reader above handles both SPKI
             # and bare-RSAPublicKey forms.
             #
             # The floor is an RSA floor. Ed25519 keys are always 256-bit and that

@@ -9,37 +9,24 @@ works.
 
 from __future__ import annotations
 
-import base64
-
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 
 from engine.domain.dns import dkim
 from engine.report import Finding
 from tests.conftest import FakeDns
+from tests.dkim_keys import KEYS
 
 PREFIX = "dkim_record"
 
 
-def _rsa_key_p_value(bits: int) -> str:
-    """The base64 p= tag for a real RSA public key of the given size."""
-    key = rsa.generate_private_key(public_exponent=65537, key_size=bits).public_key()
-    der = key.public_bytes(
-        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-    return base64.b64encode(der).decode()
-
-
 @pytest.fixture(scope="module")
 def key_2048() -> str:
-    # Generated once per module: RSA keygen is the slowest thing in this file.
-    return _rsa_key_p_value(2048)
+    return KEYS["spki_2048"]
 
 
 @pytest.fixture(scope="module")
 def key_1024() -> str:
-    return _rsa_key_p_value(1024)
+    return KEYS["spki_1024"]
 
 
 def _headers(
@@ -69,7 +56,7 @@ def _by(findings: list[Finding], suffix: str) -> Finding | None:
     return None
 
 
-# ── key size, the reason cryptography is a dependency ──────────────────────
+# ── key size, read from the DER with the standard library ──────────────────
 
 
 async def test_a_2048_bit_key_passes(dns: FakeDns, key_2048: str) -> None:
