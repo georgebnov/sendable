@@ -357,10 +357,26 @@ def for_domain(reports: Sequence[DmarcReport], domain: str) -> list[DmarcReport]
     return [r for r in reports if r.policy and r.policy.domain == domain]
 
 
+def _ends_at(report: DmarcReport) -> datetime | None:
+    """When a report's period ends, as an aware datetime."""
+    end = report.date_end or report.date_begin
+    if end is None:
+        return None
+    return end.replace(tzinfo=UTC) if end.tzinfo is None else end
+
+
 def split_at_window(
-    reports: Sequence[DmarcReport], *, days: int, now: datetime | None = None
+    reports: Sequence[DmarcReport], *, days: int
 ) -> tuple[list[DmarcReport], list[DmarcReport]]:
     """Split a batch into (inside the window, older than it).
+
+    **The window ends at the newest report in the batch, not at today.** Nothing
+    is stored between runs, so the files a user passes are the whole dataset, and
+    refusing them for being old second-guesses the only choice the user made.
+    Reports from last quarter are still the reports they asked about. It also
+    drops a clock dependency, so the same batch always splits the same way, and
+    it means the newest report is always inside its own window: no batch can
+    produce nothing.
 
     The older half is the baseline for new-sender detection. Judging a source
     against the very records it appears in makes every identity already known,
@@ -372,12 +388,16 @@ def split_at_window(
     A report with no date lands inside the window, because it cannot be shown to
     predate it and a wrong baseline is worse than a missing one.
     """
-    edge = (now or datetime.now(UTC)) - timedelta(days=days)
+    dated = [end for end in (_ends_at(r) for r in reports) if end is not None]
+    if not dated:
+        return list(reports), []
+
+    edge = max(dated) - timedelta(days=days)
     inside: list[DmarcReport] = []
     older: list[DmarcReport] = []
     for report in reports:
-        end = report.date_end or report.date_begin
-        if end is not None and (end.replace(tzinfo=UTC) if end.tzinfo is None else end) < edge:
+        end = _ends_at(report)
+        if end is not None and end < edge:
             older.append(report)
         else:
             inside.append(report)

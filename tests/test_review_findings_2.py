@@ -209,11 +209,12 @@ def test_the_baseline_excludes_the_window_being_judged() -> None:
     from engine.dmarc.parser import parse
     from engine.dmarc.window import known_providers_from, split_at_window
 
-    now = datetime(2026, 10, 1, tzinfo=UTC)
     recent = parse(_report_xml(DOMAIN, datetime(2026, 9, 28, tzinfo=UTC)))
     old = parse(_report_xml(DOMAIN, datetime(2026, 8, 1, tzinfo=UTC)))
 
-    inside, baseline = split_at_window([recent, old], days=21, now=now)
+    # The newest report anchors the window, so this split is the same whenever
+    # it runs. It used to be measured from the clock and needed `now=` pinned.
+    inside, baseline = split_at_window([recent, old], days=21)
     assert [r.report_id for r in inside] == [recent.report_id]
     assert [r.report_id for r in baseline] == [old.report_id]
 
@@ -240,7 +241,7 @@ def test_a_report_with_no_date_is_judged_not_used_as_baseline() -> None:
   <policy_published><domain>example.com</domain><p>none</p></policy_published>
 </feedback>"""
     )
-    inside, baseline = split_at_window([undated], days=21, now=datetime(2026, 10, 1, tzinfo=UTC))
+    inside, baseline = split_at_window([undated], days=21)
     assert [r.report_id for r in inside] == ["no-date"]
     assert baseline == []
 
