@@ -152,6 +152,33 @@ class EngineResult:
 # ----------------------------------------------------------------------------
 # Helpers
 # ----------------------------------------------------------------------------
+def _strength(policy: str, pct: int) -> tuple[int, int]:
+    """How much mail a record acts on, as a pair you can compare.
+
+    The ladder puts every quarantine rung below every reject rung, so the
+    policy leads and the percentage breaks the tie. `none` acts on nothing, so
+    its percentage is ignored and every record with a policy outranks it.
+    """
+    rank = {"none": 0, "quarantine": 1, "reject": 2}.get(policy, 0)
+    return (rank, 0 if rank == 0 else pct)
+
+
+def _relief_index(rec: DmarcRecord) -> int | None:
+    """The highest rung that acts on less mail than this record does.
+
+    Rollback cannot read the rung index, because a record between rungs sits
+    above the rung it counts as. A domain at p=quarantine; pct=10 counts as
+    `none` for the purpose of "what have I passed", and stepping down from the
+    index then looked like a no-op, so the tool told it there was nothing to
+    relax while 10 percent of its own mail was being quarantined.
+
+    Returns None at the bottom, where there is genuinely no lever left.
+    """
+    published = _strength(rec.p, rec.pct)
+    weaker = [i for i, (p, pct) in enumerate(LADDER) if _strength(p, pct) < published]
+    return weaker[-1] if weaker else None
+
+
 def _ladder_index(rec: DmarcRecord) -> int:
     if not rec.exists:
         return -1
@@ -574,10 +601,11 @@ def dmarc_decision(rec: DmarcRecord, summary: ReportSummary, rua: str) -> Action
             )
 
         # Domain-wide / high-volume-critical bleed: the policy lever is on the
-        # table. Guard against a no-op — only roll back when there is an actual
-        # relaxation below the current rung.
-        target_idx = max(idx - 1, 0)
-        if target_idx >= idx:
+        # table. The target is read from what the record publishes, not from the
+        # rung it counts as, because a record between rungs sits above that rung
+        # and stepping down from the index then reads as a no-op.
+        target_idx = _relief_index(rec)
+        if target_idx is None:
             # Already at the lowest rung — nothing to relax. The only fix is
             # to authenticate the sender(s).
             return Action(
