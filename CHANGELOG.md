@@ -83,6 +83,17 @@ service, no account, no database.
 
 ### Fixed
 
+- The DMARC advice no longer offers a weaker record than the one already
+  published. A domain is placed on the policy ladder by the highest rung it has
+  passed, not by the first rung of its policy. A domain at `p=reject; pct=90`
+  used to be counted as being at 25 percent, so the step after it was 50, and
+  the advice read "Nothing is failing. The next step is reject at 50%" while
+  handing over a record that drops the domain from 90 to 50. A downgrade
+  presented as progress, on the one setting where going backwards re-opens the
+  domain to spoofing. A domain below the lowest rung of its policy, such as
+  `p=quarantine; pct=10`, is now offered 25 rather than 50, so no rung is
+  skipped.
+
 - The DMARC report reader makes no claim about time at all. It used to count
   the distinct dates inside a batch and present the total as a span, which is
   wrong: a user can download one report today and the next six months from now,

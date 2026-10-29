@@ -158,9 +158,25 @@ def _ladder_index(rec: DmarcRecord) -> int:
     for i, (p, pct) in enumerate(LADDER):
         if p == rec.p and (p == "none" or pct == rec.pct):
             return i
-    # Current pct isn't exactly on a rung; snap to the first rung of same policy.
-    same = [i for i, (p, _) in enumerate(LADDER) if p == rec.p]
-    return same[0] if same else 0
+    # Off a rung. A record can hold any percentage, so count the domain as the
+    # highest rung of its own policy it has already passed. Then the next step
+    # is always stronger than what it publishes now.
+    #
+    # This used to take the first rung of the policy instead. A domain at
+    # p=reject; pct=90 counted as reject at 25, so the step after it was reject
+    # at 50, and the advice read "the next step is reject at 50%" while handing
+    # over a record that weakens the domain from 90 to 50. A downgrade dressed
+    # as progress, on the one axis where going backwards re-opens the domain to
+    # spoofing.
+    passed = [i for i, (p, pct) in enumerate(LADDER) if p == rec.p and pct <= rec.pct]
+    if passed:
+        return passed[-1]
+
+    # Below the lowest rung of its own policy, so it has not reached that rung
+    # and the rung below is where it stands. A domain at quarantine 10 counts
+    # as none, and the step it is offered is quarantine 25 rather than 50.
+    first = [i for i, (p, _) in enumerate(LADDER) if p == rec.p]
+    return max(first[0] - 1, 0) if first else 0
 
 
 def _build_record(policy: str, pct: int, rua: str, current: DmarcRecord | None = None) -> str:
