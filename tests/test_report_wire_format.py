@@ -60,6 +60,10 @@ def test_the_wire_format_is_exactly_this() -> None:
             "cleanup_headers_stripped": [],
             "cleanup_placeholders_substituted": [],
         },
+        # Ways to be recognised in the inbox, which are not defects and never
+        # reach the scorer. A report built by hand carries none; the runner
+        # fills them in. See tests/test_opportunities.py for what goes in here.
+        "opportunities": [],
     }
 
 
@@ -73,6 +77,18 @@ def test_the_whole_thing_survives_json() -> None:
     """Nothing in a report needs a custom encoder."""
     text = json.dumps(to_jsonable(_report()))
     assert json.loads(text) == to_jsonable(_report())
+
+
+def test_an_opportunity_serialises_with_its_steps() -> None:
+    """The steps are the part a reader acts on, so they have to survive JSON."""
+    from engine.opportunities import opportunities_from
+
+    report = Report(score=1, verdict="NO_GO", findings=[], opportunities=opportunities_from([]))
+    out = to_jsonable(report)["opportunities"]
+    assert out, "the profile picture is always offered"
+    assert set(out[0]) == {"id", "title", "state", "detail", "steps", "blocked_by"}
+    assert isinstance(out[0]["steps"], list) and out[0]["steps"]
+    assert json.loads(json.dumps(out)) == out
 
 
 def test_a_default_mode_block_is_always_present() -> None:

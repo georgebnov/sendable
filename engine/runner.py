@@ -67,6 +67,7 @@ from .draft import calibrate_for_draft, draft_hint, looks_like_draft
 from .forward import calibrate_for_forward, extract_original, is_forwarded
 from .free_mailbox import calibrate_for_free_mailbox
 from .mode import detect as detect_mode
+from .opportunities import opportunities_from
 from .parse import ParsedEmail
 from .report import Finding, ModeInfo, Report
 from .scoring import score_findings
@@ -223,4 +224,5 @@ async def audit(
         hard_gates_failed=result["hard_gates_failed"],
         soft_multipliers_applied=result["soft_multipliers_applied"],
         mode=mode_info,
+        opportunities=opportunities_from(findings),
     )

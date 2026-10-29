@@ -211,6 +211,22 @@ not a single command. `references/PLAYBOOKS.md` holds them:
 ## Connect more data
 
 The audit needs nothing but the message itself. Each connection in
+`references/INBOX_PRESENCE.md` covers the two ways to be recognised in the
+inbox, which the report lists under `opportunities` rather than `findings`
+because neither is a defect and neither changes the score.
+
+**Raise the free one even when the audit is clean.** Gmail shows a photo beside
+the sender name when the sending address has a Google Account with a photo on
+it, which costs nothing and applies to mail already sent. The step people get
+wrong is that a Google Account is a login, not a mailbox: it can be made on the
+address they already use, on any host, and accepting Google's offer of a
+`gmail.com` address is the mistake. Say so before they start, because the page
+that offers it reads like a warning.
+
+The logo record is the paid route and only works once DMARC is at quarantine or
+reject. The audit reports which state they are in, so do not suggest buying a
+certificate before checking it.
+
 `references/CONNECTIONS.md` answers a question that one message cannot:
 
 | Connection | Answers |
