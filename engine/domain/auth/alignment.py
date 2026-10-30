@@ -36,6 +36,7 @@ from email.utils import getaddresses, parseaddr
 
 from ...copywriting.link_quality import _registrable
 from ...parse import ParsedEmail
+from ...prose import listed
 from ...report import Finding
 from ...severity import Severity
 
@@ -183,7 +184,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"DKIM not aligned: signed by {dkim_domains} but From "
+                    f"DKIM not aligned: signed by {listed(dkim_domains)} but From "
                     f"organizational domain is {from_org}. Receivers will not "
                     "credit DKIM toward DMARC alignment."
                 ),
@@ -310,7 +311,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f"Reply-To domain(s) {reply_to_domains} differ from From "
+                    f"Reply-To domain(s) {listed(reply_to_domains)} differ from From "
                     f"organizational domain ({from_org}). Anti-phishing systems "
                     "treat divergence as suspicious; weights toward Promotions."
                 ),
@@ -333,7 +334,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 passed=False,
                 message=(
                     f"Effective reply address (via {source}) is an unmonitored "
-                    f"mailbox: {unmonitored_hits}. Microsoft sender guidance: "
+                    f"mailbox: {listed(unmonitored_hits)}. Microsoft sender guidance: "
                     "From / Reply-To should be valid, reflect the true sending "
                     "domain, and be able to receive replies. Replying drives "
                     "engagement signals that improve inbox placement."

@@ -205,6 +205,33 @@ def test_hidden_text_in_a_stylesheet_is_detected() -> None:
     assert _failing(asyncio.run(hidden_css.run(_html(body))))
 
 
+def test_template_chrome_names_the_field_to_clear() -> None:
+    """The one branch of this check that is not a defect, so its message has to
+    say so and point at the composer field that produces it. Rule 12.
+
+    Reaching it needs a provider identified with high confidence, which a
+    verified DKIM `d=` gives, and hidden text that is ordinary preheader copy.
+    """
+    raw = (
+        b"From: Jane <jane@example.com>\r\nTo: reader@example.com\r\n"
+        b"Subject: Office hours Saturday\r\n"
+        b"DKIM-Signature: v=1; a=rsa-sha256; d=kit.com; s=x; h=from; bh=a; b=b\r\n"
+        b"Authentication-Results: mx.google.com; dkim=pass header.d=kit.com\r\n"
+        b"Content-Type: text/html; charset=utf-8\r\n\r\n"
+        b'<html><body><div style="display:none">Our sale ends Sunday</div>'
+        b"<p>Hello.</p></body></html>"
+    )
+    findings = asyncio.run(hidden_css.run(parse_eml(raw)))
+    salting = [f for f in findings if f.check == "content.hidden_css_salting"]
+    assert salting, "the check did not run"
+    message = salting[0].message
+    assert message.startswith("The body hides text in 1 place where a reader cannot see it")
+    assert "Clear the preview text field in your Kit" in message
+    assert "adversarial" not in message
+    assert salting[0].severity == "INFO"
+    assert salting[0].source == "esp_template"
+
+
 def test_ordinary_preheader_copy_is_not_called_prompt_injection() -> None:
     body = '<div style="display:none">Don\'t forget: our sale ends Sunday</div><p>Hello.</p>'
     findings = asyncio.run(hidden_css.run(_html(body)))

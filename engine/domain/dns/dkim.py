@@ -28,6 +28,7 @@ import base64
 import re
 
 from ...copywriting.link_quality import _registrable
+from ...prose import listed
 from ...report import Finding
 from ...severity import Severity
 from ..dns_client import query
@@ -504,7 +505,7 @@ async def run(domain: str, headers: dict[str, list[str]]) -> list[Finding]:
                         passed=False,
                         message=(
                             f"The signature from {signing_domain} does not protect "
-                            f"{missing}. Gmail and Yahoo require the unsubscribe "
+                            f"{listed(missing)}. Gmail and Yahoo require the unsubscribe "
                             "headers to be signed on bulk mail. Unsigned, anyone who "
                             "handles the message on its way can change where the "
                             "unsubscribe link points."

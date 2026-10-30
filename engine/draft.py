@@ -36,6 +36,7 @@ that dropping the whole check would hide.
 from __future__ import annotations
 
 from .parse import ParsedEmail
+from .prose import listed
 from .report import Finding
 from .severity import Severity
 
@@ -136,8 +137,8 @@ def _rewrite_required_headers(finding: Finding) -> Finding | None:
         severity=finding.severity,
         passed=False,
         message=(
-            f"Missing header(s) you need to set: {sorted(str(h) for h in writer_missing)}. "
-            f"Filters treat a message without these as malformed."
+            f"The message does not set {listed(sorted(str(h) for h in writer_missing))}. "
+            f"Filters treat a message without those headers as malformed."
         ),
         details={"missing": sorted(str(h) for h in writer_missing)},
         hard_gate=finding.hard_gate,
