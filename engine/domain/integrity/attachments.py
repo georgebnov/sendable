@@ -22,6 +22,7 @@ Doc tier: §6 (content/structural — Attachment types and risk).
 from __future__ import annotations
 
 from ...parse import ParsedEmail
+from ...prose import listed
 from ...report import Finding
 from ...severity import Severity
 
@@ -164,9 +165,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"HTML attachment(s): {[h['name'] for h in html_hits]}. "
-                    "#1 phishing-landing carrier 2024-2026; both Gmail and Microsoft "
-                    "treat as high-risk regardless of content."
+                    f"The message attaches {listed(h['name'] for h in html_hits)} "
+                    "as HTML. That is the most common carrier for a phishing landing "
+                    "page in 2024 to 2026, and Gmail and Microsoft both treat it as "
+                    "high risk whatever it contains."
                 ),
                 details={"hits": html_hits},
             )
@@ -179,8 +181,9 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f"Macro-enabled Office attachment(s): {[h['name'] for h in macro_hits]}. "
-                    "Higher scrutiny than .docx/.xlsx; many corporate filters quarantine."
+                    f"The message attaches {listed(h['name'] for h in macro_hits)}. "
+                    "A macro-enabled Office file gets more scrutiny than a .docx or an "
+                    ".xlsx, and many corporate filters quarantine it."
                 ),
                 details={"hits": macro_hits},
             )

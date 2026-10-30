@@ -208,21 +208,25 @@ async def run(email: ParsedEmail) -> list[Finding]:
             )
             else None
         )
+        places = "1 place" if len(hits) == 1 else f"{len(hits)} places"
         if chrome is not None:
             severity = Severity.INFO
             source = "esp_template"
             message = (
-                f"Hidden-text patterns detected ({len(hits)} hit(s)) but match "
-                f"{chrome.name} template chrome (preview-text / footer). "
-                f"Not user content: clear the preview-text field in your "
-                f"{chrome.name} composer to remove."
+                f"The body hides text in {places} where a reader cannot see it, but "
+                f"it matches what {chrome.name} adds on its own, in the preview text "
+                f"and the footer. You did not write it. Clear the preview text field "
+                f"in your {chrome.name} composer to remove it."
             )
         else:
             severity = Severity.CRITICAL if any_adversarial else Severity.HIGH
             source = "user_content"
-            message = (
-                f"Hidden-text patterns detected ({len(hits)} hit(s); "
-                f"adversarial={any_adversarial})."
+            message = f"The body hides text in {places} where a reader cannot see it. " + (
+                "The hidden text reads like an instruction written for an automated "
+                "reader, so a filter treats it as an attack. Remove it."
+                if any_adversarial
+                else "A filter reads hidden text as an attempt to change what it "
+                "scores, so delete it or make it visible."
             )
         return [
             Finding(

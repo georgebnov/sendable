@@ -36,6 +36,7 @@ from email.utils import getaddresses, parseaddr
 
 from ...copywriting.link_quality import _registrable
 from ...parse import ParsedEmail
+from ...prose import listed
 from ...report import Finding
 from ...severity import Severity
 
@@ -333,7 +334,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 passed=False,
                 message=(
                     f"Effective reply address (via {source}) is an unmonitored "
-                    f"mailbox: {unmonitored_hits}. Microsoft sender guidance: "
+                    f"mailbox: {listed(unmonitored_hits)}. Microsoft sender guidance: "
                     "From / Reply-To should be valid, reflect the true sending "
                     "domain, and be able to receive replies. Replying drives "
                     "engagement signals that improve inbox placement."

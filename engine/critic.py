@@ -25,6 +25,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from engine.prose import listed
 from engine.report import Finding
 from engine.severity import Severity
 
@@ -50,6 +51,30 @@ _EMOJI_RX = re.compile(
     re.UNICODE,
 )
 _NEWSLETTER_RX = re.compile(r"\bnewsletter\b", re.IGNORECASE)
+
+# The part of the composer a sender looks at, per internal field key.
+_FIELD_NAMES = {
+    "subject": "subject line",
+    "preview": "preview text field",
+    "body": "body",
+}
+
+# The promotional categories in spam_triggers.md, in words a sender uses. A
+# category added to that file without a name here reads as its own label with
+# the dashes removed, which rule 12 keeps out of text a user sees.
+_CATEGORY_NAMES = {
+    "urgency": "urgency",
+    "fomo": "fear of missing out",
+    "commerce-cta": "a hard sales call to action",
+    "financial-promise": "a money promise",
+    "generic-greeting": "a generic greeting",
+}
+
+
+def _category_names(slugs: list[str]) -> str:
+    return listed(_CATEGORY_NAMES.get(s, s.replace("-", " ")) for s in slugs)
+
+
 _LOGO_TOKEN_RX = re.compile(r"(\{logo\}|<img|<logo>|<table|<div)", re.IGNORECASE)
 
 
@@ -85,44 +110,94 @@ def _check_subjects(subjects: list[str]) -> list[Finding]:
     for i, subj in enumerate(subjects):
         subj = subj or ""
         issues: list[tuple[Severity, str]] = []
+        # Several subject lines mean a draft carrying alternatives. With one, a
+        # number in front of the sentence is noise, so the name carries it.
+        name = (
+            "The subject line" if len(subjects) == 1 else f"Subject line {i + 1} of {len(subjects)}"
+        )
 
         if len(subj) > 50:
-            issues.append((Severity.MEDIUM, f"subject is {len(subj)} chars (>50)"))
+            issues.append(
+                (
+                    Severity.MEDIUM,
+                    f"{name} is {len(subj)} characters long. Keep it to 50 or fewer, "
+                    f"so an inbox does not cut off the end.",
+                )
+            )
         words = subj.split()
         if len(words) > 8:
-            issues.append((Severity.LOW, f"subject is {len(words)} words (>8)"))
+            issues.append(
+                (
+                    Severity.LOW,
+                    f"{name} is {len(words)} words. Keep it to 8 or fewer, because a "
+                    f"reader scans only the first few.",
+                )
+            )
 
         alpha_words = [w for w in words if any(c.isalpha() for c in w)]
         if alpha_words:
             title_case = sum(1 for w in alpha_words if w[0].isupper() and not w.isupper())
             if title_case / len(alpha_words) >= 0.5 and len(alpha_words) >= 3:
-                issues.append((Severity.MEDIUM, "subject is Title Case (prefer sentence case)"))
+                issues.append(
+                    (
+                        Severity.MEDIUM,
+                        f"{name} is in Title Case. Use sentence case, with a capital "
+                        f"on the first word only.",
+                    )
+                )
 
             all_caps = sum(1 for w in alpha_words if len(w) > 1 and w.isupper())
             if all_caps / len(alpha_words) > 0.3:
-                issues.append((Severity.HIGH, "subject uses ALL-CAPS words"))
+                issues.append(
+                    (
+                        Severity.HIGH,
+                        f"{name} uses capitals for whole words. Write them in normal case.",
+                    )
+                )
 
         if subj.count("!") > 1:
-            issues.append((Severity.MEDIUM, "multiple '!' in subject"))
+            issues.append(
+                (Severity.MEDIUM, f"{name} has more than one exclamation mark. Keep one at most.")
+            )
         if subj.count("?") > 1:
-            issues.append((Severity.LOW, "multiple '?' in subject"))
+            issues.append(
+                (Severity.LOW, f"{name} has more than one question mark. Keep one at most.")
+            )
 
         if re.match(r"^\s*(re|fwd|fw)\s*:", subj, re.IGNORECASE):
-            issues.append((Severity.HIGH, "subject starts with 'Re:' / 'Fwd:' (deceptive)"))
+            issues.append(
+                (
+                    Severity.HIGH,
+                    f"{name} starts with Re: or Fwd:, which tells the reader this is a "
+                    f"reply when it is not. Remove it.",
+                )
+            )
 
         if _NEWSLETTER_RX.search(subj):
-            issues.append((Severity.LOW, "subject contains 'newsletter' (-18.7% open rate)"))
+            issues.append(
+                (
+                    Severity.LOW,
+                    f"{name} contains the word newsletter, which measures about 19 "
+                    f"percent worse on open rate. Say what is inside the email instead.",
+                )
+            )
 
         if _EMOJI_RX.search(subj):
             count = len(_EMOJI_RX.findall(subj))
             if count > 1:
-                issues.append((Severity.MEDIUM, f"subject contains {count} emoji (>1)"))
+                issues.append((Severity.MEDIUM, f"{name} has {count} emoji. Keep one at most."))
 
         leading = subj.lstrip()
         if leading.startswith("$") or re.match(
             r"^\$?\s*\d+[\d,]*\s*(off|save|\$|%)", leading, re.IGNORECASE
         ):
-            issues.append((Severity.MEDIUM, "subject opens with a dollar/price figure"))
+            issues.append(
+                (
+                    Severity.MEDIUM,
+                    f"{name} opens with a price. Lead with what the reader gets and "
+                    f"put the number later.",
+                )
+            )
 
         for sev, msg in issues:
             findings.append(
@@ -130,7 +205,7 @@ def _check_subjects(subjects: list[str]) -> list[Finding]:
                     check="copygen.subject_heuristics",
                     severity=sev,
                     passed=False,
-                    message=f"subject variant {i}: {msg}",
+                    message=msg,
                     details={"variant_index": i, "subject": subj},
                 )
             )
@@ -140,7 +215,11 @@ def _check_subjects(subjects: list[str]) -> list[Finding]:
                 check="copygen.subject_heuristics",
                 severity=Severity.INFO,
                 passed=True,
-                message=f"Subject heuristics passed ({len(subjects)} variant(s)).",
+                message=(
+                    "Nothing to fix in the subject line."
+                    if len(subjects) == 1
+                    else f"Nothing to fix in any of the {len(subjects)} subject lines."
+                ),
             )
         )
     return findings
@@ -164,7 +243,11 @@ def _check_spam_triggers(
                             check="copygen.spam_trigger",
                             severity=sev,
                             passed=False,
-                            message=f"banned phrase '{phrase}' in {field_name}",
+                            message=(
+                                f'The {_FIELD_NAMES[field_name]} contains "{phrase}". '
+                                f"Bulk filters score that wording, so say the same thing "
+                                f"in plain words."
+                            ),
                             details={
                                 "phrase": phrase,
                                 "category": category,
@@ -178,7 +261,10 @@ def _check_spam_triggers(
                 check="copygen.spam_trigger",
                 severity=Severity.INFO,
                 passed=True,
-                message="No spam-trigger phrases detected.",
+                message=(
+                    "No filter-triggering wording in the subject line, the preview "
+                    "text or the body."
+                ),
             )
         )
     return findings, fired_categories
@@ -197,7 +283,12 @@ def _check_compound_signal(fired_categories: set[str]) -> list[Finding]:
                 check="copygen.compound_signal",
                 severity=Severity.INFO,
                 passed=True,
-                message=f"{n} promotional category(ies): below the compound-signal threshold.",
+                message=(
+                    "The copy stacks no promotional language."
+                    if n == 0
+                    else f"The copy uses {_category_names(sorted(promotional))}, below "
+                    f"the 3 kinds that count as a stack."
+                ),
                 details={"categories": sorted(promotional), "count": n},
             )
         ]
@@ -212,7 +303,11 @@ def _check_compound_signal(fired_categories: set[str]) -> list[Finding]:
             check="copygen.compound_signal",
             severity=sev,
             passed=False,
-            message=f"{n} promotional categories fired simultaneously: {sorted(promotional)}",
+            message=(
+                f"The copy stacks {n} kinds of promotional language at once: "
+                f"{_category_names(sorted(promotional))}. One kind on its own moves "
+                f"little. Together they move the filter, so keep one and cut the rest."
+            ),
             details={"categories": sorted(promotional), "count": n},
         )
     ]
@@ -228,7 +323,10 @@ def _check_body_length(body: str, length_hint: str) -> list[Finding]:
                 check="copygen.body_length",
                 severity=Severity.MEDIUM,
                 passed=False,
-                message=f"body is {word_count} words (hint '{length_hint}' cap {cap})",
+                message=(
+                    f"The body is {word_count} words. A {length_hint} email should run "
+                    f"to about {cap}, so cut it back."
+                ),
                 details={"word_count": word_count, "cap": cap, "length_hint": length_hint},
             )
         )
@@ -238,7 +336,10 @@ def _check_body_length(body: str, length_hint: str) -> list[Finding]:
                 check="copygen.body_length",
                 severity=Severity.HIGH,
                 passed=False,
-                message=f"body is {word_count} words (>300 absolute ceiling for short length)",
+                message=(
+                    f"The body is {word_count} words. A short email that runs past 300 "
+                    f"words is no longer short, so split it or cut it."
+                ),
                 details={"word_count": word_count},
             )
         )
@@ -248,7 +349,10 @@ def _check_body_length(body: str, length_hint: str) -> list[Finding]:
                 check="copygen.body_length",
                 severity=Severity.INFO,
                 passed=True,
-                message=f"Body length OK ({word_count} words, hint '{length_hint}' cap {cap}).",
+                message=(
+                    f"The body is {word_count} words, inside the {cap} a {length_hint} "
+                    f"email should run."
+                ),
                 details={"word_count": word_count, "cap": cap, "length_hint": length_hint},
             )
         )
@@ -271,8 +375,9 @@ def _check_links(body: str) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f"body contains {len(urls)} URLs across {word_count} words "
-                    f"(budget {link_budget} = max(2, words/125))"
+                    f"The body has {len(urls)} links in {word_count} words. Filters "
+                    f"read links against the word count, and this length carries "
+                    f"{link_budget}, so remove {len(urls) - link_budget}."
                 ),
                 details={
                     "count": len(urls),
@@ -291,7 +396,11 @@ def _check_links(body: str) -> list[Finding]:
                     check="copygen.drive_link",
                     severity=Severity.HIGH,
                     passed=False,
-                    message=f"body contains a Google Drive/Docs link: {url}",
+                    message=(
+                        f"The body links to Google Drive at {url}. Filters treat a "
+                        f"shared-document link as high risk, so host the file on your "
+                        f"own domain or attach it."
+                    ),
                     details={"url": url},
                 )
             )
@@ -302,8 +411,8 @@ def _check_links(body: str) -> list[Finding]:
                 severity=Severity.INFO,
                 passed=True,
                 message=(
-                    f"Link count OK ({len(urls)} URL(s) across {word_count} words, "
-                    f"budget {link_budget})."
+                    f"The body has {len(urls)} links in {word_count} words, inside the "
+                    f"{link_budget} this length carries."
                 ),
                 details={
                     "count": len(urls),
@@ -318,7 +427,7 @@ def _check_links(body: str) -> list[Finding]:
                 check="copygen.drive_link",
                 severity=Severity.INFO,
                 passed=True,
-                message="No Google Drive / Docs links.",
+                message="No Google Drive or Google Docs links in the body.",
             )
         )
     return findings
@@ -389,7 +498,10 @@ def _check_body_shouting(body: str) -> list[Finding]:
                 check="copygen.body_shouting",
                 severity=Severity.MEDIUM,
                 passed=False,
-                message=f"body contains ALL-CAPS shouting ({len(shouting_lines)} line(s))",
+                message=(
+                    f"The body uses capitals for whole words, starting with "
+                    f'"{shouting_lines[0][:60]}". Write them in normal case.'
+                ),
                 details={"lines": shouting_lines[:5], "count": len(shouting_lines)},
             )
         )
@@ -399,7 +511,10 @@ def _check_body_shouting(body: str) -> list[Finding]:
                 check="copygen.body_shouting",
                 severity=Severity.MEDIUM,
                 passed=False,
-                message=f"body contains lines with '!!' or more ({len(multi_bang_lines)} line(s))",
+                message=(
+                    f"The body stacks exclamation marks, starting with "
+                    f'"{multi_bang_lines[0][:60]}". Keep one at most.'
+                ),
                 details={"lines": multi_bang_lines[:5], "count": len(multi_bang_lines)},
             )
         )
@@ -410,7 +525,7 @@ def _check_body_shouting(body: str) -> list[Finding]:
                 check="copygen.body_shouting",
                 severity=Severity.LOW,
                 passed=False,
-                message=f"body contains {total_bangs} exclamation marks (>3)",
+                message=(f"The body has {total_bangs} exclamation marks. Keep it to 3 or fewer."),
                 details={"count": total_bangs},
             )
         )
@@ -420,7 +535,9 @@ def _check_body_shouting(body: str) -> list[Finding]:
                 check="copygen.body_shouting",
                 severity=Severity.INFO,
                 passed=True,
-                message="No ALL-CAPS shouting or exclamation stacking in body.",
+                message=(
+                    "The body does not use capitals for whole words or stack exclamation marks."
+                ),
             )
         )
     return findings
@@ -433,7 +550,10 @@ def _check_body_newsletter_word(body: str) -> list[Finding]:
                 check="copygen.body_newsletter_word",
                 severity=Severity.LOW,
                 passed=False,
-                message="body contains 'newsletter' (Zippia -18.7% open-rate signal)",
+                message=(
+                    "The body contains the word newsletter, which measures about 19 "
+                    "percent worse on open rate. Say what is inside the email instead."
+                ),
             )
         ]
     return [
@@ -441,7 +561,7 @@ def _check_body_newsletter_word(body: str) -> list[Finding]:
             check="copygen.body_newsletter_word",
             severity=Severity.INFO,
             passed=True,
-            message="Body does not contain the word 'newsletter'.",
+            message="The body does not use the word newsletter.",
         )
     ]
 
@@ -454,7 +574,9 @@ def _check_body_emoji(subject: str, body: str) -> list[Finding]:
                 check="copygen.emoji_count",
                 severity=Severity.MEDIUM,
                 passed=False,
-                message=f"subject + body contain {total} emoji (>1 total)",
+                message=(
+                    f"The subject line and body together have {total} emoji. Keep one at most."
+                ),
                 details={"count": total},
             )
         ]
@@ -463,7 +585,7 @@ def _check_body_emoji(subject: str, body: str) -> list[Finding]:
             check="copygen.emoji_count",
             severity=Severity.INFO,
             passed=True,
-            message=f"Emoji count OK ({total} total across subject + body).",
+            message=f"The subject line and body together have {total} emoji.",
             details={"count": total},
         )
     ]
