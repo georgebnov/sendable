@@ -75,6 +75,27 @@ def _category_names(slugs: list[str]) -> str:
     return listed(_CATEGORY_NAMES.get(s, s.replace("-", " ")) for s in slugs)
 
 
+# What to do about a trigger, per category. `formatting` holds "!!!", "???" and
+# "$$$", which a sender cannot say in plain words, and "newsletter" costs open
+# rate rather than filter score. `None` is every other category.
+_TRIGGER_ADVICE: dict[str | None, str] = {
+    "formatting": "Bulk filters score that punctuation, so remove it.",
+    "newsletter-word": (
+        "That word measures about 19 percent worse on open rate. Say what is "
+        "inside the email instead."
+    ),
+    None: "Bulk filters score that wording, so say the same thing in plain words.",
+}
+
+
+def _links(count: int) -> str:
+    return "1 link" if count == 1 else f"{count} links"
+
+
+def _drive_service(url: str) -> str:
+    return "Google Docs" if "docs.google.com" in url.lower() else "Google Drive"
+
+
 _LOGO_TOKEN_RX = re.compile(r"(\{logo\}|<img|<logo>|<table|<div)", re.IGNORECASE)
 
 
@@ -245,8 +266,7 @@ def _check_spam_triggers(
                             passed=False,
                             message=(
                                 f'The {_FIELD_NAMES[field_name]} contains "{phrase}". '
-                                f"Bulk filters score that wording, so say the same thing "
-                                f"in plain words."
+                                f"{_TRIGGER_ADVICE.get(category, _TRIGGER_ADVICE[None])}"
                             ),
                             details={
                                 "phrase": phrase,
@@ -352,6 +372,10 @@ def _check_body_length(body: str, length_hint: str) -> list[Finding]:
                 message=(
                     f"The body is {word_count} words, inside the {cap} a {length_hint} "
                     f"email should run."
+                    if word_count <= cap
+                    else f"The body is {word_count} words, over the {cap} a "
+                    f"{length_hint} email should run. That is not far enough over to "
+                    f"count against you."
                 ),
                 details={"word_count": word_count, "cap": cap, "length_hint": length_hint},
             )
@@ -375,9 +399,9 @@ def _check_links(body: str) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 passed=False,
                 message=(
-                    f"The body has {len(urls)} links in {word_count} words. Filters "
+                    f"The body has {_links(len(urls))} in {word_count} words. Filters "
                     f"read links against the word count, and this length carries "
-                    f"{link_budget}, so remove {len(urls) - link_budget}."
+                    f"{link_budget}, so remove {len(urls) - link_budget} of them."
                 ),
                 details={
                     "count": len(urls),
@@ -397,9 +421,9 @@ def _check_links(body: str) -> list[Finding]:
                     severity=Severity.HIGH,
                     passed=False,
                     message=(
-                        f"The body links to Google Drive at {url}. Filters treat a "
-                        f"shared-document link as high risk, so host the file on your "
-                        f"own domain or attach it."
+                        f"The body links to {_drive_service(url)} at {url}. Filters "
+                        f"treat a shared-document link as high risk, so host the file "
+                        f"on your own domain or attach it."
                     ),
                     details={"url": url},
                 )
@@ -411,7 +435,7 @@ def _check_links(body: str) -> list[Finding]:
                 severity=Severity.INFO,
                 passed=True,
                 message=(
-                    f"The body has {len(urls)} links in {word_count} words, inside the "
+                    f"The body has {_links(len(urls))} in {word_count} words, inside the "
                     f"{link_budget} this length carries."
                 ),
                 details={
@@ -500,7 +524,7 @@ def _check_body_shouting(body: str) -> list[Finding]:
                 passed=False,
                 message=(
                     f"The body uses capitals for whole words, starting with "
-                    f'"{shouting_lines[0][:60]}". Write them in normal case.'
+                    f'"{shouting_lines[0]}". Write them in normal case.'
                 ),
                 details={"lines": shouting_lines[:5], "count": len(shouting_lines)},
             )
@@ -513,7 +537,7 @@ def _check_body_shouting(body: str) -> list[Finding]:
                 passed=False,
                 message=(
                     f"The body stacks exclamation marks, starting with "
-                    f'"{multi_bang_lines[0][:60]}". Keep one at most.'
+                    f'"{multi_bang_lines[0]}". Keep one at most.'
                 ),
                 details={"lines": multi_bang_lines[:5], "count": len(multi_bang_lines)},
             )

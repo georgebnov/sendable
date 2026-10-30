@@ -222,13 +222,13 @@ def test_too_many_links_says_how_many_to_remove() -> None:
     body = "word " * 100 + " ".join(f"https://example.com/{n}" for n in range(7))
     message = next(m for m in _failing(_check_links(body)) if "links in" in m)
     assert "The body has 7 links in 107 words." in message
-    assert "this length carries 2, so remove 5." in message
+    assert "this length carries 2, so remove 5 of them." in message
     assert "max(" not in message and "/125" not in message
 
 
 def test_a_link_count_inside_the_budget_states_it_plainly() -> None:
     finding = next(f for f in _check_links("word " * 50 + " https://example.com/a") if f.passed)
-    assert finding.message == "The body has 1 links in 51 words, inside the 2 this length carries."
+    assert finding.message == "The body has 1 link in 51 words, inside the 2 this length carries."
 
 
 def test_a_drive_link_says_where_to_put_the_file_instead() -> None:

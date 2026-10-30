@@ -173,15 +173,17 @@ service, no account, no database.
 
 ### Changed
 
-- Rewrite every copy finding so a sender can act on it. The message was often
+- Rewrite every finding so a sender can act on it. The message was often
   machine output: a Python list printed as `['commerce-cta',
   'financial-promise', 'urgency']`, the formula `budget 2 = max(2, words/125)`,
   `adversarial=True`, and `subject variant 0:` in front of a sentence about a
   subject line the sender wrote once. Each message now names the part of the
   composer it is about, the subject line, the preview text field or the body,
-  states what it found, and says what to do about it. Nothing else moved: across
-  both fixtures 25 messages were reworded and the score, the verdict, every
-  severity and every `details` value stayed the same.
+  states what it found, and says what to do about it. The DKIM alignment, the
+  Reply-To alignment and the duplicate header findings name their domains and
+  headers in prose for the same reason. Nothing else moved: across both
+  fixtures 25 messages were reworded and the score, the verdict, every severity
+  and every `details` value stayed the same.
 
 - Say that Gmail can refuse a message whose delivering address has no matching
   name, and name the code it sends: 550 5.7.25. The two reverse DNS findings said
@@ -282,8 +284,11 @@ service, no account, no database.
 
 - Gate the text of a finding. Nothing checked it, which is how a Python list and
   a formula reached users. `tests/test_message_quality.py` reads every message
-  in the engine and fails on a container, a formula, a Python value or a dash. It
-  cannot judge prose, so that stays a person's job.
+  in the engine and fails on a container, a formula, a Python value or a dash.
+  It resolves a plain name back to what it was assigned, because
+  `{dkim_domains}` says nothing about holding a list, and it reads both branches
+  of a message that picks one of two sentences. It cannot judge prose, so that
+  stays a person's job.
 - `engine/prose.py` renders a list for a sentence, so the list itself stays in
   `details` where a machine reads it.
 

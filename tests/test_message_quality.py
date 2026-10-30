@@ -57,23 +57,82 @@ _CONTAINER_REPR = re.compile(rf"[\[{{]{_QUOTED}(?:,\s*{_QUOTED})*[\]}}]")
 _PY_VALUE = re.compile(r"\w+=(?:True|False|None)\b")
 
 
-def _messages() -> list[tuple[pathlib.Path, int, str, list[ast.expr]]]:
-    """Every `message=` the engine builds, as (file, line, template, interpolations).
+_FUNC = ast.FunctionDef | ast.AsyncFunctionDef
+
+
+def _list_returning(tree: ast.Module) -> set[str]:
+    """Every function in the module whose annotation says it returns a container.
+
+    `dkim_domains = _dkim_signing_domains(email)` holds a list, and the name
+    alone does not say so. The annotation on the helper does.
+    """
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, _FUNC) and isinstance(node.returns, ast.Subscript):
+            value = node.returns.value
+            if isinstance(value, ast.Name) and value.id in _CONTAINER_CALLS:
+                names.add(node.name)
+    return names
+
+
+def _container_locals(func: ast.AST, list_returning: set[str]) -> set[str]:
+    """Names assigned a container inside this function."""
+    names = set()
+    for node in ast.walk(func):
+        if not isinstance(node, ast.Assign | ast.AnnAssign):
+            continue
+        value = node.value
+        if value is None:
+            continue
+        held = _is_container(value) or (
+            isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Name)
+            and value.func.id in list_returning
+        )
+        if not held:
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        for target in targets:
+            if isinstance(target, ast.Name):
+                names.add(target.id)
+    return names
+
+
+Message = tuple[pathlib.Path, int, str, list[ast.expr], set[str]]
+
+
+def _collect(
+    node: ast.AST,
+    path: pathlib.Path,
+    holders: set[str],
+    list_returning: set[str],
+    found: list[Message],
+) -> None:
+    """Descend from `node`, carrying the container-holding names in scope."""
+    if isinstance(node, _FUNC):
+        holders = holders | _container_locals(node, list_returning)
+    if isinstance(node, ast.Call):
+        for kw in node.keywords:
+            if kw.arg != "message":
+                continue
+            text, exprs = _render(kw.value)
+            if text is not None:
+                found.append((path, kw.value.lineno, text, exprs, holders))
+    for child in ast.iter_child_nodes(node):
+        _collect(child, path, holders, list_returning, found)
+
+
+def _messages() -> list[Message]:
+    """Every `message=` the engine builds, as (file, line, template,
+    interpolations, the local names in scope that hold a container).
 
     A message built from a plain string or an f-string is read here. One passed
     in as a variable is not, so this is a floor on the real count, not a ceiling.
     """
-    found = []
+    found: list[Message] = []
     for path in sorted(ENGINE.rglob("*.py")):
-        for node in ast.walk(ast.parse(path.read_text())):
-            if not isinstance(node, ast.Call):
-                continue
-            for kw in node.keywords:
-                if kw.arg != "message":
-                    continue
-                text, exprs = _render(kw.value)
-                if text is not None:
-                    found.append((path, kw.value.lineno, text, exprs))
+        tree = ast.parse(path.read_text())
+        _collect(tree, path, set(), _list_returning(tree), found)
     assert len(found) > 100, f"only {len(found)} messages found: the scan is broken"
     return found
 
@@ -92,6 +151,14 @@ def _render(node: ast.expr) -> tuple[str | None, list[ast.expr]]:
                 parts.append("{}")
                 exprs.append(piece.value)
         return "".join(parts), exprs
+    if isinstance(node, ast.IfExp):
+        # A message that picks one of two sentences. Both are product text, so
+        # both are read, joined by a newline so no rule matches across them.
+        body, body_exprs = _render(node.body)
+        orelse, orelse_exprs = _render(node.orelse)
+        if body is None or orelse is None:
+            return None, []
+        return f"{body}\n{orelse}", body_exprs + orelse_exprs
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
         left, left_exprs = _render(node.left)
         right, right_exprs = _render(node.right)
@@ -113,12 +180,21 @@ def _is_container(expr: ast.expr) -> bool:
     return False
 
 
+def _holds_container(expr: ast.expr, holders: set[str]) -> bool:
+    return isinstance(expr, ast.Name) and expr.id in holders
+
+
 def test_no_message_interpolates_a_container() -> None:
-    """`f"...: {sorted(x)}"` puts `['a', 'b']` in front of a marketer."""
+    """`f"...: {sorted(x)}"` puts `['a', 'b']` in front of a marketer.
+
+    A plain name counts too. `{dkim_domains}` printed `['mailer.example']` for
+    a year because the name says nothing about what it holds, so the scan reads
+    what the name was assigned in the same function.
+    """
     bad = [
         f"{p.relative_to(ENGINE.parent)}:{line}  {text[:70]}"
-        for p, line, text, exprs in _messages()
-        if any(_is_container(e) for e in exprs)
+        for p, line, text, exprs, holders in _messages()
+        if any(_is_container(e) or _holds_container(e, holders) for e in exprs)
     ]
     assert not bad, (
         "a message renders a Python container:\n  "
@@ -134,7 +210,7 @@ def test_no_message_carries_a_formula_or_a_threshold() -> None:
     """A sender cannot act on `max(2, words/125)`. Say the number it produced."""
     bad = [
         f"{p.relative_to(ENGINE.parent)}:{line}  {text[:70]}"
-        for p, line, text, _ in _messages()
+        for p, line, text, _, _h in _messages()
         if _FORMULA.search(text)
     ]
     assert not bad, (
@@ -148,7 +224,7 @@ def test_no_message_uses_a_dash() -> None:
     """Rule 12. A comma, a colon or a period instead."""
     bad = [
         f"{p.relative_to(ENGINE.parent)}:{line}  {text[:70]}"
-        for p, line, text, _ in _messages()
+        for p, line, text, _, _h in _messages()
         if any(d in text for d in _DASHES)
     ]
     assert not bad, "a message uses an em or en dash:\n  " + "\n  ".join(bad)

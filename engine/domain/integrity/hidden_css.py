@@ -142,6 +142,10 @@ async def run(email: ParsedEmail) -> list[Finding]:
 
     soup = parse_html(email.html)
     hits: list[dict] = []
+    # How many elements and CSS rules hid content. `hits` holds one entry per
+    # matched pattern, so a single `style="display:none;font-size:0"` is two
+    # hits in one place, and the finding counts places.
+    spots = 0
 
     for el in soup.find_all(style=True):
         style = el.get("style", "") or ""
@@ -157,6 +161,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             continue
         classification = _classify_hidden(element_text)
         text_preview = element_text[:80] + ("…" if len(element_text) > 80 else "")
+        spots += 1
         for name in matched:
             hits.append(
                 {
@@ -181,6 +186,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 continue
             classification = _classify_hidden(target_text)
             text_preview = target_text[:80] + ("…" if len(target_text) > 80 else "")
+            spots += 1
             for name in patterns:
                 hits.append(
                     {
@@ -208,7 +214,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
             )
             else None
         )
-        places = "1 place" if len(hits) == 1 else f"{len(hits)} places"
+        places = "1 place" if spots == 1 else f"{spots} places"
         if chrome is not None:
             severity = Severity.INFO
             source = "esp_template"

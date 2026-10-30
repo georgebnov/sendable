@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 
 from ...parse import ParsedEmail
+from ...prose import listed
 from ...report import Finding
 from ...severity import Severity
 
@@ -93,7 +94,7 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.HIGH,
                 passed=False,
                 message=(
-                    f"Duplicate single-instance header(s): {duplicates}. "
+                    f"Duplicate single-instance header(s): {listed(duplicates)}. "
                     "Many MTAs reject; filters score this as malformed."
                 ),
                 details={"duplicates": duplicates},
