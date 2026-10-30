@@ -37,9 +37,22 @@ test-fast:
 coverage:
     #!/usr/bin/env bash
     set -euo pipefail
+    # Find the percentage by matching the column, never by counting fields from
+    # either end. show_missing puts a variable-width list of line numbers last,
+    # so the last field is a line number: that read every row wrong, and the
+    # list came out sorted by meaningless values.
     uv run --quiet pytest -q --cov --cov-report=term 2>&1 \
       | grep -E '^(engine|scripts)' \
-      | awk '{c=$NF; gsub("%","",c); print c+0"%\t"$2"\tstmts\t"$1}' \
+      | awk '{
+            pct = ""
+            for (i = 2; i <= NF; i++) if ($i ~ /^[0-9]+%$/) { pct = $i; break }
+            if (pct == "") {
+              print "coverage: no percentage column in: " $0 > "/dev/stderr"
+              print "The pytest table changed shape. Fix this recipe." > "/dev/stderr"
+              exit 1
+            }
+            printf "%s\t%s of %s missing\t%s\n", pct, $3, $2, $1
+          }' \
       | sort -n
 
 # Apply every fix ruff can make on its own, then format.
