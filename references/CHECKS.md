@@ -301,10 +301,12 @@ Sections: Domain Health → Email Auth → Headers → Bulk Compliance → Body 
 
 ### blacklist.{label} (31 IP RBL lists)
 - Validates: Sender IP not listed on RBL (Spamhaus ZEN, Spamcop, Barracuda, CBL, UCEPROTECT L1/L2/L3, Mailspike, PSBL, etc.).
-- GOOD: NXDOMAIN (not listed).
+- GOOD: NXDOMAIN, and the list answered its test address `2.0.0.127.<host>` as listed in the same audit.
 - MEDIUM: n/a
-- BAD: Non-sentinel A record (IP listed).
+- BAD: A record in 127.0.0.0/8, outside 127.255.255.0/24 and other than 127.0.0.1 (IP listed). A listing stands when the test address fails, and `details.test_passed` records that.
 - Severity: HIGH / MEDIUM / LOW (per list tier)
+
+A list with no usable answer gets no row of its own. It goes into `blacklist.unverified`.
 
 The lists, with the severity of a listing on each:
 
@@ -342,19 +344,40 @@ The lists, with the severity of a listing on each:
 | `calivent` | `dnsbl.calivent.com.pe` | LOW |
 | `netherrelays` | `relays.nether.net` | LOW |
 
+### blacklist.unverified
+- Validates: Which lists the audit could not check. A list lands here when its test address fails and the sender answer is not a listing, or when the sender lookup gives a refusal, no records, a timeout, or an address outside the listing range.
+- GOOD: Finding absent: every list gave a usable answer.
+- MEDIUM: n/a
+- BAD: `details.lists` names each list that was not checked. It says to run the audit from another network.
+- Severity: INFO (0 penalty, so it neither lifts nor cuts the score)
+
 ### sender_dbl.{label} (8 domain DBLs)
 - Validates: From-domain apex not on Spamhaus DBL, SURBL, URIBL, ivmURI, Nordspam DBL, SEM FRESH/URI/URIRED.
-- GOOD: No listings.
+- GOOD: No listings, and every list passed its test name (`test.<host>`, or `test.uribl.com.multi.uribl.com` for URIBL) and answered NXDOMAIN.
 - MEDIUM: n/a
 - BAD: Apex listed → hard reject by major receivers.
 - Severity: CRITICAL
 
+### sender_dbl.unverified
+- Validates: Which domain lists the audit could not check, by the same rule as `blacklist.unverified`. `sender_dbl.no_listings` does not appear with it.
+- GOOD: Finding absent.
+- MEDIUM: n/a
+- BAD: `details.lists` names each list that was not checked.
+- Severity: INFO
+
 ### url_reputation.{label} (8 DBLs per body link)
 - Validates: Every body-link domain not on DBLs.
-- GOOD: No hits.
+- GOOD: No hits, and every list passed its test name and answered NXDOMAIN for every link domain. Each list gets 1 test per audit.
 - MEDIUM: n/a
 - BAD: Linked domain listed → 554 5.7.1 (SURBL) / 550 5.7.350 NDRs.
 - Severity: HIGH / MEDIUM (per list)
+
+### url_reputation.unverified
+- Validates: Which domain lists the audit could not check for at least 1 link domain. `url_reputation.no_listings` does not appear with it.
+- GOOD: Finding absent.
+- MEDIUM: n/a
+- BAD: `details.lists` names each list that was not checked.
+- Severity: INFO
 
 ---
 

@@ -1,12 +1,17 @@
 """The blocklist fan-out: is this sender's IP or links listed anywhere.
 
-A blocklist, or RBL, answers a DNS query about a reversed IP. An A record means
-listed; NXDOMAIN means not. Several lists return a sentinel address to say "query
+A blocklist, or RBL, answers a DNS query about a reversed IP. An A record in
+127.0.0.0/8 means listed. Several lists return a sentinel address to say "query
 refused" or "rate limited", and reading that as a listing would tell a clean sender
 they are blocked, so sentinels are filtered out.
 
+NXDOMAIN means not listed only when the list also passed its test name in the same
+audit. Every list keeps a test name that must always read as listed. Spamhaus
+answers NXDOMAIN for that name through some public resolvers, so without the test a
+listed sender reads as clean. A failed test leaves the list not checked.
+
 These checks are why `--offline` exists: they query 31 IP blocklists and 8 URL
-blocklists, which is 39 outbound lookups per audit.
+blocklists, and the test name of each one.
 """
 
 from __future__ import annotations
@@ -14,9 +19,12 @@ from __future__ import annotations
 import pathlib
 import re
 
+import pytest
+
 from engine.domain.dns import blacklist, sender_dbl, sending_ip_dns, url_reputation
 from engine.parse import parse_eml
 from engine.report import Finding
+from engine.scoring import score_findings
 from tests.conftest import FakeDns
 
 ROOT = pathlib.Path(__file__).parent.parent
@@ -25,8 +33,47 @@ _IP_LIST_COUNT = re.compile(r"\b(\d+)\s+IP\s+(?:RBL\s+lists|blocklists)\b")
 _ROW = re.compile(r"\| `([^`]+)` \| `([^`]+)` \| (HIGH|MEDIUM|LOW) \|")
 
 
+# 34.216.184.93 is the reversed form of 93.184.216.34, which is how every blocklist
+# is queried.
+_HEADERS = {"received": ["from mail.example.com (mail.example.com [93.184.216.34]) by mx"]}
+_REVERSED = "34.216.184.93"
+_DOMAIN_TEST_NAMES = {"multi.uribl.com": "test.uribl.com.multi.uribl.com"}
+
+
 def _failing(findings: list[Finding]) -> list[Finding]:
     return [f for f in findings if not f.passed]
+
+
+def _ip_test_name(host: str) -> str:
+    return f"2.0.0.127.{host}"
+
+
+def _domain_test_name(host: str) -> str:
+    return _DOMAIN_TEST_NAMES.get(host, f"test.{host}")
+
+
+def _pass_ip_tests(dns: FakeDns) -> None:
+    """Make every IP list answer its test address, the way a working network does."""
+    for _, host, _, _ in blacklist._RBLS:
+        dns.set(_ip_test_name(host), "A", "127.0.0.2")
+
+
+def _pass_domain_tests(dns: FakeDns) -> None:
+    for _, host, _, _ in url_reputation._DBLS:
+        dns.set(_domain_test_name(host), "A", "127.0.0.2")
+
+
+def _one(findings: list[Finding], check: str) -> Finding:
+    matches = [f for f in findings if f.check == check]
+    assert len(matches) == 1, f"expected 1 {check}, found {len(matches)}"
+    return matches[0]
+
+
+def _link_email(*domains: str) -> bytes:
+    links = "".join(f'<a href="https://{d}/x">Read</a>' for d in domains)
+    html = f"<html><body>{links}</body></html>"
+    head = "From: Jane <jane@example.com>\r\nContent-Type: text/html\r\n\r\n"
+    return (head + html).encode()
 
 
 # ── finding the sending IP ─────────────────────────────────────────────────
@@ -57,9 +104,10 @@ def test_no_received_chain_yields_no_ip() -> None:
 
 
 async def test_an_unlisted_ip_passes_every_list(dns: FakeDns) -> None:
-    # Nothing registered, so every lookup answers NXDOMAIN, which is "not listed".
-    headers = {"received": ["from mail.example.com (mail.example.com [93.184.216.34]) by mx"]}
-    findings = await blacklist.run(headers)
+    # Every list passes its test address, and the sender answers NXDOMAIN on each.
+    # NXDOMAIN alone proves nothing: see the tests below that leave the test out.
+    _pass_ip_tests(dns)
+    findings = await blacklist.run(_HEADERS)
     assert findings
     assert not _failing(findings)
 
@@ -78,18 +126,15 @@ async def test_a_sentinel_response_is_not_read_as_a_listing(dns: FakeDns) -> Non
     # Several lists answer 127.255.255.254 to mean "query refused" or "rate
     # limited", which a residential connection hits often. Reading that as a
     # listing would tell a clean sender they are blocked.
-    dns.set("34.216.184.93.zen.spamhaus.org", "A", "127.255.255.254")
-    headers = {"received": ["from mail.example.com (mail.example.com [93.184.216.34]) by mx"]}
-    spamhaus = [f for f in await blacklist.run(headers) if "spamhaus_zen" in f.check]
-    assert spamhaus
-    # Reported as inconclusive rather than as a listing: INFO carries no penalty,
-    # and the message says the list did not answer rather than that the IP is
-    # blocked. "We could not check" and "we checked and it is clean" differ.
-    assert spamhaus[0].severity == "INFO"
-    message = spamhaus[0].message.lower()
-    assert "refused" in message and "sentinel" in message
-    # Rule 9: the message says what to do about it, not only what happened.
-    assert "resolver" in message
+    _pass_ip_tests(dns)
+    dns.set(f"{_REVERSED}.zen.spamhaus.org", "A", "127.255.255.254")
+    findings = await blacklist.run(_HEADERS)
+    assert not [f for f in findings if f.check == "blacklist.spamhaus_zen"]
+    # Reported as not checked rather than as a listing: INFO carries no penalty.
+    # "We could not check" and "we checked and it is clean" differ.
+    unverified = _one(findings, "blacklist.unverified")
+    assert unverified.severity == "INFO"
+    assert unverified.details["lists"] == ["zen.spamhaus.org"]
 
 
 async def test_no_sending_ip_skips_the_fan_out(dns: FakeDns) -> None:
@@ -99,6 +144,174 @@ async def test_no_sending_ip_skips_the_fan_out(dns: FakeDns) -> None:
     assert findings
     assert all(f.severity == "INFO" for f in findings)
     assert len(dns.asked) == 0, "no IP means there is nothing to ask about"
+
+
+# ── the test address of each list ──────────────────────────────────────────
+
+
+async def test_nxdomain_on_the_test_address_is_not_clean(dns: FakeDns) -> None:
+    # The real defect. Through 8.8.8.8, zen.spamhaus.org answered NXDOMAIN for
+    # 2.0.0.127, the address it must always list. The same answer about a sender
+    # means nothing, so a listed sender read as "Not listed on spamhaus_zen".
+    _pass_ip_tests(dns)
+    dns.fail(_ip_test_name("zen.spamhaus.org"), "A", "nxdomain")
+    findings = await blacklist.run(_HEADERS)
+    assert not [f for f in findings if f.check == "blacklist.spamhaus_zen"]
+    assert _one(findings, "blacklist.unverified").details["lists"] == ["zen.spamhaus.org"]
+
+
+async def test_a_refusal_on_the_test_address_is_not_clean(dns: FakeDns) -> None:
+    _pass_ip_tests(dns)
+    dns.set(_ip_test_name("zen.spamhaus.org"), "A", "127.255.255.254")
+    findings = await blacklist.run(_HEADERS)
+    assert not [f for f in findings if f.check == "blacklist.spamhaus_zen"]
+    assert _one(findings, "blacklist.unverified").details["lists"] == ["zen.spamhaus.org"]
+
+
+async def test_a_passed_test_address_and_a_clean_sender_is_clean(dns: FakeDns) -> None:
+    _pass_ip_tests(dns)
+    finding = _one(await blacklist.run(_HEADERS), "blacklist.spamhaus_zen")
+    assert finding.passed
+    assert finding.message == "Not listed on spamhaus_zen."
+
+
+async def test_a_passed_test_address_and_a_listed_sender_is_listed(dns: FakeDns) -> None:
+    _pass_ip_tests(dns)
+    dns.set(f"{_REVERSED}.zen.spamhaus.org", "A", "127.0.0.2")
+    finding = _one(await blacklist.run(_HEADERS), "blacklist.spamhaus_zen")
+    assert not finding.passed
+    assert finding.severity == "HIGH"
+    assert finding.details["test_passed"] is True
+
+
+async def test_a_listing_stands_when_the_test_address_fails(dns: FakeDns) -> None:
+    # Some lists skip the test address. A listed answer about the sender is still
+    # evidence, and dropping it would hide a real listing.
+    dns.set(f"{_REVERSED}.bl.nordspam.com", "A", "127.0.0.2")
+    finding = _one(await blacklist.run(_HEADERS), "blacklist.nordspam_bl")
+    assert not finding.passed
+    assert finding.severity == "MEDIUM"
+    assert finding.details["test_passed"] is False
+
+
+@pytest.mark.parametrize("error", ["no_answer", "timeout", "servfail"])
+async def test_no_usable_sender_answer_is_not_clean(dns: FakeDns, error: str) -> None:
+    # A filter on the network can remove the answer: NOERROR with 0 records.
+    _pass_ip_tests(dns)
+    dns.fail(f"{_REVERSED}.bl.spamcop.net", "A", error)
+    findings = await blacklist.run(_HEADERS)
+    assert not [f for f in findings if f.check == "blacklist.spamcop"]
+    assert _one(findings, "blacklist.unverified").details["lists"] == ["bl.spamcop.net"]
+
+
+@pytest.mark.parametrize(
+    ("host", "answers"),
+    [
+        # What each operator answered for its test address on 2026-11-04.
+        ("dnsbl.dronebl.org", ("127.0.0.1",)),
+        ("torexit.dan.me.uk", ("127.0.0.100",)),
+        ("bl.mailspike.net", ("127.0.0.2", "127.0.0.10", "127.0.0.11", "127.0.0.13")),
+        (
+            "hostkarma.junkemailfilter.com",
+            ("127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5", "127.0.1.1"),
+        ),
+    ],
+)
+async def test_each_operator_test_answer_passes(
+    dns: FakeDns, host: str, answers: tuple[str, ...]
+) -> None:
+    _pass_ip_tests(dns)
+    dns.set(_ip_test_name(host), "A", *answers)
+    findings = await blacklist.run(_HEADERS)
+    assert not [f for f in findings if f.check == "blacklist.unverified"]
+
+
+async def test_loopback_passes_the_test_only_for_dronebl(dns: FakeDns) -> None:
+    # 127.0.0.1 is a refusal on most lists. DroneBL alone uses it as a test answer.
+    _pass_ip_tests(dns)
+    dns.set(_ip_test_name("bl.spamcop.net"), "A", "127.0.0.1")
+    findings = await blacklist.run(_HEADERS)
+    assert _one(findings, "blacklist.unverified").details["lists"] == ["bl.spamcop.net"]
+
+
+async def test_loopback_about_a_sender_is_not_a_listing_on_dronebl(dns: FakeDns) -> None:
+    _pass_ip_tests(dns)
+    dns.set(_ip_test_name("dnsbl.dronebl.org"), "A", "127.0.0.1")
+    dns.set(f"{_REVERSED}.dnsbl.dronebl.org", "A", "127.0.0.1")
+    findings = await blacklist.run(_HEADERS)
+    assert not [f for f in findings if f.check == "blacklist.dronebl"]
+    assert _one(findings, "blacklist.unverified").details["lists"] == ["dnsbl.dronebl.org"]
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "198.51.100.7",  # a parked domain or a resolver that rewrites NXDOMAIN
+        "127.255.255.1",  # the refusal range holds more than the 3 named codes
+        "not-an-address",
+    ],
+)
+async def test_an_answer_outside_the_listing_range_is_not_a_listing(
+    dns: FakeDns, answer: str
+) -> None:
+    _pass_ip_tests(dns)
+    dns.set(f"{_REVERSED}.zen.spamhaus.org", "A", answer)
+    findings = await blacklist.run(_HEADERS)
+    assert not [f for f in findings if f.check == "blacklist.spamhaus_zen"]
+    assert _one(findings, "blacklist.unverified").details["lists"] == ["zen.spamhaus.org"]
+
+
+async def test_a_failed_test_address_gives_one_plain_finding(dns: FakeDns) -> None:
+    # Nothing registered: all 31 test addresses fail, as on a filtering network.
+    findings = await blacklist.run(_HEADERS)
+    assert len(_failing(findings)) == 1, "31 lists must not become 31 rows"
+    finding = _one(findings, "blacklist.unverified")
+    assert finding.severity == "INFO"
+    assert len(finding.details["lists"]) == len(blacklist._RBLS)
+    message = finding.message
+    assert "31 of 31" in message
+    assert "not as clean" in message
+    # Rule 9: it says what to do next. Rule 12: in words a marketer uses.
+    assert "another network" in message
+    assert not re.search(r"sentinel|resolver|\bRBL\b|DNS|NXDOMAIN|\u2014|\u2013", message)
+
+
+async def test_not_checked_lists_neither_lift_nor_cut_the_score(dns: FakeDns) -> None:
+    # A not checked list takes the existing inconclusive path: INFO, 0 penalty.
+    # It must not read as a listing, and no hard gate may fire.
+    _pass_ip_tests(dns)
+    clean = score_findings(await blacklist.run(_HEADERS))
+    dns.fail(_ip_test_name("zen.spamhaus.org"), "A", "nxdomain")
+    dns.fail(_ip_test_name("bl.spamcop.net"), "A", "timeout")
+    from_a_failed_test = score_findings(await blacklist.run(_HEADERS))
+    assert from_a_failed_test["score"] == clean["score"]
+    assert from_a_failed_test["hard_gates_failed"] == []
+
+
+@pytest.mark.parametrize("failure", ["nxdomain", "no_answer", "timeout", "servfail"])
+async def test_guard_no_list_is_clean_without_a_passed_test(dns: FakeDns, failure: str) -> None:
+    # Walks _RBLS, so a list added later is under the guard at once.
+    for _, host, _, _ in blacklist._RBLS:
+        dns.fail(_ip_test_name(host), "A", failure)
+    findings = await blacklist.run(_HEADERS)
+    labels = {f"blacklist.{label}" for label, _, _, _ in blacklist._RBLS}
+    clean = sorted(f.check for f in findings if f.check in labels and f.passed)
+    assert not clean, (
+        f"{clean} passed with a failed test address. In engine/domain/dns/blacklist.py, "
+        "send each sender answer through read_answer with the result of the test."
+    )
+
+
+def test_guard_only_the_reading_module_interprets_nxdomain() -> None:
+    # NXDOMAIN reads as clean only after a passed test, and read_answer alone
+    # knows both facts. A list module that tests for it again brings the bug back.
+    modules = ("blacklist.py", "sender_dbl.py", "url_reputation.py")
+    source = ROOT / "engine" / "domain" / "dns"
+    offenders = [name for name in modules if '"nxdomain"' in (source / name).read_text()]
+    assert not offenders, (
+        f"{offenders} under engine/domain/dns read NXDOMAIN directly. "
+        "Call read_answer from engine/domain/dns/list_reading.py instead."
+    )
 
 
 # ── the URL blocklists ─────────────────────────────────────────────────────
@@ -127,18 +340,107 @@ async def test_an_email_with_no_links_is_not_graded(dns: FakeDns) -> None:
     findings = await url_reputation.run(email, "example.com")
     assert findings
     assert not _failing(findings)
+    assert len(dns.asked) == 0, "no link means no list needs a test"
+
+
+async def test_a_link_is_clean_only_after_the_list_passed_its_test(dns: FakeDns) -> None:
+    email = parse_eml(_link_email("clean.test"))
+    _pass_domain_tests(dns)
+    findings = await url_reputation.run(email, "example.com")
+    assert not _failing(findings)
+    assert _one(findings, "url_reputation.no_listings").passed
+
+
+async def test_a_failed_list_test_means_links_are_not_checked(dns: FakeDns) -> None:
+    email = parse_eml(_link_email("clean.test"))
+    findings = await url_reputation.run(email, "example.com")
+    assert not [f for f in findings if f.check == "url_reputation.no_listings"]
+    finding = _one(findings, "url_reputation.unverified")
+    assert finding.severity == "INFO"
+    assert len(finding.details["lists"]) == len(url_reputation._DBLS)
+
+
+async def test_one_failed_link_lookup_stops_the_clean_summary(dns: FakeDns) -> None:
+    # Every test passed, and 1 of 2 domains timed out on 1 list. That is not clean.
+    email = parse_eml(_link_email("one.test", "two.test"))
+    _pass_domain_tests(dns)
+    dns.fail("two.test.dbl.spamhaus.org", "A", "timeout")
+    findings = await url_reputation.run(email, "example.com")
+    assert not [f for f in findings if f.check == "url_reputation.no_listings"]
+    assert _one(findings, "url_reputation.unverified").details["lists"] == ["dbl.spamhaus.org"]
+
+
+async def test_a_hit_and_a_not_checked_list_are_both_reported(dns: FakeDns) -> None:
+    email = parse_eml(_link_email("bad.test"))
+    dns.set("bad.test.dbl.spamhaus.org", "A", "127.0.1.2")
+    findings = await url_reputation.run(email, "example.com")
+    assert _one(findings, "url_reputation.spamhaus_dbl").details["test_passed"] is False
+    assert "dbl.spamhaus.org" not in _one(findings, "url_reputation.unverified").details["lists"]
+
+
+async def test_each_list_is_tested_once_however_many_links(dns: FakeDns) -> None:
+    email = parse_eml(_link_email("one.test", "two.test", "three.test"))
+    await url_reputation.run(email, "example.com")
+    asked = [name for _, name in dns.asked if name.startswith("test.dbl.spamhaus")]
+    assert asked == ["test.dbl.spamhaus.org"]
+
+
+async def test_the_uribl_refusal_does_not_pass_its_test(dns: FakeDns) -> None:
+    # URIBL answers 127.0.0.1 to a public resolver, about every name.
+    email = parse_eml(_link_email("clean.test"))
+    _pass_domain_tests(dns)
+    dns.set(_domain_test_name("multi.uribl.com"), "A", "127.0.0.1")
+    dns.set("clean.test.multi.uribl.com", "A", "127.0.0.1")
+    findings = await url_reputation.run(email, "example.com")
+    assert _one(findings, "url_reputation.unverified").details["lists"] == ["multi.uribl.com"]
 
 
 # ── the sender domain on a domain blocklist ────────────────────────────────
 
 
 async def test_an_unlisted_sender_domain_passes(dns: FakeDns) -> None:
-    assert not _failing(await sender_dbl.run("example.com"))
+    _pass_domain_tests(dns)
+    findings = await sender_dbl.run("example.com")
+    assert not _failing(findings)
+    assert _one(findings, "sender_dbl.no_listings").passed
 
 
 async def test_a_listed_sender_domain_is_reported(dns: FakeDns) -> None:
     dns.set("example.com.dbl.spamhaus.org", "A", "127.0.1.2")
-    assert _failing(await sender_dbl.run("example.com"))
+    finding = _one(await sender_dbl.run("example.com"), "sender_dbl.spamhaus_dbl")
+    assert finding.severity == "CRITICAL"
+    assert finding.hard_gate
+
+
+@pytest.mark.parametrize("failure", ["nxdomain", "no_answer", "timeout"])
+async def test_a_failed_list_test_leaves_the_sender_domain_unchecked(
+    dns: FakeDns, failure: str
+) -> None:
+    for _, host, _, _ in url_reputation._DBLS:
+        dns.fail(_domain_test_name(host), "A", failure)
+    findings = await sender_dbl.run("example.com")
+    assert not [f for f in findings if f.check == "sender_dbl.no_listings"]
+    finding = _one(findings, "sender_dbl.unverified")
+    assert finding.severity == "INFO"
+    assert not finding.hard_gate
+    assert finding.source == "domain_config"
+
+
+async def test_a_failed_sender_lookup_stops_the_clean_summary(dns: FakeDns) -> None:
+    _pass_domain_tests(dns)
+    dns.fail("example.com.multi.surbl.org", "A", "timeout")
+    findings = await sender_dbl.run("example.com")
+    assert not [f for f in findings if f.check == "sender_dbl.no_listings"]
+    assert _one(findings, "sender_dbl.unverified").details["lists"] == ["multi.surbl.org"]
+
+
+async def test_a_parked_answer_does_not_hard_fail_the_sender_domain(dns: FakeDns) -> None:
+    # A CRITICAL listing forces NO_GO, so it needs an answer in the listing range.
+    _pass_domain_tests(dns)
+    dns.set("example.com.dbl.nordspam.com", "A", "198.51.100.7")
+    findings = await sender_dbl.run("example.com")
+    assert score_findings(findings)["hard_gates_failed"] == []
+    assert _one(findings, "sender_dbl.unverified").details["lists"] == ["dbl.nordspam.com"]
 
 
 # ── reverse DNS on the sending IP ──────────────────────────────────────────

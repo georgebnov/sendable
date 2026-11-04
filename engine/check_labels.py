@@ -96,6 +96,9 @@ CHECK_LABELS: dict[str, str] = {
     # ─── infra / delivery ────────────────────────────────────────────
     "blacklist.sender_ip_extraction": "Sender IP detected",
     "blacklist.skipped_esp": "Blocklist skipped (known ESP IP)",
+    "blacklist.unverified": "Blocklists not checked",
+    "sender_dbl.unverified": "Domain blocklists not checked",
+    "url_reputation.unverified": "Link blocklists not checked",
     "delivery.spam_folder": "Delivered to Spam folder",
     "smtp.dns_resolution": "Sender host resolves",
     "smtp.managed_operator": "Sending via managed operator",

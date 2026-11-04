@@ -17,6 +17,10 @@ type:
   127.0.1.103 → abused URL shortener
   127.255.255.255 → query refused (rate-limited)
 
+Each list gets its test name once per audit, and `list_reading.py` reads the
+answers. A domain that a list could not answer about is not clean: the list goes
+into `url_reputation.unverified`, and the clean summary stays away.
+
 Common-domain skip: don't waste lookups on first-party (sender's own
 domain) or ubiquitous infra (google.com, microsoft.com, ...).
 
@@ -33,7 +37,8 @@ from ...htmltree import parse_html
 from ...parse import ParsedEmail
 from ...report import Finding
 from ...severity import Severity
-from ..dns_client import query
+from ..dns_client import DnsAnswer, query
+from .list_reading import Reading, has_listing_code, read_answer, unverified_finding
 
 # (label, dbl-host, severity_when_listed, blurb). mxtoolbox's "Domain
 # Blacklist" tier covers Spamhaus DBL + SURBL + ivmURI + Nordspam DBL +
@@ -121,19 +126,17 @@ _SKIP_DOMAINS = frozenset(
     }
 )
 
-# Administrative-error sentinels — NOT real listings, NOT clean either.
-# 127.0.0.1 is URIBL/SURBL "Query Refused"; 127.255.255.x is the
-# Spamhaus/Barracuda public-resolver / rate-limit / typo signal. Reading
-# any of these as a hit produces false positives; ignoring them as clean
-# produces false negatives. Surface as inconclusive instead.
-_DBL_SENTINELS = frozenset(
-    {
-        "127.0.0.1",
-        "127.255.255.252",
-        "127.255.255.254",
-        "127.255.255.255",
-    }
-)
+# The test name is `test.<list>`, with 1 exception that the operator documents.
+_TEST_NAMES = {"multi.uribl.com": "test.uribl.com.multi.uribl.com"}
+
+
+async def working_lists() -> set[str]:
+    """The hosts of the domain lists that passed their test name in this audit."""
+    hosts = [host for _, host, _, _ in _DBLS]
+    answers = await asyncio.gather(
+        *[query(_TEST_NAMES.get(host, f"test.{host}"), "A") for host in hosts]
+    )
+    return {host for host, answer in zip(hosts, answers, strict=True) if has_listing_code(answer)}
 
 
 def _body_domains(email: ParsedEmail, sender_domain: str | None) -> list[str]:
@@ -168,25 +171,15 @@ def _body_domains(email: ParsedEmail, sender_domain: str | None) -> list[str]:
     return out
 
 
-async def _check_one(
-    domain: str, label: str, dbl_host: str, severity: Severity, blurb: str
-) -> Finding | None:
-    qname = f"{domain}.{dbl_host}"
-    ans = await query(qname, "A")
-    # NXDOMAIN = definitively clean.
-    if ans.error == "nxdomain":
-        return None
-    # No records returned at all (no_answer): clean-ish, treat as not-listed.
-    if ans.ok and not ans.records:
-        return None
-    if not ans.ok:
-        # Timeout / SERVFAIL / no_nameservers — can't tell. Don't emit
-        # per-domain noise here; rolled-up "scan completed" finding above
-        # already implicitly says "we tried". Caller could log if needed.
-        return None
-    real = [r for r in ans.records if r not in _DBL_SENTINELS]
-    if not real:
-        return None  # sentinel-only response → inconclusive, not a hit
+def _listed_finding(
+    domain: str,
+    label: str,
+    dbl_host: str,
+    severity: Severity,
+    blurb: str,
+    ans: DnsAnswer,
+    test_passed: bool,
+) -> Finding:
     return Finding(
         check=f"url_reputation.{label}",
         severity=severity,
@@ -201,6 +194,7 @@ async def _check_one(
             "domain": domain,
             "dbl": dbl_host,
             "response": list(ans.records),
+            "test_passed": test_passed,
             "blurb": blurb,
         },
     )
@@ -218,13 +212,21 @@ async def run(parsed: ParsedEmail, sender_domain: str | None) -> list[Finding]:
             )
         ]
 
-    tasks = [
-        _check_one(d, label, host, sev, blurb)
-        for d in domains
-        for (label, host, sev, blurb) in _DBLS
-    ]
-    results = await asyncio.gather(*tasks)
-    hits = [f for f in results if f is not None]
+    pairs = [(d, entry) for d in domains for entry in _DBLS]
+    working, answers = await asyncio.gather(
+        working_lists(),
+        asyncio.gather(*[query(f"{d}.{entry[1]}", "A") for d, entry in pairs]),
+    )
+
+    hits: list[Finding] = []
+    unchecked: list[str] = []
+    for (domain, (label, host, sev, blurb)), ans in zip(pairs, answers, strict=True):
+        test_passed = host in working
+        reading = read_answer(ans, test_passed=test_passed)
+        if reading is Reading.LISTED:
+            hits.append(_listed_finding(domain, label, host, sev, blurb, ans, test_passed))
+        elif reading is Reading.UNKNOWN and host not in unchecked:
+            unchecked.append(host)
 
     findings: list[Finding] = [
         Finding(
@@ -238,7 +240,13 @@ async def run(parsed: ParsedEmail, sender_domain: str | None) -> list[Finding]:
         )
     ]
     findings.extend(hits)
-    if not hits:
+    if unchecked:
+        findings.append(
+            unverified_finding(
+                "url_reputation.unverified", unchecked, len(_DBLS), "the domains you link to"
+            )
+        )
+    elif not hits:
         findings.append(
             Finding(
                 check="url_reputation.no_listings",

@@ -83,6 +83,16 @@ service, no account, no database.
 
 ### Fixed
 
+- A blocklist that could not answer no longer reads as clean. Some networks and
+  public services remove or refuse blocklist answers, and the audit printed "Not
+  listed on spamhaus_zen" even for a listed sender. Each audit now asks every
+  list about its own test entry first. A list that fails counts as not checked,
+  and one finding names all of those lists and says to run the audit from another
+  network. This covers the sending address, the sending domain, and the domains
+  you link to. The score does not change for a list that was not checked.
+- An answer that is not a real blocklist code, such as the address of a parked
+  domain, no longer reads as a listing. For the sending domain that false listing
+  forced a NO_GO.
 - The open relay finding now says what the problem is and what to do. It used
   to name a mail protocol command and stop at "Major reputation hit". It now
   tells you that your mail server appears to accept mail for any domain, from

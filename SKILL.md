@@ -282,8 +282,17 @@ Say these plainly rather than implying a guarantee.
 
   To check the rest, send it to `+check` and grade the copy that arrives.
 - **Blocklist checks need a useful vantage point.** The blocklist operators
-  rate-limit or refuse queries from residential addresses, so results from a home
-  connection can be wrong. `--offline` skips them.
+  rate-limit or refuse queries from residential addresses, and some networks
+  filter the answers. So each audit first asks every list about its own test
+  entry, which must read as listed. A list that fails gives no clean result. It
+  goes into `blacklist.unverified`, `sender_dbl.unverified`, or
+  `url_reputation.unverified`, with the names in `details.lists`. Those lists
+  were not checked: do not tell the user they are clean, and offer a run from
+  another network. A list that stays there from several networks may no longer
+  offer a working public check. These findings carry no penalty, so a good score
+  says nothing about those lists. A passed test also does not prove each lookup
+  after it, because a cached test answer can pass while a new lookup is refused.
+  `--offline` skips these checks.
 - **A good score is not a promise of delivery.** It means the things a sender
   controls are in order. Recipient engagement, list quality, and complaint rate
   decide placement too, and none of them are visible in one message.
