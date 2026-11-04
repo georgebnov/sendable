@@ -902,6 +902,10 @@ runs and still reports. Read its thresholds from its own module until it has one
 Count the entries with `grep -c '^### ' references/CHECKS.md`, so this number
 can be checked rather than trusted.
 
+The `next_step` codes of `scripts/dmarc.py` are not in this list, because they are
+advice and not audit checks. [MECHANISMS.md](MECHANISMS.md) section 14 covers
+`CONFIRM_SENDER`.
+
 `copygen.*` ids are not in this list. `engine/critic.py` emits them for the
 copy-generation surface, and `engine/copywriting/heuristics.py` rewrites the
 prefix to `copywriting.` for an audit. The audit-side name is what this file

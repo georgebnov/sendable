@@ -135,7 +135,9 @@ to `p=reject`.
 
 `status` refuses to recommend advancing while `blockers` is non-empty. A blocker
 is a real sender of yours that fails alignment. Tightening the policy then starts
-rejecting your own mail, which is worse than doing nothing.
+rejecting your own mail, which is worse than doing nothing. A large source that
+proved its own identity but not yours is also a blocker, until you say whether it
+is yours: see [MECHANISMS.md](MECHANISMS.md) section 14.
 
 ---
 

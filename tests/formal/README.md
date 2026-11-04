@@ -108,6 +108,12 @@ decides whether the lever is offered at all, the SPF findings, or the
 `_UNCONTROLLABLE` tags that stop a recipient-side gateway holding the policy
 back. A bug in any of those is outside what a clean run here proves.
 
+`CONFIRM_SENDER` needs no state of its own. `senders` describes real senders, and
+a source nobody has placed is not known to be one, so `bleeding` never applies to
+it, even while receivers filter it. In the model it is `unaligned`: the verdict is
+`BLOCKED`, the record does not change, and the exit is the sender getting
+authenticated. The `--not-mine` exit is outside the model.
+
 One difference is deliberate. `Rank` answers 2, the value for `reject`, for a
 policy it does not name, while `_strength` answers 0 for a policy it does not
 know. The two agree only while the model admits no policy beyond the three on

@@ -29,11 +29,15 @@ Worst case for legitimacy. If any report classified a source as a spoof, it is
 treated as a spoof. A recognised sender that fails alignment is neither a spoof
 nor clean: it is "unconfirmed", which blocks policy advancement until it is fixed,
 because tightening policy would start rejecting that sender's real mail.
+
+A source that proved its own identity and not yours is also "unconfirmed", once
+it carries a material share of the volume. Only the whole batch knows the share,
+so `_settle_unconfirmed` decides that here, after the rows are grouped.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 
 from engine.copywriting.link_quality import _registrable
@@ -41,7 +45,13 @@ from engine.dmarc.classifier import classify_record
 from engine.dmarc.esp_fingerprint import classify as classify_ip
 from engine.dmarc.parser import DmarcRecord as ParsedRecord
 from engine.dmarc.parser import DmarcReport
-from engine.dmarc.policy_engine import ReportSummary, Sender
+from engine.dmarc.policy_engine import (
+    DOMAIN_WIDE_BLEED_SHARE,
+    UNCONFIRMED_LOW_VOLUME,
+    UNCONFIRMED_SENDER,
+    ReportSummary,
+    Sender,
+)
 
 # How harshly a receiver acted, worst last. A merge keeps the worst, because a
 # sender being rejected anywhere is being rejected.
@@ -65,8 +75,15 @@ _LEGIT = frozenset(
     }
 )
 
-# Classifier verdicts that mean someone else is sending as you.
-_SUSPICIOUS = frozenset({"spoofing_blocked", "spoofing_delivered"})
+# Verdicts that do not hold the policy back, because advancing is what stops
+# them. The low-volume one is not a confirmed spoof, and the advice names it, but
+# most such rows are forwards and a domain cannot wait on every one.
+_SUSPICIOUS = frozenset({"spoofing_blocked", "spoofing_delivered", UNCONFIRMED_LOW_VOLUME})
+
+# The share at which a source that proved its own identity holds the ladder back.
+# It reuses the share that makes a bleed domain-wide, the one measure this tool
+# has of a sender being too big to be noise.
+MATERIAL_SENDER_SHARE = DOMAIN_WIDE_BLEED_SHARE
 
 # Provider display name to its real SPF include.
 #
@@ -129,7 +146,7 @@ def _forwarder_domain(record: ParsedRecord) -> str | None:
     return None
 
 
-def _sender_name(record: ParsedRecord, verdict: str | None) -> str:
+def _sender_name(record: ParsedRecord, verdict: str | None, proved: str | None) -> str:
     """The most informative label available for this source.
 
     Order: a forwarder or relay the classifier already named, then the ESP
@@ -139,6 +156,11 @@ def _sender_name(record: ParsedRecord, verdict: str | None) -> str:
     """
     if verdict == "forwarding_artifact":
         return f"Relay via {_forwarder_domain(record) or 'forwarder'}"
+    if proved:
+        # Named by the domain it proved, so a provider on many addresses is one
+        # row and its volume is judged as one, and so a clean row from a shared
+        # address never merges with it and hides it.
+        return f"Sender using {proved}"
 
     fingerprint = classify_ip(record.source_ip)
     if verdict == "gateway_relay" and fingerprint.name != "unknown":
@@ -196,6 +218,7 @@ class _Bucket:
     disposition: str = "none"
     esp_include: str | None = None
     classification: str | None = None
+    authenticated_as: str | None = None
 
     def absorb(self, other: _Bucket) -> None:
         """Merge another bucket in, taking the best case on each alignment flag
@@ -230,15 +253,51 @@ class _Bucket:
             disposition=self.disposition,
             esp_include=self.esp_include,
             classification=self.classification,
+            authenticated_as=self.authenticated_as,
         )
 
 
-def summarise_reports(reports: list[DmarcReport], *, domain: str) -> ReportSummary:
+def sender_domain(value: str) -> str:
+    """A domain as a user types it, in the form `authenticated_as` holds.
+
+    Case, a trailing dot, and a subdomain copied out of a report must not stop a
+    match, because a match that fails leaves the user blocked with no reason why.
+    """
+    return _registrable(value.strip())
+
+
+def _settle_unconfirmed(bucket: _Bucket, own_volume: int, not_mine: Collection[str]) -> None:
+    """Decide what a source that proved its own identity means for this batch.
+
+    The user's answer comes first, and it is passed in each run because nothing
+    is stored. Otherwise the share decides. Most small rows are forwards, so a
+    source below it stays on the record and does not hold the policy back.
+
+    `own_volume` leaves out mail that cannot be the user's. Counted against the
+    whole batch, a spoofer could turn this question off by sending more.
+    """
+    if bucket.authenticated_as in not_mine:
+        filtered = bucket.disposition in ("quarantine", "reject")
+        bucket.classification = "spoofing_blocked" if filtered else "spoofing_delivered"
+    elif bucket.volume / max(own_volume, 1) < MATERIAL_SENDER_SHARE:
+        bucket.classification = UNCONFIRMED_LOW_VOLUME
+    bucket.legitimacy = legitimacy_from_classification(bucket.classification)
+
+
+def summarise_reports(
+    reports: list[DmarcReport],
+    *,
+    domain: str,
+    not_mine: Collection[str] = (),
+) -> ReportSummary:
     """Summarise every report the user passed into one ReportSummary.
 
     This describes a batch of files and nothing else. Sendable stores nothing
     between runs, so there is no history to compare a sender against and no
     streak to carry forward: what the reports say is the whole answer.
+
+    `not_mine` holds the domains the user says are not theirs, as `sender_domain`
+    writes them. It is how a user answers CONFIRM_SENDER.
     """
     by_key: dict[str, _Bucket] = {}
     total_volume = 0
@@ -251,9 +310,10 @@ def summarise_reports(reports: list[DmarcReport], *, domain: str) -> ReportSumma
         aspf_strict = bool(report.policy and (report.policy.aspf or "r").lower() == "s")
 
         for record in report.records:
-            verdict = classify_record(record, report.policy).classification
+            result = classify_record(record, report.policy)
+            verdict = result.classification
             bucket = _Bucket(
-                name=_sender_name(record, verdict),
+                name=_sender_name(record, verdict, result.authenticated_as),
                 volume=record.count,
                 dkim_aligned=_aligned(record.auth_dkim, domain, strict=adkim_strict),
                 spf_aligned=_aligned(record.auth_spf, domain, strict=aspf_strict),
@@ -263,6 +323,7 @@ def summarise_reports(reports: list[DmarcReport], *, domain: str) -> ReportSumma
                 disposition=record.disposition or "none",
                 esp_include=include_for_provider(classify_ip(record.source_ip).name),
                 classification=verdict,
+                authenticated_as=result.authenticated_as,
             )
             total_volume += record.count
 
@@ -272,6 +333,15 @@ def summarise_reports(reports: list[DmarcReport], *, domain: str) -> ReportSumma
                 by_key[bucket.name] = bucket
             else:
                 existing.absorb(bucket)
+
+    own_volume = sum(
+        b.volume
+        for b in by_key.values()
+        if b.legitimacy != "suspicious" and b.authenticated_as not in not_mine
+    )
+    for bucket in by_key.values():
+        if bucket.classification == UNCONFIRMED_SENDER:
+            _settle_unconfirmed(bucket, own_volume, not_mine)
 
     senders = [b.to_sender() for b in by_key.values()]
 
@@ -308,5 +378,6 @@ __all__ = [
     "include_for_provider",
     "legitimacy_from_classification",
     "pick_domain",
+    "sender_domain",
     "summarise_reports",
 ]

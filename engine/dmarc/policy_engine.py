@@ -40,6 +40,13 @@ SPF_LOOKUP_LIMIT = 10  # RFC 7208: >10 DNS lookups => PermError
 # is "domain-wide" enough to put the policy lever on the table.
 DOMAIN_WIDE_BLEED_SHARE = 0.2
 
+# Classifier tags for a source that passed DKIM or SPF on its own domain and
+# aligned with nothing. That is how a tool nobody listed looks, and also how an
+# impostor with a throwaway domain looks, so the first asks the user and the
+# second is one too small to hold the policy back. summary.py picks between them.
+UNCONFIRMED_SENDER = "unconfirmed_sender"
+UNCONFIRMED_LOW_VOLUME = "unconfirmed_low_volume"
+
 # The ladder. Each rung is (policy, pct). pct is ignored at 'none'.
 LADDER: list[tuple[str, int]] = [
     ("none", 0),
@@ -85,6 +92,7 @@ class Sender:
     # row copy. e.g. "forwarding_artifact", "clean", "esp_softfail_ok",
     # "spoofing_blocked". The grouping layer routes off this when present,
     # and falls back to alignment heuristics when not.
+    authenticated_as: str | None = None  # the domain an unconfirmed source proved
 
     @property
     def dmarc_aligned(self) -> bool:
@@ -276,7 +284,9 @@ def _is_blocker(s: Sender) -> bool:
 
     A confirmed spoof is ignored, because advancing is what stops it.
     "unconfirmed" is not: a recognised sender failing alignment is the sender's
-    own mail, and tightening would start rejecting it.
+    own mail, and tightening would start rejecting it. A source that proved its
+    own identity at material volume may be, so it holds the ladder until the user
+    answers.
 
     This list feeds two different questions, and they want different answers for a
     recipient-side relay. "Is this sender's mail being rejected right now" wants
@@ -284,6 +294,54 @@ def _is_blocker(s: Sender) -> bool:
     "Does this stop me advancing" does not, which `_fixable_blockers` answers.
     """
     return (not s.dmarc_aligned) and s.legitimacy != "suspicious"
+
+
+def _is_unconfirmed_source(s: Sender) -> bool:
+    """A blocker whose owner nobody knows yet.
+
+    It blocks, but no advice may treat it as the user's own. That rules out a
+    rollback, which would hand a weaker record to anyone with a throwaway domain,
+    and every line that calls it legitimate or your provider.
+    """
+    return s.classification == UNCONFIRMED_SENDER
+
+
+def _confirm_senders(senders: list[Sender]) -> Action:
+    """Ask who the source is, because the reports cannot say."""
+    domains = [s.authenticated_as or s.name for s in senders]
+    names = ", ".join(domains)
+    flags = ", ".join(f"--not-mine {d}" for d in domains)
+    volume = sum(s.volume for s in senders)
+    filtered = any(s.disposition in ("quarantine", "reject") for s in senders)
+    losing = (
+        " Receivers are filtering this mail now, so if it is yours, you are losing it."
+        if filtered
+        else ""
+    )
+    return Action(
+        "CONFIRM_SENDER",
+        Tier.ACTION if filtered else Tier.REVIEW,
+        Severity.HIGH if filtered else Severity.MEDIUM,
+        f"Confirm who sends through {names}",
+        f"{volume} message(s) sent as you through {names}. This mail proved the sender's "
+        "own identity but not yours, so it fails DMARC for your domain. That can be a tool "
+        "you use, a forwarder, or someone using your name, and these reports cannot tell "
+        "them apart. A policy that filters this mail can lose it, so the advice on your "
+        f"policy waits for your answer.{losing}",
+        f"Ask your team who uses {names}. For a tool that is yours, turn on DKIM signing "
+        "with your own domain in that tool, then read only the reports from after that "
+        "change, because older ones still show it failing. For a domain that is not "
+        f"yours, run this again with its flag: {flags}.",
+    )
+
+
+def _small_sources(senders: list[Sender]) -> str:
+    """The sources too small to hold the policy back, as a list to read out."""
+    return ", ".join(
+        f"{s.authenticated_as} ({s.volume} message(s))"
+        for s in senders
+        if s.classification == UNCONFIRMED_LOW_VOLUME
+    )
 
 
 # ----------------------------------------------------------------------------
@@ -387,6 +445,8 @@ def spf_findings(spf: SpfRecord, senders: list[Sender]) -> list[Action]:
     for s in senders:
         if s.legitimacy == "suspicious":
             continue  # spoof: SPF 'failing' for it is desired, not a finding
+        if _is_unconfirmed_source(s):
+            continue  # every finding below calls it yours, which nobody knows yet
 
         if s.dmarc_aligned and s.spf_aligned:
             continue  # fully fine
@@ -513,7 +573,9 @@ def apply_live_spf_fixes(spf: SpfRecord, senders: list[Sender]) -> list[Sender]:
 # ----------------------------------------------------------------------------
 def dmarc_decision(rec: DmarcRecord, summary: ReportSummary, rua: str) -> Action:
     senders = summary.senders
-    blockers = [s for s in senders if _is_blocker(s)]
+    every_blocker = [s for s in senders if _is_blocker(s)]
+    unconfirmed = [s for s in every_blocker if _is_unconfirmed_source(s)]
+    blockers = [s for s in every_blocker if not _is_unconfirmed_source(s)]
 
     # 0. No record at all -> start at none/monitor.
     if not rec.exists:
@@ -558,7 +620,11 @@ def dmarc_decision(rec: DmarcRecord, summary: ReportSummary, rua: str) -> Action
         domain_wide = bool(controllable) and (
             len(controllable) > 1 or share >= DOMAIN_WIDE_BLEED_SHARE
         )
-        spoof_blocked = sum(s.volume for s in senders if s.legitimacy == "suspicious")
+        spoof_blocked = sum(
+            s.volume
+            for s in senders
+            if s.legitimacy == "suspicious" and s.classification != UNCONFIRMED_LOW_VOLUME
+        )
         spoof_note = (
             f" Meanwhile your policy is correctly blocking {spoof_blocked} "
             "impersonation attempt(s), so do not weaken it."
@@ -569,6 +635,9 @@ def dmarc_decision(rec: DmarcRecord, summary: ReportSummary, rua: str) -> Action
         if not domain_wide:
             # Single low-volume source — policy stays put (new_record=None).
             if not controllable:
+                # "Nothing to fix on your side" is false while a source is unplaced.
+                if unconfirmed:
+                    return _confirm_senders(unconfirmed)
                 # (c) recipient-side forward/gateway — no sender-side fix exists.
                 return Action(
                     "FORWARD_BLEED_OK",
@@ -655,16 +724,32 @@ def dmarc_decision(rec: DmarcRecord, summary: ReportSummary, rua: str) -> Action
             "as spoof to dismiss it.",
         )
 
+    # 2b. HELD: a source nobody can place yet. After the two branches above, which
+    # are about mail known to be yours, and before the two below, which say the
+    # domain is ready.
+    if unconfirmed:
+        return _confirm_senders(unconfirmed)
+
+    small = _small_sources(senders)
+
     # 3. Already fully enforced.
     if idx >= len(LADDER) - 1:
+        reject_check = (
+            " Check these, because each proved its own identity but not yours, and your "
+            f"policy rejects it if it is a tool you use: {small}."
+            if small
+            else ""
+        )
         return Action(
             "AT_GOAL",
             Tier.GOOD,
             Severity.INFO,
             "Fully protected (p=reject, 100%)",
             "Every legitimate sender is aligned and you're at full enforcement. "
-            "Spoofed mail is rejected outright.",
-            "Keep monitoring for new senders; nothing else to do.",
+            f"Spoofed mail is rejected outright.{reject_check}",
+            "Check the sources named above, then keep monitoring for new senders."
+            if small
+            else "Keep monitoring for new senders; nothing else to do.",
         )
 
     # 4. Nothing is failing, so name the next rung.
@@ -681,13 +766,33 @@ def dmarc_decision(rec: DmarcRecord, summary: ReportSummary, rua: str) -> Action
         if nxt_p == "none"
         else (f"{nxt_p}" + (f" at {nxt_pct}%" if nxt_pct < 100 else " at 100%"))
     )
+    # "Nothing is failing" is the line a user acts on without reading further, so
+    # it is said only when it is true of every sender. Spoofs and recipient-side
+    # hops do not stop the advance, and they are still mail that failed.
+    if all(s.dmarc_aligned for s in senders):
+        title = f"Nothing is failing. The next step is {label}"
+        opening = (
+            f"Every sender in these reports is authenticated, across "
+            f"{summary.total_volume} message(s)."
+        )
+    else:
+        title = f"No sender blocks the next step, {label}"
+        opening = (
+            f"Some of the {summary.total_volume} message(s) in these reports failed, "
+            "but none of them holds your policy back."
+        )
+    check_first = (
+        " Check these before you advance, because each proved its own identity but not "
+        f"yours, and a stronger policy would filter it if it is a tool you use: {small}."
+        if small
+        else ""
+    )
     return Action(
         "ADVANCE",
         Tier.GOOD,
         Severity.LOW,
-        f"Nothing is failing. The next step is {label}",
-        f"Every sender in these reports is authenticated, across "
-        f"{summary.total_volume} message(s). A report only shows what sent while "
+        title,
+        f"{opening}{check_first} A report only shows what sent while "
         f"it was being written, so anything that did not send is simply absent "
         f"here, and that is what breaks when the policy tightens. Make sure you "
         f"recognise this list as how you really send.",

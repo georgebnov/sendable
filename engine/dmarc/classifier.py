@@ -19,8 +19,9 @@ Pattern bank (in match order):
   4. DKIM_TEMPERROR      transient receiver DNS hiccup, not a real fail.
   5. FORWARDING_ARTIFACT DKIM passes on header_from, SPF on a
                          different domain (subscriber forwarded).
-  6. SPOOFING_BLOCKED    both fail, disposition=quarantine|reject.
-  7. SPOOFING_DELIVERED  both fail, disposition=none — danger.
+  6. UNCONFIRMED_SENDER  both fail DMARC, but a check passed on another domain.
+  7. SPOOFING_BLOCKED    nothing passed, disposition=quarantine|reject.
+  7. SPOOFING_DELIVERED  nothing passed, disposition=none — danger.
   8. GATEWAY_RELAY       source kind=gateway, DKIM broken on relay.
   9. NEW_LEGIT_ESP       new IP, fingerprint = recognised ESP.
  10. NEW_UNKNOWN_IP      new IP, no ESP match — escalate.
@@ -40,7 +41,7 @@ from typing import Literal
 
 from engine.severity import Severity
 
-from .esp_fingerprint import ESPMatch, resolve_identity
+from .esp_fingerprint import ESPMatch, authenticated_domain, resolve_identity
 from .esp_fingerprint import classify as _classify_ip
 from .parser import DmarcPolicyPublished, DmarcRecord
 
@@ -61,6 +62,7 @@ Classification = Literal[
     "spoofing_delivered",
     "gateway_relay",
     "sender_auth_gap",
+    "unconfirmed_sender",
     "esp_softfail_ok",
     "clean",
     "unclassified",
@@ -76,6 +78,7 @@ class ClassificationResult:
     suggested_action: str | None = None
     source_match: ESPMatch | None = None
     details: dict = field(default_factory=dict)
+    authenticated_as: str | None = None  # set on an unconfirmed_sender row
 
 
 def _has_reason(record: DmarcRecord, type_name: str) -> bool:
@@ -391,6 +394,31 @@ def classify_record(
             suggested_action=gap_action,
             source_match=src,
             details=base,
+        )
+
+    # ─── 7c. Proved its own identity, not yours ──────────────────
+    # A tool nobody listed, set up without the user's domain, passes on its own
+    # domain and aligns with nothing. Calling that a spoof let the ladder advance
+    # over real mail. It is not proof of a real tool either, because a throwaway
+    # domain can pass the same way, so this row only says what it proved. The
+    # batch decides what that means: summary.py alone knows the volume.
+    #
+    # Every disposition. Holding only at p=none would flip the same source to
+    # "spoof blocked, working as intended" on the first rung of the ladder.
+    if fail_both and not known and (other_domain := authenticated_domain(record, domain)):
+        return ClassificationResult(
+            classification="unconfirmed_sender",
+            severity=Severity.MEDIUM,
+            headline=f"Sent as you, authenticated as {other_domain}",
+            explainer=(
+                f"{record.count} email from {record.source_ip} sent as "
+                f"{header_from} and proved it belongs to {other_domain}, but "
+                f"not to you. That can be a tool you use, a forwarder, or "
+                f"someone using your name."
+            ),
+            source_match=src,
+            details=base,
+            authenticated_as=other_domain,
         )
 
     # ─── 8. Spoofing blocked ─────────────────────────────────────
