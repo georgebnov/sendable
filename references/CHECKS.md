@@ -299,11 +299,11 @@ Sections: Domain Health → Email Auth → Headers → Bulk Compliance → Body 
 - BAD: No public sender IP (ARC-rewritten / forwarded).
 - Severity: INFO
 
-### blacklist.{label} (31 IP RBL lists)
+### blacklist.{label} (22 IP RBL lists)
 - Validates: Sender IP not listed on RBL (Spamhaus ZEN, Spamcop, Barracuda, CBL, UCEPROTECT L1/L2/L3, Mailspike, PSBL, etc.).
-- GOOD: NXDOMAIN, and the list answered its test address `2.0.0.127.<host>` as listed in the same audit.
+- GOOD: NXDOMAIN, and the list answered its test address `2.0.0.127.<host>` as listed in the same audit. For `hostkarma_black`, also an answer of only the documented codes that are not black, after a passed test: 127.0.0.1 white, 127.0.0.3 yellow, 127.0.0.4 brown, 127.0.0.5 NOBL, 127.0.1.1 to 127.0.1.3 (the use of QUIT), and 127.0.2.1 to 127.0.2.3 (the age of the sender).
 - MEDIUM: n/a
-- BAD: A record in 127.0.0.0/8, outside 127.255.255.0/24 and other than 127.0.0.1 (IP listed). A listing stands when the test address fails, and `details.test_passed` records that.
+- BAD: A record in 127.0.0.0/8, outside 127.255.255.0/24 and other than 127.0.0.1 (IP listed). On `hostkarma_black`, only 127.0.0.2 is a listing, for a sender and for the test address. A listing stands when the test address fails, and `details.test_passed` records that.
 - Severity: HIGH / MEDIUM / LOW (per list tier)
 
 A list with no usable answer gets no row of its own. It goes into `blacklist.unverified`.
@@ -321,38 +321,29 @@ The lists, with the severity of a listing on each:
 | `mailspike_z` | `z.mailspike.net` | MEDIUM |
 | `psbl` | `psbl.surriel.com` | MEDIUM |
 | `truncate_gbudb` | `truncate.gbudb.net` | MEDIUM |
-| `ivmsip` | `dnsbl.ivmsip.org` | MEDIUM |
 | `backscatterer` | `ips.backscatterer.org` | MEDIUM |
 | `dronebl` | `dnsbl.dronebl.org` | MEDIUM |
 | `blocklistde` | `bl.blocklist.de` | MEDIUM |
 | `0spam` | `bl.0spam.org` | MEDIUM |
-| `kempt_bl` | `spamrbl.imp.ch` | MEDIUM |
 | `sem_black` | `bl.spameatingmonkey.net` | MEDIUM |
 | `nordspam_bl` | `bl.nordspam.com` | MEDIUM |
-| `rats_dyna` | `dyna.spamrats.com` | MEDIUM |
-| `rats_noptr` | `noptr.spamrats.com` | MEDIUM |
-| `rats_spam` | `spam.spamrats.com` | MEDIUM |
 | `anonmails_dnsbl` | `spam.dnsbl.anonmails.de` | MEDIUM |
 | `hostkarma_black` | `hostkarma.junkemailfilter.com` | MEDIUM |
 | `uceprotect_l2` | `dnsbl-2.uceprotect.net` | LOW |
 | `uceprotect_l3` | `dnsbl-3.uceprotect.net` | LOW |
-| `woodys` | `blacklist.woody.ch` | LOW |
 | `dan_torexit` | `torexit.dan.me.uk` | LOW |
 | `schulte` | `rbl.schulte.org` | LOW |
-| `triumf` | `rbl2.triumf.ca` | LOW |
 | `interserver` | `rbl.interserver.net` | LOW |
-| `calivent` | `dnsbl.calivent.com.pe` | LOW |
-| `netherrelays` | `relays.nether.net` | LOW |
 
 ### blacklist.unverified
-- Validates: Which lists the audit could not check. A list lands here when its test address fails and the sender answer is not a listing, or when the sender lookup gives a refusal, no records, a timeout, or an address outside the listing range.
+- Validates: Which lists the audit could not check. A list lands here when its test address fails and the sender answer is not a listing, or when the sender lookup gives a refusal, no records, a timeout, an address outside the listing range, or a Hostkarma code that its operator does not document.
 - GOOD: Finding absent: every list gave a usable answer.
 - MEDIUM: n/a
 - BAD: `details.lists` names each list that was not checked, and `details.unchecked` holds 1 row for each lookup: `list`, `name` (what was asked about), and `answer` (the error or the records). An `nxdomain` answer in a row means that the list failed its test. It says to run the audit from another network.
 - Severity: INFO (0 penalty, so it neither lifts nor cuts the score)
 
-### sender_dbl.{label} (8 domain DBLs)
-- Validates: From-domain apex not on Spamhaus DBL, SURBL, URIBL, ivmURI, Nordspam DBL, SEM FRESH/URI/URIRED.
+### sender_dbl.{label} (6 domain DBLs)
+- Validates: From-domain apex not on Spamhaus DBL, SURBL, URIBL, Nordspam DBL, SEM URI/URIRED.
 - GOOD: No listings, and every list passed its test name (`test.<host>`, `test.uribl.com.multi.uribl.com` for URIBL, or `test.spameatingmonkey.net.<host>` for Spam Eating Monkey URI and URIRED) and answered NXDOMAIN.
 - MEDIUM: n/a
 - BAD: Apex listed → hard reject by major receivers.
@@ -365,7 +356,7 @@ The lists, with the severity of a listing on each:
 - BAD: `details.lists` and `details.unchecked`, as in `blacklist.unverified`.
 - Severity: INFO
 
-### url_reputation.{label} (8 DBLs per body link)
+### url_reputation.{label} (6 DBLs per body link)
 - Validates: Every body-link domain not on DBLs.
 - GOOD: No hits, and every list passed its test name and answered NXDOMAIN for every link domain. Each list gets 1 test for all the link domains. `sender_dbl` tests each list again.
 - MEDIUM: n/a
@@ -895,7 +886,7 @@ The lists, with the severity of a listing on each:
 
 This file is not exhaustive, and it does not claim to be. It holds 101 entries.
 The audit emits more ids than that, because several checks fan out: one entry
-covers 31 IP blocklists, another covers 8 domain blocklists, and a third runs 8
+covers 22 IP blocklists, another covers 6 domain blocklists, and a third runs 6
 blocklists against every link in the message. A check with no entry here still
 runs and still reports. Read its thresholds from its own module until it has one.
 

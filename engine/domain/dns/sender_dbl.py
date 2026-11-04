@@ -76,7 +76,7 @@ async def run(domain: str) -> list[Finding]:
     unchecked: list[dict[str, str]] = []
     for (label, host, _sev, blurb), ans in zip(_DBLS, answers, strict=True):
         test_passed = host in working
-        reading = read_answer(ans, test_passed=test_passed)
+        reading = read_answer(ans, host, test_passed=test_passed)
         if reading is Reading.LISTED:
             hits.append(_listed_finding(domain, label, host, blurb, ans, test_passed))
         elif reading is Reading.UNKNOWN:

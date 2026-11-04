@@ -3,8 +3,9 @@
 Standard RBL query: `<reversed-octets>.<rbl-host>` resolved as A. Each list
 also gets its test address in the same audit, and `list_reading.py` reads the
 pair: an answer in the listing range = listed, NXDOMAIN after a passed test =
-not listed, and anything else = not checked. All the lists that were not checked
-share 1 finding, `blacklist.unverified`.
+not listed, and anything else = not checked. Hostkarma differs: only its black
+code = listed, and its other documented codes after a passed test = not listed.
+All the lists that were not checked share 1 finding, `blacklist.unverified`.
 
 `bl.score.senderscore.com` requires API auth. It's dropped from the list because
 public queries always return a refusal and produced false-positive HIGH findings.
@@ -48,6 +49,11 @@ from .list_reading import (
 # Proofpoint June 2024, returns NXDOMAIN-everywhere). bl.spamcannibal,
 # bl.emailbasura, ix.dnsbl.manitu (NixSPAM) also removed (dead).
 # Severity tier mirrors mxtoolbox's "industry standard" weighting.
+#
+# On 2026-11-04 these lists gave no usable public answer to their test address, so
+# they could never report clean, and they are removed: spamrbl.imp.ch,
+# blacklist.woody.ch, dnsbl.calivent.com.pe, dnsbl.ivmsip.org, rbl2.triumf.ca,
+# relays.nether.net, dyna.spamrats.com, noptr.spamrats.com, spam.spamrats.com.
 _RBLS = [
     # ─── Tier 1: industry-standard, drives delivery decisions ────────
     (
@@ -94,12 +100,6 @@ _RBLS = [
         "GBUdb Truncate: confirmed senders of substantially-only spam.",
     ),
     (
-        "ivmsip",
-        "dnsbl.ivmsip.org",
-        Severity.MEDIUM,
-        "Invaluement IPv4 SIP: paid subscription list; some mid-size receivers consult it.",
-    ),
-    (
         "backscatterer",
         "ips.backscatterer.org",
         Severity.MEDIUM,
@@ -118,7 +118,6 @@ _RBLS = [
         "Blocklist.de: fed by fail2ban / mod_security reports.",
     ),
     ("0spam", "bl.0spam.org", Severity.MEDIUM, "0spam: community reputation list."),
-    ("kempt_bl", "spamrbl.imp.ch", Severity.MEDIUM, "imp.ch / KEMPT: Swiss anti-spam project."),
     (
         "sem_black",
         "bl.spameatingmonkey.net",
@@ -126,24 +125,6 @@ _RBLS = [
         "Spam Eating Monkey Black: automated spam-trap fed list.",
     ),
     ("nordspam_bl", "bl.nordspam.com", Severity.MEDIUM, "Nordspam BL: Nordic spam-trap list."),
-    (
-        "rats_dyna",
-        "dyna.spamrats.com",
-        Severity.MEDIUM,
-        "SpamRATS Dyna: dynamic IP space being used to send mail.",
-    ),
-    (
-        "rats_noptr",
-        "noptr.spamrats.com",
-        Severity.MEDIUM,
-        "SpamRATS NoPtr: IPs missing PTR records.",
-    ),
-    (
-        "rats_spam",
-        "spam.spamrats.com",
-        Severity.MEDIUM,
-        "SpamRATS Spam: specific spam-source IPs.",
-    ),
     (
         "anonmails_dnsbl",
         "spam.dnsbl.anonmails.de",
@@ -154,8 +135,7 @@ _RBLS = [
         "hostkarma_black",
         "hostkarma.junkemailfilter.com",
         Severity.MEDIUM,
-        "Hostkarma: community reputation (note: returns 127.0.0.1 = white, .2 = black, .3 = "
-        "yellow).",
+        "Hostkarma: sources that send only spam.",
     ),
     # ─── Tier 3: noisy / aspirational lists (LOW) ────────────────────
     (
@@ -172,33 +152,19 @@ _RBLS = [
         "UCEPROTECT Level 3: your hosting provider's whole network is listed. Rarely actioned by "
         "major receivers.",
     ),
-    ("woodys", "blacklist.woody.ch", Severity.LOW, "Woody's SMTP Blacklist."),
     ("dan_torexit", "torexit.dan.me.uk", Severity.LOW, "DAN TorExit: Tor network exit nodes."),
     ("schulte", "rbl.schulte.org", Severity.LOW, "Schulte: small private list."),
-    (
-        "triumf",
-        "rbl2.triumf.ca",
-        Severity.LOW,
-        "TRIUMF: Canadian particle-physics network anti-spam.",
-    ),
     (
         "interserver",
         "rbl.interserver.net",
         Severity.LOW,
         "Interserver RBL: hosting-provider anti-spam list.",
     ),
-    (
-        "calivent",
-        "dnsbl.calivent.com.pe",
-        Severity.LOW,
-        "Calivent: South American spam-trap list.",
-    ),
-    ("netherrelays", "relays.nether.net", Severity.LOW, "Nether Relays: open-relay tracking."),
 ]
 
 # The test answer of each list is a listing code, with 1 exception: DroneBL
-# answers its test address with 127.0.0.1, which reads as a refusal everywhere
-# else. It counts for this test only, and never as a listing of a sender.
+# answers its test address with 127.0.0.1, which is not a listing code on any
+# list. It counts for this test only, and never as a listing of a sender.
 _LOOPBACK_TEST_ANSWER_LIST = "dnsbl.dronebl.org"
 
 _IPV4_RX = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
@@ -248,7 +214,7 @@ def extract_sender_ip(headers: dict[str, list[str]]) -> str | None:
 
 
 def _test_passed(rbl_host: str, test: DnsAnswer) -> bool:
-    if has_listing_code(test):
+    if has_listing_code(test, rbl_host):
         return True
     return rbl_host == _LOOPBACK_TEST_ANSWER_LIST and "127.0.0.1" in test.records
 
@@ -267,7 +233,7 @@ async def _check_one(
         query(f"{reversed_ip}.{rbl_host}", "A"),
     )
     test_passed = _test_passed(rbl_host, test)
-    reading = read_answer(ans, test_passed=test_passed)
+    reading = read_answer(ans, rbl_host, test_passed=test_passed)
 
     if reading is Reading.LISTED:
         return Finding(

@@ -138,7 +138,7 @@ you can fix it before the next one goes out instead of after.
 ## The two things it does
 
 **Grade one email.** The copy and structure of the message, SPF, DKIM, DMARC and
-whether they align, MTA-STS, TLSRPT and BIMI records, 31 IP blocklists, 8 URL
+whether they align, MTA-STS, TLSRPT and BIMI records, 22 IP blocklists, 6 URL
 blocklists, and a live SMTP probe.
 
 One email in, one verdict out. It reads nothing but the file you give it and

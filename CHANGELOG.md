@@ -56,7 +56,7 @@ service, no account, no database.
 
 - Audit one saved email with `scripts/audit.py`, covering copy and structure,
   SPF, DKIM and DMARC and whether they align, MTA-STS, TLSRPT and BIMI records,
-  31 IP blocklists, 8 URL blocklists, a live SMTP probe, and 6 checks that compare
+  22 IP blocklists, 6 URL blocklists, a live SMTP probe, and 6 checks that compare
   the send against the sender's own earlier sends.
 - Grade an unsent message with `--draft`, which skips the checks that read headers
   only a server can add. Without it a well-written draft scored 30 and NO_GO on 8
@@ -108,6 +108,11 @@ service, no account, no database.
 - An answer that is not a real blocklist code, such as the address of a parked
   domain, no longer reads as a listing. For the sending domain that false listing
   forced a NO_GO.
+- Hostkarma no longer reports a good sender as listed. It answers about senders it
+  trusts, and those answers read as a listing, so Gmail, Amazon SES, and Mailchimp
+  addresses each lost points for a list they are not on. Only its blacklist answer
+  counts as a listing now. Its other documented answers count as not listed, after
+  the list passes its test.
 - The one-click unsubscribe finding no longer says your unsubscribe link works on
   mail that has none. It now says what the message has: an unsubscribe link with
   no one-click form, or no one-click unsubscribe at all. The one-click marker
@@ -126,9 +131,9 @@ service, no account, no database.
   anyone, and to ask your email host to block this today. The check, its
   severity and what triggers it did not change.
 
-- `references/CHECKS.md` said the audit queries 24 IP blocklists. It queries 31.
-  The file now states 31 and names each list with its severity, and a test fails
-  if the docs and the code disagree again.
+- `references/CHECKS.md` said the audit queries 24 IP blocklists. It queried 31.
+  The file now states the real count and names each list with its severity, and a
+  test fails if the docs and the code disagree again.
 
 - The DMARC advice offers relief that is genuinely weaker than the record you
   publish. A domain at `p=quarantine; pct=10`, a normal first enforcement step,
@@ -268,6 +273,13 @@ service, no account, no database.
     generic greeting such as "dear valued customer".
 
 ### Removed
+
+- 11 blocklists that gave no usable public answer to their test entry on
+  2026-11-04, so they could never report clean. Those are 9 IP lists
+  (`spamrbl.imp.ch`, `blacklist.woody.ch`, `dnsbl.calivent.com.pe`,
+  `dnsbl.ivmsip.org`, `rbl2.triumf.ca`, `relays.nether.net`, and the 3 SpamRATS
+  lists) and 2 domain lists (`uri.ivmuri.org`, `fresh.spameatingmonkey.net`). The
+  audit now asks 22 IP lists and 6 URL lists, and the not checked finding is shorter.
 
 - The store, and everything that existed to serve it. The MVP answers one
   question, will this email land and why, and that needs the file rather than a
