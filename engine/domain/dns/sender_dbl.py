@@ -28,7 +28,7 @@ import asyncio
 from ...report import Finding
 from ...severity import Severity
 from ..dns_client import DnsAnswer, query
-from .list_reading import Reading, read_answer, unverified_finding
+from .list_reading import Reading, not_checked, read_answer, unverified_finding
 from .url_reputation import _DBLS, working_lists
 
 
@@ -73,21 +73,24 @@ async def run(domain: str) -> list[Finding]:
     )
 
     hits: list[Finding] = []
-    unchecked: list[str] = []
+    unchecked: list[dict[str, str]] = []
     for (label, host, _sev, blurb), ans in zip(_DBLS, answers, strict=True):
         test_passed = host in working
         reading = read_answer(ans, test_passed=test_passed)
         if reading is Reading.LISTED:
             hits.append(_listed_finding(domain, label, host, blurb, ans, test_passed))
         elif reading is Reading.UNKNOWN:
-            unchecked.append(host)
+            unchecked.append(not_checked(host, domain, ans))
 
     findings: list[Finding] = [
         Finding(
             check="sender_dbl.scanned",
             severity=Severity.INFO,
             passed=True,
-            message=f"Scanned sender apex '{domain}' against {len(_DBLS)} URL blacklist(s).",
+            message=(
+                f"Scanned sender apex '{domain}' against {len(_DBLS) - len(unchecked)} of "
+                f"{len(_DBLS)} URL blacklist(s)."
+            ),
             details={"domain": domain, "dbls": [h for _, h, _, _ in _DBLS]},
             source="domain_config",
         )

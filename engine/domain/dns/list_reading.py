@@ -63,11 +63,21 @@ def read_answer(answer: DnsAnswer, *, test_passed: bool) -> Reading:
     return Reading.UNKNOWN
 
 
+def not_checked(host: str, name: str, answer: DnsAnswer) -> dict[str, str]:
+    """1 row of `details.unchecked`: the list, the name asked about, and the answer."""
+    return {"list": host, "name": name, "answer": answer.error or ", ".join(answer.records)}
+
+
 def unverified_finding(
-    check: str, hosts: list[str], total: int, subject: str, source: str = "user_content"
+    check: str,
+    unchecked: list[dict[str, str]],
+    total: int,
+    subject: str,
+    source: str = "user_content",
 ) -> Finding:
     """The 1 finding for every list that gave no usable answer. INFO has no penalty,
     so a list that was not checked neither lifts nor cuts the score."""
+    hosts = list(dict.fromkeys(row["list"] for row in unchecked))
     return Finding(
         check=check,
         severity=Severity.INFO,
@@ -79,6 +89,6 @@ def unverified_finding(
             "If a list stays here from several networks, it may no longer offer a working "
             "public check."
         ),
-        details={"lists": hosts},
+        details={"lists": hosts, "unchecked": unchecked},
         source=source,
     )

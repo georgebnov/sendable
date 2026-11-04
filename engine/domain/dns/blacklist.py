@@ -34,7 +34,13 @@ import re
 from ...report import Finding
 from ...severity import Severity
 from ..dns_client import DnsAnswer, query
-from .list_reading import Reading, has_listing_code, read_answer, unverified_finding
+from .list_reading import (
+    Reading,
+    has_listing_code,
+    not_checked,
+    read_answer,
+    unverified_finding,
+)
 
 # (label, rbl_host, severity_when_listed, human_blurb). Curated from the
 # heximcz/mxtoolbox-blacklists list, pruned to lists that are still alive
@@ -193,7 +199,7 @@ _RBLS = [
 # The test answer of each list is a listing code, with 1 exception: DroneBL
 # answers its test address with 127.0.0.1, which reads as a refusal everywhere
 # else. It counts for this test only, and never as a listing of a sender.
-_LOOPBACK_TEST_ANSWER_LISTS = frozenset({"dnsbl.dronebl.org"})
+_LOOPBACK_TEST_ANSWER_LIST = "dnsbl.dronebl.org"
 
 _IPV4_RX = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _RECEIVED_FROM_RX = re.compile(
@@ -244,7 +250,7 @@ def extract_sender_ip(headers: dict[str, list[str]]) -> str | None:
 def _test_passed(rbl_host: str, test: DnsAnswer) -> bool:
     if has_listing_code(test):
         return True
-    return rbl_host in _LOOPBACK_TEST_ANSWER_LISTS and "127.0.0.1" in test.records
+    return rbl_host == _LOOPBACK_TEST_ANSWER_LIST and "127.0.0.1" in test.records
 
 
 async def _check_one(
@@ -254,8 +260,8 @@ async def _check_one(
     blurb: str,
     reversed_ip: str,
     sender_ip: str,
-) -> Finding | None:
-    """The finding for 1 list, or None when the list gave no usable answer."""
+) -> Finding | dict[str, str]:
+    """The finding for 1 list, or its `not_checked` row when it gave no usable answer."""
     test, ans = await asyncio.gather(
         query(f"2.0.0.127.{rbl_host}", "A"),
         query(f"{reversed_ip}.{rbl_host}", "A"),
@@ -297,7 +303,7 @@ async def _check_one(
             message=f"Not listed on {label}.",
         )
 
-    return None
+    return not_checked(rbl_host, sender_ip, ans)
 
 
 async def run(headers: dict[str, list[str]]) -> list[Finding]:
@@ -309,8 +315,10 @@ async def run(headers: dict[str, list[str]]) -> list[Finding]:
                 severity=Severity.INFO,
                 passed=False,
                 message=(
-                    "The message does not show the address that sent it, so the blocklist "
-                    "checks did not run. Audit a copy of the message as it arrived."
+                    "This message shows no public IPv4 sending address, so the blocklist "
+                    "checks did not run. A draft has none: audit a copy of the message as "
+                    "it arrived. Mail sent over IPv6 cannot be checked here, because these "
+                    "lists are asked about IPv4 addresses only."
                 ),
             )
         ]
@@ -330,11 +338,9 @@ async def run(headers: dict[str, list[str]]) -> list[Finding]:
             message=f"Sending address for the blocklist checks: {sender_ip}.",
             details={"ip": sender_ip},
         ),
-        *[f for f in results if f is not None],
+        *[result for result in results if isinstance(result, Finding)],
     ]
-    unchecked = [
-        host for (_, host, _, _), result in zip(_RBLS, results, strict=True) if result is None
-    ]
+    unchecked = [result for result in results if not isinstance(result, Finding)]
     if unchecked:
         findings.append(
             unverified_finding(

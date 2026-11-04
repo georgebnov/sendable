@@ -37,7 +37,13 @@ _ROW = re.compile(r"\| `([^`]+)` \| `([^`]+)` \| (HIGH|MEDIUM|LOW) \|")
 # is queried.
 _HEADERS = {"received": ["from mail.example.com (mail.example.com [93.184.216.34]) by mx"]}
 _REVERSED = "34.216.184.93"
-_DOMAIN_TEST_NAMES = {"multi.uribl.com": "test.uribl.com.multi.uribl.com"}
+# What each operator answered as listed on 2026-11-04. `test.<list>` is NXDOMAIN on
+# the two Spam Eating Monkey lists.
+_DOMAIN_TEST_NAMES = {
+    "multi.uribl.com": "test.uribl.com.multi.uribl.com",
+    "uribl.spameatingmonkey.net": "test.spameatingmonkey.net.uribl.spameatingmonkey.net",
+    "urired.spameatingmonkey.net": "test.spameatingmonkey.net.urired.spameatingmonkey.net",
+}
 
 
 def _failing(findings: list[Finding]) -> list[Finding]:
@@ -144,6 +150,30 @@ async def test_no_sending_ip_skips_the_fan_out(dns: FakeDns) -> None:
     assert findings
     assert all(f.severity == "INFO" for f in findings)
     assert len(dns.asked) == 0, "no IP means there is nothing to ask about"
+
+
+async def test_a_message_sent_over_ipv6_is_not_told_to_audit_the_arrived_copy(
+    dns: FakeDns,
+) -> None:
+    # This copy did arrive, and its address is in the chain. Only an IPv4 address
+    # can go to these lists, so "it shows no address" sends the user in a circle.
+    headers = {"received": ["from mail.example.com ([2001:db8::25]) by mx"]}
+    message = _one(await blacklist.run(headers), "blacklist.sender_ip_extraction").message
+    assert "IPv6" in message
+    assert "draft" in message
+
+
+async def test_a_not_checked_list_keeps_the_answer_it_gave(dns: FakeDns) -> None:
+    # A refusal, a timeout, and a failed test each need a different next step, so the
+    # answer stays in the finding. The per list rows used to carry it.
+    _pass_ip_tests(dns)
+    dns.set(f"{_REVERSED}.zen.spamhaus.org", "A", "127.255.255.254")
+    dns.fail(f"{_REVERSED}.bl.spamcop.net", "A", "timeout")
+    unchecked = _one(await blacklist.run(_HEADERS), "blacklist.unverified").details["unchecked"]
+    assert unchecked == [
+        {"list": "zen.spamhaus.org", "name": "93.184.216.34", "answer": "127.255.255.254"},
+        {"list": "bl.spamcop.net", "name": "93.184.216.34", "answer": "timeout"},
+    ]
 
 
 # ── the test address of each list ──────────────────────────────────────────
@@ -395,6 +425,28 @@ async def test_the_uribl_refusal_does_not_pass_its_test(dns: FakeDns) -> None:
     assert _one(findings, "url_reputation.unverified").details["lists"] == ["multi.uribl.com"]
 
 
+async def test_the_not_checked_finding_names_the_link_domain(dns: FakeDns) -> None:
+    # 1 of 2 domains timed out. The other one was checked, so the finding has to say
+    # which is which.
+    email = parse_eml(_link_email("one.test", "two.test"))
+    _pass_domain_tests(dns)
+    dns.fail("two.test.dbl.spamhaus.org", "A", "timeout")
+    finding = _one(await url_reputation.run(email, "example.com"), "url_reputation.unverified")
+    assert finding.details["unchecked"] == [
+        {"list": "dbl.spamhaus.org", "name": "two.test", "answer": "timeout"}
+    ]
+
+
+async def test_the_scanned_row_counts_only_the_lists_that_answered(dns: FakeDns) -> None:
+    # This row passes, so a full count would read as full coverage.
+    email = parse_eml(_link_email("one.test", "two.test"))
+    _pass_domain_tests(dns)
+    dns.fail("one.test.dbl.spamhaus.org", "A", "timeout")
+    dns.fail("two.test.dbl.spamhaus.org", "A", "timeout")
+    scanned = _one(await url_reputation.run(email, "example.com"), "url_reputation.scanned")
+    assert "7 of 8" in scanned.message
+
+
 # ── the sender domain on a domain blocklist ────────────────────────────────
 
 
@@ -441,6 +493,12 @@ async def test_a_parked_answer_does_not_hard_fail_the_sender_domain(dns: FakeDns
     findings = await sender_dbl.run("example.com")
     assert score_findings(findings)["hard_gates_failed"] == []
     assert _one(findings, "sender_dbl.unverified").details["lists"] == ["dbl.nordspam.com"]
+
+
+async def test_the_sender_scanned_row_counts_only_the_lists_that_answered(dns: FakeDns) -> None:
+    # Nothing registered: no list passed its test, so no list checked the domain.
+    scanned = _one(await sender_dbl.run("example.com"), "sender_dbl.scanned")
+    assert "0 of 8" in scanned.message
 
 
 # ── reverse DNS on the sending IP ──────────────────────────────────────────

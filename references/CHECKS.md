@@ -348,12 +348,12 @@ The lists, with the severity of a listing on each:
 - Validates: Which lists the audit could not check. A list lands here when its test address fails and the sender answer is not a listing, or when the sender lookup gives a refusal, no records, a timeout, or an address outside the listing range.
 - GOOD: Finding absent: every list gave a usable answer.
 - MEDIUM: n/a
-- BAD: `details.lists` names each list that was not checked. It says to run the audit from another network.
+- BAD: `details.lists` names each list that was not checked, and `details.unchecked` holds 1 row for each lookup: `list`, `name` (what was asked about), and `answer` (the error or the records). An `nxdomain` answer in a row means that the list failed its test. It says to run the audit from another network.
 - Severity: INFO (0 penalty, so it neither lifts nor cuts the score)
 
 ### sender_dbl.{label} (8 domain DBLs)
 - Validates: From-domain apex not on Spamhaus DBL, SURBL, URIBL, ivmURI, Nordspam DBL, SEM FRESH/URI/URIRED.
-- GOOD: No listings, and every list passed its test name (`test.<host>`, or `test.uribl.com.multi.uribl.com` for URIBL) and answered NXDOMAIN.
+- GOOD: No listings, and every list passed its test name (`test.<host>`, `test.uribl.com.multi.uribl.com` for URIBL, or `test.spameatingmonkey.net.<host>` for Spam Eating Monkey URI and URIRED) and answered NXDOMAIN.
 - MEDIUM: n/a
 - BAD: Apex listed → hard reject by major receivers.
 - Severity: CRITICAL
@@ -362,12 +362,12 @@ The lists, with the severity of a listing on each:
 - Validates: Which domain lists the audit could not check, by the same rule as `blacklist.unverified`. `sender_dbl.no_listings` does not appear with it.
 - GOOD: Finding absent.
 - MEDIUM: n/a
-- BAD: `details.lists` names each list that was not checked.
+- BAD: `details.lists` and `details.unchecked`, as in `blacklist.unverified`.
 - Severity: INFO
 
 ### url_reputation.{label} (8 DBLs per body link)
 - Validates: Every body-link domain not on DBLs.
-- GOOD: No hits, and every list passed its test name and answered NXDOMAIN for every link domain. Each list gets 1 test per audit.
+- GOOD: No hits, and every list passed its test name and answered NXDOMAIN for every link domain. Each list gets 1 test for all the link domains. `sender_dbl` tests each list again.
 - MEDIUM: n/a
 - BAD: Linked domain listed → 554 5.7.1 (SURBL) / 550 5.7.350 NDRs.
 - Severity: HIGH / MEDIUM (per list)
@@ -376,7 +376,7 @@ The lists, with the severity of a listing on each:
 - Validates: Which domain lists the audit could not check for at least 1 link domain. `url_reputation.no_listings` does not appear with it.
 - GOOD: Finding absent.
 - MEDIUM: n/a
-- BAD: `details.lists` names each list that was not checked.
+- BAD: `details.lists` and `details.unchecked`, as in `blacklist.unverified`. Each row names the link domain, so a domain without a row was checked.
 - Severity: INFO
 
 ---

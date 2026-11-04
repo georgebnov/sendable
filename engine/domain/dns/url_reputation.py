@@ -17,9 +17,10 @@ type:
   127.0.1.103 → abused URL shortener
   127.255.255.255 → query refused (rate-limited)
 
-Each list gets its test name once per audit, and `list_reading.py` reads the
-answers. A domain that a list could not answer about is not clean: the list goes
-into `url_reputation.unverified`, and the clean summary stays away.
+Each list gets its test name once for all the link domains, and
+`list_reading.py` reads the answers. A domain that a list could not answer about
+is not clean: the list goes into `url_reputation.unverified`, and the clean
+summary stays away.
 
 Common-domain skip: don't waste lookups on first-party (sender's own
 domain) or ubiquitous infra (google.com, microsoft.com, ...).
@@ -38,7 +39,13 @@ from ...parse import ParsedEmail
 from ...report import Finding
 from ...severity import Severity
 from ..dns_client import DnsAnswer, query
-from .list_reading import Reading, has_listing_code, read_answer, unverified_finding
+from .list_reading import (
+    Reading,
+    has_listing_code,
+    not_checked,
+    read_answer,
+    unverified_finding,
+)
 
 # (label, dbl-host, severity_when_listed, blurb). mxtoolbox's "Domain
 # Blacklist" tier covers Spamhaus DBL + SURBL + ivmURI + Nordspam DBL +
@@ -126,12 +133,18 @@ _SKIP_DOMAINS = frozenset(
     }
 )
 
-# The test name is `test.<list>`, with 1 exception that the operator documents.
-_TEST_NAMES = {"multi.uribl.com": "test.uribl.com.multi.uribl.com"}
+# The test name is `test.<list>`, except on these lists. On the 2 Spam Eating
+# Monkey lists, `test.<list>` answers NXDOMAIN, and this name reads as listed.
+_TEST_NAMES = {
+    "multi.uribl.com": "test.uribl.com.multi.uribl.com",
+    "uribl.spameatingmonkey.net": "test.spameatingmonkey.net.uribl.spameatingmonkey.net",
+    "urired.spameatingmonkey.net": "test.spameatingmonkey.net.urired.spameatingmonkey.net",
+}
 
 
 async def working_lists() -> set[str]:
-    """The hosts of the domain lists that passed their test name in this audit."""
+    """The hosts of the domain lists that pass their test name now. The link check
+    and the sender domain check each call this, so a list gets 2 tests per audit."""
     hosts = [host for _, host, _, _ in _DBLS]
     answers = await asyncio.gather(
         *[query(_TEST_NAMES.get(host, f"test.{host}"), "A") for host in hosts]
@@ -219,22 +232,24 @@ async def run(parsed: ParsedEmail, sender_domain: str | None) -> list[Finding]:
     )
 
     hits: list[Finding] = []
-    unchecked: list[str] = []
+    unchecked: list[dict[str, str]] = []
     for (domain, (label, host, sev, blurb)), ans in zip(pairs, answers, strict=True):
         test_passed = host in working
         reading = read_answer(ans, test_passed=test_passed)
         if reading is Reading.LISTED:
             hits.append(_listed_finding(domain, label, host, sev, blurb, ans, test_passed))
-        elif reading is Reading.UNKNOWN and host not in unchecked:
-            unchecked.append(host)
+        elif reading is Reading.UNKNOWN:
+            unchecked.append(not_checked(host, domain, ans))
 
+    answered = len(_DBLS) - len({row["list"] for row in unchecked})
     findings: list[Finding] = [
         Finding(
             check="url_reputation.scanned",
             severity=Severity.INFO,
             passed=True,
             message=(
-                f"Scanned {len(domains)} body link domain(s) against {len(_DBLS)} URL blacklist(s)."
+                f"Scanned {len(domains)} body link domain(s) against {answered} of "
+                f"{len(_DBLS)} URL blacklist(s)."
             ),
             details={"domains_scanned": domains, "dbls": [h for _, h, _, _ in _DBLS]},
         )
