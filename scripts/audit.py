@@ -123,6 +123,12 @@ def main() -> None:
             "server can add were skipped, not passed.",
             file=sys.stderr,
         )
+    if args.offline:
+        print(
+            "[offline] the checks that need the network were skipped, not passed: the "
+            "domain_records and infrastructure sub-scores show 100 without a result.",
+            file=sys.stderr,
+        )
 
     json.dump(to_jsonable(report), sys.stdout, indent=2 if args.pretty else None)
     sys.stdout.write("\n")

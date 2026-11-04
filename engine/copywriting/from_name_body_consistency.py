@@ -9,11 +9,13 @@ Check: extract the From: display name, then look for it (or a
 recognisable first-name / surname subset) inside the email's sign-off
 region.
 
-Sign-off region preference order:
-  1. `StructuredEmail.signature` — the extractor's isolated sign-off
-     block. Most reliable.
-  2. P.S. block — sometimes the only place the sender names themself.
-  3. Last 200 chars of the joined body text.
+Sign-off region: every part of the closing that the extractor found.
+  - `StructuredEmail.signature` — the isolated sign-off block.
+  - P.S. block — sometimes the only place the sender names themself.
+  - Footer — a company that signs with its name above its address has
+    that whole paragraph peeled as the footer, because the address is a
+    footer hint, so the name is only there.
+  - Last 200 chars of the joined body text, when there is no signature.
 
 Match precedence:
   - Full display-name substring (lowercased, whitespace-collapsed).
@@ -21,6 +23,7 @@ Match precedence:
      catches "Best, Jane" matching "Jane Doe".
   - Initials (first letters of each display-name word, ≥2 letters) as
      a word-boundary token — catches "— JD" signing for "Jane Doe".
+     The footer does not count for this one.
 
 Skips (INFO PASS):
   - No display name at all (raw address only).
@@ -62,13 +65,16 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").lower()).strip()
 
 
-def _sign_off_region(structured) -> str:
-    if structured.signature:
-        return structured.signature
-    if structured.ps:
-        return structured.ps
+def _sign_off_parts(structured) -> dict[str, str]:
+    """The closing of the message, by the name of each part that it has."""
     body = "\n\n".join(structured.body_blocks).strip()
-    return body[-_REGION_TAIL:] if body else ""
+    parts = {
+        "signature": structured.signature,
+        "ps": structured.ps,
+        "footer": structured.footer,
+        "body_tail": None if structured.signature else body[-_REGION_TAIL:],
+    }
+    return {name: text for name, text in parts.items() if text}
 
 
 def _name_tokens(display: str) -> list[str]:
@@ -113,12 +119,11 @@ async def run(email: ParsedEmail) -> list[Finding]:
             ]
 
     structured = extract_structured(email)
-    region = _sign_off_region(structured)
+    parts = _sign_off_parts(structured)
+    region = "\n\n".join(parts.values())
     region_norm = _normalize(region)
     details["region_chars"] = len(region)
-    details["region_source"] = (
-        "signature" if structured.signature else "ps" if structured.ps else "body_tail"
-    )
+    details["region_source"] = "+".join(parts)
 
     if not region_norm:
         return [
@@ -159,9 +164,11 @@ async def run(email: ParsedEmail) -> list[Finding]:
             )
         ]
 
-    # Initials fallback.
+    # Initials fallback. Two letters are often an ordinary word, "no" for Nora Olsen,
+    # and a footer is full of those. Only a person's closing signs with initials.
     init = _initials(tokens)
-    if init and re.search(rf"\b{re.escape(init)}\b", region_norm):
+    signed_norm = _normalize("\n\n".join(t for name, t in parts.items() if name != "footer"))
+    if init and re.search(rf"\b{re.escape(init)}\b", signed_norm):
         return [
             Finding(
                 check="copywriting.from_name_body_consistency",

@@ -129,7 +129,9 @@ Read it in this order:
 2. Findings where `passed` is false, worst `severity` first: CRITICAL, HIGH,
    MEDIUM, LOW, INFO.
 3. `sub_scores`, to see which area is dragging: authentication, domain_records,
-   infrastructure, hygiene, copywriting.
+   infrastructure, hygiene, copywriting. A category that did not run still shows
+   100, so check the notes on draft and offline runs below before you read one as
+   a pass.
 
 `verdict` is GO at 85 and above, REVIEW at 65, NO_GO below that.
 
@@ -284,6 +286,13 @@ Say these plainly rather than implying a guarantee.
 - **Blocklist checks need a useful vantage point.** The blocklist operators
   rate-limit or refuse queries from residential addresses, so results from a home
   connection can be wrong. `--offline` skips them.
+- **An offline audit does not grade the domain.** With `--offline`, the
+  `domain_records` and `infrastructure` sub-scores were **skipped, not passed**,
+  and each one shows 100 because nothing ran. The overall score counts them as
+  clean too, so a full run can lower it. Do not tell the user their domain or
+  their blocklist standing is fine on the strength of an offline audit. The
+  `sender.offline_mode` finding names those two sub-scores in
+  `details.unverified_sub_scores`.
 - **A good score is not a promise of delivery.** It means the things a sender
   controls are in order. Recipient engagement, list quality, and complaint rate
   decide placement too, and none of them are visible in one message.

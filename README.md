@@ -100,10 +100,9 @@ Read `hard_gates_failed` first, then the failing findings worst-severity first.
 
 ## Where this came from
 
-I was going back and forth over email with a real estate agent in Canada, top 20
-in the country, and one day I went looking for his reply and found it sitting in
-my spam folder. It wasn't a cold email or a newsletter, it was just a guy
-answering a conversation we were already in the middle of, and what got me is
+I was cold emailing tons of real estate agents in Canada. One of them, top 20 in
+the country, replied, and I found his reply sitting in my spam folder. It was the
+first message he'd ever sent me, and it went straight to spam, and what got me is
 that he had no idea. He thought he had answered me. On his side the email was
 sent and that was the end of it.
 
