@@ -111,7 +111,7 @@ service, no account, no database.
 - Hostkarma no longer reports a good sender as listed. It answers about senders it
   trusts, and those answers read as a listing, so Gmail, Amazon SES, and Mailchimp
   addresses each lost points for a list they are not on. Only its blacklist answer
-  counts as a listing now. Every other answer from it counts as not listed, after
+  counts as a listing now. Its other documented answers count as not listed, after
   the list passes its test.
 - The one-click unsubscribe finding no longer says your unsubscribe link works on
   mail that has none. It now says what the message has: an unsubscribe link with
@@ -133,8 +133,7 @@ service, no account, no database.
 
 - `references/CHECKS.md` said the audit queries 24 IP blocklists. It queried 31.
   The file now states the real count and names each list with its severity, and a
-  test fails
-  if the docs and the code disagree again.
+  test fails if the docs and the code disagree again.
 
 - The DMARC advice offers relief that is genuinely weaker than the record you
   publish. A domain at `p=quarantine; pct=10`, a normal first enforcement step,

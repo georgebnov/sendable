@@ -3,7 +3,8 @@
 A blocklist, or RBL, answers a DNS query about a reversed IP. An A record in
 127.0.0.0/8 means listed. Several lists return a sentinel address to say "query
 refused" or "rate limited", and reading that as a listing would tell a clean sender
-they are blocked, so sentinels are filtered out.
+they are blocked, so sentinels are filtered out. Hostkarma also answers about
+senders it does not list, so only its black code means listed.
 
 NXDOMAIN means not listed only when the list also passed its test name in the same
 audit. Every list keeps a test name that must always read as listed. Spamhaus
@@ -30,7 +31,10 @@ from tests.conftest import FakeDns
 ROOT = pathlib.Path(__file__).parent.parent
 _DOCS_WITH_THE_COUNT = ("README.md", "SECURITY.md", "SKILL.md", "references/CHECKS.md")
 _IP_LIST_COUNT = re.compile(r"\b(\d+)\s+IP\s+(?:RBL\s+lists|blocklists)\b")
-_URL_LIST_COUNT = re.compile(r"\b(\d+)\s+(?:URL\s+blocklists|domain\s+(?:DBLs|blocklists))\b")
+_URL_LIST_COUNT = re.compile(
+    r"\b(\d+)\s+(?:URL\s+blocklists|domain\s+(?:DBLs|blocklists)"
+    r"|DBLs\s+per\s+body\s+link|blocklists\s+against\s+every\s+link)\b"
+)
 _ROW = re.compile(r"\| `([^`]+)` \| `([^`]+)` \| (HIGH|MEDIUM|LOW) \|")
 
 
@@ -298,7 +302,7 @@ _HOSTKARMA = "hostkarma.junkemailfilter.com"
         # The other documented codes.
         ("127.0.0.1",),  # white: this one read as not checked
         ("127.0.0.3",),  # yellow
-        ("127.0.0.4",),  # brown: "not yet enough to blacklist"
+        ("127.0.0.4",),  # brown: "all spam - but not yet enough to blacklist"
         ("127.0.1.2",),  # the sender does not use QUIT
         ("127.0.1.3", "127.0.2.1"),  # mixed QUIT, a new domain
     ],
@@ -340,6 +344,9 @@ async def test_the_hostkarma_test_needs_the_black_code(dns: FakeDns) -> None:
         ("127.255.255.254",),  # a refusal is not a code of this list
         ("198.51.100.7",),
         ("127.0.0.3", "198.51.100.7"),  # 1 foreign record spoils the answer
+        ("127.0.0.6",),  # the operator documents no such code, so it proves nothing
+        ("127.0.3.1",),
+        ("127.0.0.3", "127.0.0.6"),  # 1 unknown code spoils the answer
     ],
 )
 async def test_a_hostkarma_answer_with_a_foreign_record_is_not_checked(

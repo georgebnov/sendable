@@ -3,8 +3,9 @@
 Standard RBL query: `<reversed-octets>.<rbl-host>` resolved as A. Each list
 also gets its test address in the same audit, and `list_reading.py` reads the
 pair: an answer in the listing range = listed, NXDOMAIN after a passed test =
-not listed, and anything else = not checked. All the lists that were not checked
-share 1 finding, `blacklist.unverified`.
+not listed, and anything else = not checked. Hostkarma differs: only its black
+code = listed, and its other documented codes after a passed test = not listed.
+All the lists that were not checked share 1 finding, `blacklist.unverified`.
 
 `bl.score.senderscore.com` requires API auth. It's dropped from the list because
 public queries always return a refusal and produced false-positive HIGH findings.
@@ -162,8 +163,8 @@ _RBLS = [
 ]
 
 # The test answer of each list is a listing code, with 1 exception: DroneBL
-# answers its test address with 127.0.0.1, which reads as a refusal everywhere
-# else. It counts for this test only, and never as a listing of a sender.
+# answers its test address with 127.0.0.1, which is not a listing code on any
+# list. It counts for this test only, and never as a listing of a sender.
 _LOOPBACK_TEST_ANSWER_LIST = "dnsbl.dronebl.org"
 
 _IPV4_RX = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")

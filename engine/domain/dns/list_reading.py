@@ -30,12 +30,28 @@ _LISTING_RANGE = IPv4Network("127.0.0.0/8")
 _REFUSAL_RANGE = IPv4Network("127.255.255.0/24")
 # The "query refused" answer of URIBL and SURBL.
 _REFUSAL = IPv4Address("127.0.0.1")
-# A list here answers about senders it does not list. Only these codes mean listed.
-# Every other code in the listing range is a usable "not listed", 127.0.0.1 too.
-# Hostkarma, http://wiki.junkemailfilter.com/index.php/Spam_DNS_Lists: 127.0.0.1
-# white, .2 black, .3 yellow, .4 brown ("not yet enough to blacklist"), .5 NOBL,
-# 127.0.1.x the use of QUIT, and 127.0.2.x the age of the sender.
-_LISTING_CODES = {"hostkarma.junkemailfilter.com": frozenset({"127.0.0.2"})}
+# Hostkarma answers about senders it does not list, so only its black code is a
+# listing. Its other documented codes are a usable "not listed". An undocumented
+# code proves nothing, so it reads as not checked.
+# http://wiki.junkemailfilter.com/index.php/Spam_DNS_Lists: 127.0.0.1 white, .2 black,
+# .3 yellow, .4 brown ("all spam - but not yet enough to blacklist"), .5 NOBL,
+# 127.0.1.1 to .3 the use of QUIT, and 127.0.2.1 to .3 the age of the sender.
+_HOSTKARMA = "hostkarma.junkemailfilter.com"
+_HOSTKARMA_BLACK = "127.0.0.2"
+_HOSTKARMA_NOT_LISTED = frozenset(
+    {
+        "127.0.0.1",
+        "127.0.0.3",
+        "127.0.0.4",
+        "127.0.0.5",
+        "127.0.1.1",
+        "127.0.1.2",
+        "127.0.1.3",
+        "127.0.2.1",
+        "127.0.2.2",
+        "127.0.2.3",
+    }
+)
 
 
 class Reading(Enum):
@@ -46,18 +62,14 @@ class Reading(Enum):
     UNKNOWN = "unknown"
 
 
-def _in_listing_range(record: str) -> bool:
+def _is_listing_code(record: str, host: str) -> bool:
+    if host == _HOSTKARMA:
+        return record == _HOSTKARMA_BLACK
     try:
         address = IPv4Address(record)
     except ValueError:
         return False
-    return address in _LISTING_RANGE and address not in _REFUSAL_RANGE
-
-
-def _is_listing_code(record: str, host: str) -> bool:
-    if host in _LISTING_CODES:
-        return record in _LISTING_CODES[host]
-    return _in_listing_range(record) and IPv4Address(record) != _REFUSAL
+    return address in _LISTING_RANGE and address not in _REFUSAL_RANGE and address != _REFUSAL
 
 
 def has_listing_code(answer: DnsAnswer, host: str) -> bool:
@@ -68,9 +80,9 @@ def _says_not_listed(answer: DnsAnswer, host: str) -> bool:
     if answer.error == "nxdomain":
         return True
     return (
-        host in _LISTING_CODES
+        host == _HOSTKARMA
         and bool(answer.records)
-        and all(map(_in_listing_range, answer.records))
+        and _HOSTKARMA_NOT_LISTED.issuperset(answer.records)
     )
 
 

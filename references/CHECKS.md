@@ -301,7 +301,7 @@ Sections: Domain Health → Email Auth → Headers → Bulk Compliance → Body 
 
 ### blacklist.{label} (22 IP RBL lists)
 - Validates: Sender IP not listed on RBL (Spamhaus ZEN, Spamcop, Barracuda, CBL, UCEPROTECT L1/L2/L3, Mailspike, PSBL, etc.).
-- GOOD: NXDOMAIN, and the list answered its test address `2.0.0.127.<host>` as listed in the same audit. For `hostkarma_black`, also an answer of only other 127.0.0.0/8 codes after a passed test: 127.0.0.1 white, 127.0.0.3 yellow, 127.0.0.4 brown, 127.0.0.5 NOBL, and the 127.0.1.x and 127.0.2.x information codes.
+- GOOD: NXDOMAIN, and the list answered its test address `2.0.0.127.<host>` as listed in the same audit. For `hostkarma_black`, also an answer of only the documented codes that are not black, after a passed test: 127.0.0.1 white, 127.0.0.3 yellow, 127.0.0.4 brown, 127.0.0.5 NOBL, 127.0.1.1 to 127.0.1.3 (the use of QUIT), and 127.0.2.1 to 127.0.2.3 (the age of the sender).
 - MEDIUM: n/a
 - BAD: A record in 127.0.0.0/8, outside 127.255.255.0/24 and other than 127.0.0.1 (IP listed). On `hostkarma_black`, only 127.0.0.2 is a listing, for a sender and for the test address. A listing stands when the test address fails, and `details.test_passed` records that.
 - Severity: HIGH / MEDIUM / LOW (per list tier)
@@ -336,7 +336,7 @@ The lists, with the severity of a listing on each:
 | `interserver` | `rbl.interserver.net` | LOW |
 
 ### blacklist.unverified
-- Validates: Which lists the audit could not check. A list lands here when its test address fails and the sender answer is not a listing, or when the sender lookup gives a refusal, no records, a timeout, or an address outside the listing range.
+- Validates: Which lists the audit could not check. A list lands here when its test address fails and the sender answer is not a listing, or when the sender lookup gives a refusal, no records, a timeout, an address outside the listing range, or a Hostkarma code that its operator does not document.
 - GOOD: Finding absent: every list gave a usable answer.
 - MEDIUM: n/a
 - BAD: `details.lists` names each list that was not checked, and `details.unchecked` holds 1 row for each lookup: `list`, `name` (what was asked about), and `answer` (the error or the records). An `nxdomain` answer in a row means that the list failed its test. It says to run the audit from another network.
