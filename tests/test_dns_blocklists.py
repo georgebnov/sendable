@@ -21,7 +21,7 @@ from tests.conftest import FakeDns
 
 ROOT = pathlib.Path(__file__).parent.parent
 _DOCS_WITH_THE_COUNT = ("README.md", "SECURITY.md", "SKILL.md", "references/CHECKS.md")
-_IP_LIST_COUNT = re.compile(r"\b(\d+) IP (?:RBL lists|blocklists)\b")
+_IP_LIST_COUNT = re.compile(r"\b(\d+)\s+IP\s+(?:RBL\s+lists|blocklists)\b")
 _ROW = re.compile(r"\| `([^`]+)` \| `([^`]+)` \| (HIGH|MEDIUM|LOW) \|")
 
 
@@ -185,23 +185,19 @@ async def test_every_lookup_timing_out_does_not_raise(dns: FakeDns) -> None:
 # ── the docs state the list the code really queries ───────────────────
 
 
-def _doc_lines(name: str) -> list[str]:
-    return (ROOT / name).read_text().splitlines()
-
-
 def test_each_doc_states_the_real_ip_blocklist_count() -> None:
     # CHECKS.md said 24 and the docstring said 9 while the code queried 31. A
-    # number in a doc drifts unless something reads it.
+    # number in a doc drifts unless something reads it. This reads the whole text,
+    # because these docs wrap, and a count split over two lines must still match.
     stated = [
-        (f"{name}:{number}", int(match.group(1)))
+        (name, int(match.group(1)))
         for name in _DOCS_WITH_THE_COUNT
-        for number, line in enumerate(_doc_lines(name), start=1)
-        for match in _IP_LIST_COUNT.finditer(line)
+        for match in _IP_LIST_COUNT.finditer((ROOT / name).read_text())
     ]
-    assert {place.split(":")[0] for place, _ in stated} == set(_DOCS_WITH_THE_COUNT), (
+    assert {name for name, _ in stated} == set(_DOCS_WITH_THE_COUNT), (
         f"the scan found no count in a doc, so it reads nothing there: {stated}"
     )
-    wrong = [f"{place} says {count}" for place, count in stated if count != len(blacklist._RBLS)]
+    wrong = [f"{name} says {count}" for name, count in stated if count != len(blacklist._RBLS)]
     assert not wrong, (
         f"_RBLS in engine/domain/dns/blacklist.py has {len(blacklist._RBLS)} entries, but "
         + ", ".join(wrong)
@@ -210,7 +206,9 @@ def test_each_doc_states_the_real_ip_blocklist_count() -> None:
 
 
 def test_checks_md_lists_each_ip_blocklist_with_its_tier() -> None:
-    rows = [_ROW.fullmatch(line) for line in _doc_lines("references/CHECKS.md")]
+    rows = [
+        _ROW.fullmatch(line) for line in (ROOT / "references/CHECKS.md").read_text().splitlines()
+    ]
     listed = [row.groups() for row in rows if row]
     expected = [(label, host, sev.name) for label, host, sev, _ in blacklist._RBLS]
     assert listed == expected, (

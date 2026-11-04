@@ -193,7 +193,7 @@ def test_an_open_relay_tells_the_sender_what_it_means_and_what_to_do(
     no_smtp: list[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Rules 9 and 12. The old text named a protocol command and gave no next step,
-    # on the only CRITICAL finding that a sender must take to someone else.
+    # on a CRITICAL finding that a sender must take to someone else.
     class _AcceptsEverything:
         def __init__(self, host: str, port: int, timeout: float) -> None:
             pass

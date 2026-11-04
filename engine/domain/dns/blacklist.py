@@ -15,7 +15,8 @@ weirdly forwarded mail), all RBL findings skip.
 
 Severity tiering — only the four industry-recognized lists trigger
 HIGH. UCEPROTECT L2/L3 list whole /24s and ASNs (one bad neighbour
-taints everyone) → LOW. Other smaller lists → MEDIUM. This calibrates
+taints everyone) → LOW, with the small or noisy lists in Tier 3 below.
+The rest → MEDIUM. This calibrates
 the score so a single noisy-RBL hit on a shared ESP IP doesn't swing
 the verdict the way a real Spamhaus listing does.
 
@@ -196,8 +197,9 @@ _RBLS = [
 #   .252 — typo'd / nonexistent zone
 #   .254 — query came from a public/open resolver (Spamhaus, Barracuda)
 #   .255 — rate-limited / blocked
-# `127.0.0.1` is URIBL/SURBL "Query Refused" sentinel (also Hostkarma's
-# whitelist code, which we don't query). Filtered for safety.
+# `127.0.0.1` is URIBL/SURBL "Query Refused" sentinel. It is also Hostkarma's
+# whitelist code, and that answer reads here as a refused lookup. Filtered for
+# safety.
 _RBL_SENTINELS = frozenset(
     {
         "127.255.255.252",

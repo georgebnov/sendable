@@ -42,7 +42,8 @@ _FORMULA = re.compile(
     r"max\(|min\(|/\s*\d{2,}|\bcap \d|\bbudget \d|\(>\d|>\d+ absolute|<= ?\d|\babs\("
 )
 _DASHES = (chr(0x2014), chr(0x2013))  # em dash, en dash
-_RCPT_TO = re.compile(r"RCPT\s+TO", re.IGNORECASE)
+# Case matters for MAIL FROM, because "mail from" is ordinary prose in a finding.
+_SMTP_COMMAND = re.compile(r"(?i:RCPT\s+TO)|MAIL\s+FROM|\b(?:EHLO|HELO)\b")
 
 # A whole Python container repr, not a stray bracket. A message can quote a line
 # of the sender's own body, and that line may itself hold a bracket next to a
@@ -252,16 +253,16 @@ def _string_literals(tree: ast.Module) -> list[tuple[int, str]]:
     ]
 
 
-def test_no_string_names_the_rcpt_to_command() -> None:
+def test_no_string_names_an_smtp_command() -> None:
     """Rule 12. A sender reads a finding and has never met an SMTP command."""
     bad = [
         f"{p.relative_to(ENGINE.parent)}:{line}  {text[:70]}"
         for p in sorted(ENGINE.rglob("*.py"))
         for line, text in _string_literals(ast.parse(p.read_text()))
-        if _RCPT_TO.search(text)
+        if _SMTP_COMMAND.search(text)
     ]
     assert not bad, (
-        "a string names the RCPT TO command:\n  "
+        "a string names an SMTP command:\n  "
         + "\n  ".join(bad)
         + (
             "\n\nSay what the mail server did in words a sender knows, for example "
