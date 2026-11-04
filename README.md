@@ -154,7 +154,9 @@ python3 scripts/dmarc.py ~/Downloads/*.xml.gz --pretty
 
 It returns one next step. It will not tell you to tighten your DMARC policy while
 a real sender of yours is failing alignment, because that would start rejecting
-your own mail.
+your own mail. When a large source proves its own identity but not yours, it
+cannot tell whether that source is a tool you use, so it stops and asks you. Pass
+`--not-mine <domain>` when the answer is no.
 
 This answers the one question an audit of a single message cannot: who else sends
 as you, and do they authenticate. Pass every report you have and it describes all

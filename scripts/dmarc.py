@@ -55,6 +55,7 @@ from engine.dmarc.policy_engine import apply_live_spf_fixes, evaluate
 from engine.dmarc.summary import (
     for_domain,
     pick_domain,
+    sender_domain,
     summarise_reports,
 )
 
@@ -101,6 +102,14 @@ def main() -> None:
         default=None,
         help="The address providers should send reports to. Used in any record this suggests.",
     )
+    ap.add_argument(
+        "--not-mine",
+        action="append",
+        default=[],
+        metavar="DOMAIN",
+        help="A domain the advice asked about that is not yours, so it stops holding "
+        "the policy back. Repeat it for each one, and pass it on every run.",
+    )
     ap.add_argument("--pretty", action="store_true", help="Indent the JSON output.")
     args = ap.parse_args()
 
@@ -141,7 +150,17 @@ def main() -> None:
     # and the answer describes exactly them.
     print(f"[dmarc] {len(mine)} report(s) for {domain}", file=sys.stderr)
 
-    summary = summarise_reports(mine, domain=domain)
+    not_mine = {sender_domain(d) for d in args.not_mine}
+    summary = summarise_reports(mine, domain=domain, not_mine=not_mine)
+    askable = {s.authenticated_as for s in summary.senders if s.authenticated_as}
+    for typed in args.not_mine:
+        if sender_domain(typed) not in askable:
+            print(
+                f"[warn] --not-mine {typed} matches no sender in these reports, so it "
+                f"changes nothing. Use a domain from `authenticated_as`: "
+                f"{', '.join(sorted(askable)) or 'none in these reports'}.",
+                file=sys.stderr,
+            )
 
     # The live DNS read is what makes the advice current. A report describes mail
     # sent days ago, so a fix made today is invisible in it.
@@ -167,6 +186,7 @@ def main() -> None:
             },
         },
         "next_step": asdict(result.primary),
+        "not_mine": sorted(not_mine & askable),
         "blockers": [asdict(s) for s in result.blockers],
         "spf_findings": [asdict(a) for a in result.spf_findings],
         "senders": [

@@ -672,3 +672,49 @@ Date and Message-ID and Reply-To sanity (`headers.date_sanity`,
 `headers.message_id`, `auth.reply_to_alignment`), and subject heuristics
 including ALL-CAPS and punctuation (`copywriting.subject_heuristics`,
 `copywriting.body_shouting`).
+
+---
+
+## 14. DMARC reports: a source that proved its own identity
+
+`scripts/dmarc.py`, not the audit. `engine/dmarc/classifier.py` labels each report
+row, `engine/dmarc/summary.py` groups the rows into senders, and
+`engine/dmarc/policy_engine.py` names the next step.
+
+A row failed DMARC, the source is not on the curated list, and DKIM or SPF passed
+on another domain. That is how a tool the user signed up for looks when it was set
+up without their domain. It is also how a forwarder looks, and an impostor who
+registered a throwaway domain. The row cannot say which.
+
+```
+row: DMARC failed, source not curated
+  ├── nothing passed on another domain
+  │     → spoofing_delivered / spoofing_blocked. Does not block: advancing stops it.
+  └── DKIM or SPF passed on another domain (DKIM is read first)
+        → unconfirmed_sender, grouped by that registrable domain, any disposition
+              ├── --not-mine names it       → spoofing_*. Does not block.
+              ├── under 20% of batch volume → unconfirmed_low_volume. Does not block.
+              │                               The ADVANCE detail names it.
+              └── 20% or more               → legitimacy "unconfirmed". CONFIRM_SENDER.
+```
+
+**The share.** `MATERIAL_SENDER_SHARE` reuses `DOMAIN_WIDE_BLEED_SHARE`, 0.2 of the
+batch. Most small rows of this shape are forwards, and a report holds many, so
+blocking on each one would hold every domain off the ladder.
+
+**Why the summary decides.** The classifier sees one row, and only the batch knows
+the volume. The sender is keyed by the domain it proved, so a provider on 50
+addresses is judged as one sender, and a clean row from a shared address never
+merges with it and clears it.
+
+**What `CONFIRM_SENDER` never does.** It offers no record, and it does not call the
+source legitimate. A rollback would hand a weaker record to anyone with a throwaway
+domain, so this source stays out of the `ROLLBACK` and `FIX_SENDER` branches even
+while receivers filter it. Its tier goes from `review` to `action` in that case.
+`spf_findings` skips it, because those findings call it your provider.
+
+**The exit.** If the source is the user's, aligned DKIM clears it in new reports. If
+it is not, `--not-mine` clears it. Nothing else does, and a matching live SPF
+include does not, because an include authorises shared servers and never makes
+another domain align. Without this exit a spoofer could hold a domain off
+enforcement for as long as it kept sending.

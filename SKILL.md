@@ -59,6 +59,9 @@ python3 scripts/dmarc.py ~/Downloads/*.xml.gz --pretty
 
 # Say which domain when one batch covers more than one.
 python3 scripts/dmarc.py ~/Downloads/*.xml.gz --domain example.com
+
+# Answer a CONFIRM_SENDER question: this source is not the user's. Repeat per domain.
+python3 scripts/dmarc.py ~/Downloads/*.xml.gz --not-mine example.net
 ```
 
 `dmarc.py` stores nothing either. You pass the reports you have, it reads every
@@ -73,6 +76,19 @@ and never how long they span, because a user can download one report today and
 the next six months from now. A report shows only what sent while it was being
 written, so anything absent from it is what breaks when the policy tightens,
 and you are the one who knows what that is.
+
+**A `next_step` of `CONFIRM_SENDER` is a question for the user. Never answer it
+yourself.** A source passed DKIM or SPF on its own domain, aligned with nothing,
+and carries at least 20 percent of the volume. That is how a tool the user signed
+up for looks, and also how an impostor with its own domain looks, and the reports
+cannot tell them apart. There is no record to publish yet. Ask who uses the domain
+in the sender's `authenticated_as` field. If it is theirs, they turn on DKIM
+signing with their own domain in that tool, and new reports clear it. If it is
+not, run again with `--not-mine <domain>`, on every run, because nothing is
+stored. `not_mine` in the output lists the domains that applied. A smaller source
+of this kind has the classification `unconfirmed_low_volume`. It does not block,
+and the `ADVANCE` detail names it, so read that list to the user before they
+publish.
 
 Both commands print JSON on stdout and progress on stderr, so stdout always
 parses. Exit code is 0 on success and 1 when there is nothing to work with.
