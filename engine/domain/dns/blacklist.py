@@ -13,9 +13,10 @@ Sender IP is pulled from the `Received:` chain — the public IP that
 hit the receiving MTA. If we can't determine it (ARC-rewritten chain,
 weirdly forwarded mail), all RBL findings skip.
 
-Severity tiering — only the three industry-recognized lists trigger
+Severity tiering — only the four industry-recognized lists trigger
 HIGH. UCEPROTECT L2/L3 list whole /24s and ASNs (one bad neighbour
-taints everyone) → LOW. Other smaller lists → MEDIUM. This calibrates
+taints everyone) → LOW, with the small or noisy lists in Tier 3 below.
+The rest → MEDIUM. This calibrates
 the score so a single noisy-RBL hit on a shared ESP IP doesn't swing
 the verdict the way a real Spamhaus listing does.
 
@@ -23,8 +24,6 @@ The Finding's wording explicitly tells the reader the listing is on
 their email service provider's outbound IP (Brevo, Mailchimp, Klaviyo,
 etc.) — not their domain — and the action is to forward the listing
 to ESP support. The marketer can't unlist the IP themselves.
-
-v1 cut: 9 lists. Full ~70-list parity is BACKLOG.
 """
 
 from __future__ import annotations
@@ -198,8 +197,9 @@ _RBLS = [
 #   .252 — typo'd / nonexistent zone
 #   .254 — query came from a public/open resolver (Spamhaus, Barracuda)
 #   .255 — rate-limited / blocked
-# `127.0.0.1` is URIBL/SURBL "Query Refused" sentinel (also Hostkarma's
-# whitelist code, which we don't query). Filtered for safety.
+# `127.0.0.1` is URIBL/SURBL "Query Refused" sentinel. It is also Hostkarma's
+# whitelist code, and that answer reads here as a refused lookup. Filtered for
+# safety.
 _RBL_SENTINELS = frozenset(
     {
         "127.255.255.252",

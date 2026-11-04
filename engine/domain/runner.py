@@ -90,7 +90,7 @@ def _demote_to_info(findings: list[Finding], operator: str) -> list[Finding]:
                 message=(
                     f"[managed by {operator}] {f.message} "
                     f"This is your mail-operator's infrastructure, not your "
-                    f"domain: there is nothing to fix here."
+                    f"domain: there is nothing to fix here on your side."
                 ),
                 source="domain_config",
             )

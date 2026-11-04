@@ -245,8 +245,9 @@ async def _audit_mx_host(mx_host: str) -> list[Finding]:
                 severity=Severity.CRITICAL,
                 passed=False,
                 message=(
-                    f"{mx_host} accepted off-domain RCPT TO; appears to be an open "
-                    "relay. Major reputation hit."
+                    f"Your mail server {mx_host} appears to accept mail for any domain, "
+                    "from anyone. Spammers can send through a server like this, and that "
+                    "damages your reputation. Ask your email host to block this today."
                 ),
             )
         )

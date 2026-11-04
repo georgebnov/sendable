@@ -130,6 +130,20 @@ def test_demotion_turns_a_failure_into_info_and_names_the_operator() -> None:
     assert out[0].source == "domain_config"
 
 
+def test_demotion_does_not_deny_the_step_the_finding_gives() -> None:
+    # An open relay finding ends "Ask your email host to block this today." The
+    # demotion text followed that with a flat "nothing to fix here", so the same
+    # message told the sender to act and not to act. The operator is the email host.
+    failing = Finding(
+        check="smtp.open_relay",
+        severity=Severity.CRITICAL,
+        passed=False,
+        message="Ask your email host to block this today.",
+    )
+    out = _demote_to_info([failing], "Google Workspace")
+    assert out[0].message.endswith("there is nothing to fix here on your side.")
+
+
 def test_demotion_leaves_a_passing_finding_exactly_as_it_was() -> None:
     passing = Finding(
         check="smtp.open_relay",
