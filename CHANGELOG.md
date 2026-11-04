@@ -83,6 +83,16 @@ service, no account, no database.
 
 ### Fixed
 
+- The open relay finding now says what the problem is and what to do. It used
+  to name a mail protocol command and stop at "Major reputation hit". It now
+  tells you that your mail server appears to accept mail for any domain, from
+  anyone, and to ask your email host to block this today. The check, its
+  severity and what triggers it did not change.
+
+- `references/CHECKS.md` said the audit queries 24 IP blocklists. It queries 31.
+  The file now states 31 and names each list with its severity, and a test fails
+  if the docs and the code disagree again.
+
 - The DMARC advice offers relief that is genuinely weaker than the record you
   publish. A domain at `p=quarantine; pct=10`, a normal first enforcement step,
   was told "You're already at the lowest enforcement, so the only fix is to

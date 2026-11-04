@@ -42,6 +42,7 @@ _FORMULA = re.compile(
     r"max\(|min\(|/\s*\d{2,}|\bcap \d|\bbudget \d|\(>\d|>\d+ absolute|<= ?\d|\babs\("
 )
 _DASHES = (chr(0x2014), chr(0x2013))  # em dash, en dash
+_RCPT_TO = re.compile(r"RCPT\s+TO", re.IGNORECASE)
 
 # A whole Python container repr, not a stray bracket. A message can quote a line
 # of the sender's own body, and that line may itself hold a bracket next to a
@@ -228,6 +229,45 @@ def test_no_message_uses_a_dash() -> None:
         if any(d in text for d in _DASHES)
     ]
     assert not bad, "a message uses an em or en dash:\n  " + "\n  ".join(bad)
+
+
+def _string_literals(tree: ast.Module) -> list[tuple[int, str]]:
+    """Every string in a module except docstrings, as (line, text).
+
+    This reads more than `_messages`, because a message held in a variable or
+    in a `details` field reaches a reader too. Comments are not in the tree.
+    """
+    docstrings: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            first = node.body[0] if node.body else None
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant):
+                docstrings.add(id(first.value))
+    return [
+        (node.lineno, node.value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and id(node) not in docstrings
+    ]
+
+
+def test_no_string_names_the_rcpt_to_command() -> None:
+    """Rule 12. A sender reads a finding and has never met an SMTP command."""
+    bad = [
+        f"{p.relative_to(ENGINE.parent)}:{line}  {text[:70]}"
+        for p in sorted(ENGINE.rglob("*.py"))
+        for line, text in _string_literals(ast.parse(p.read_text()))
+        if _RCPT_TO.search(text)
+    ]
+    assert not bad, (
+        "a string names the RCPT TO command:\n  "
+        + "\n  ".join(bad)
+        + (
+            "\n\nSay what the mail server did in words a sender knows, for example "
+            '"accepts mail for any domain". A docstring or a comment may keep the term.'
+        )
+    )
 
 
 @pytest.mark.parametrize("fixture", ["clean_bulk.eml", "broken_bulk.eml"])

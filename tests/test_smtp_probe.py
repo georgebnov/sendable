@@ -11,12 +11,14 @@ refuse to connect when there is nothing legitimate to connect to.
 from __future__ import annotations
 
 import asyncio
+import smtplib
 
 import pytest
 
 from engine.domain import dns_client
 from engine.domain.dns import smtp_probe
 from engine.report import Finding
+from engine.severity import Severity
 
 
 @pytest.fixture
@@ -45,8 +47,6 @@ def no_smtp(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
         def __exit__(self, *exc: object) -> None:  # pragma: no cover
             return None
-
-    import smtplib
 
     monkeypatch.setattr(smtplib, "SMTP", _Refused)
     return attempted
@@ -187,6 +187,40 @@ def test_a_refused_connection_is_reported_as_inconclusive(no_smtp: list[str]) ->
     relay = _by(findings, "smtp.open_relay")
     assert relay is not None
     assert "inconclusive" in relay.message.lower()
+
+
+def test_an_open_relay_tells_the_sender_what_it_means_and_what_to_do(
+    no_smtp: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Rules 9 and 12. The old text named a protocol command and gave no next step,
+    # on the only CRITICAL finding that a sender must take to someone else.
+    class _AcceptsEverything:
+        def __init__(self, host: str, port: int, timeout: float) -> None:
+            pass
+
+        def __enter__(self) -> _AcceptsEverything:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def ehlo(self) -> tuple[int, bytes]:
+            return 250, b"ok"
+
+        def docmd(self, cmd: str, args: str = "") -> tuple[int, bytes]:
+            return 250, b"ok"
+
+    monkeypatch.setattr(smtplib, "SMTP", _AcceptsEverything)
+    findings = _run({("MX", "example.com"): ("10 mail.example.com",)})
+    relay = _by(findings, "smtp.open_relay")
+    assert relay is not None
+    assert relay.message == (
+        "Your mail server mail.example.com appears to accept mail for any domain, from "
+        "anyone. Spammers can send through a server like this, and that damages your "
+        "reputation. Ask your email host to block this today."
+    )
+    assert relay.severity is Severity.CRITICAL
+    assert relay.passed is False
 
 
 def test_a_dns_failure_does_not_raise(no_smtp: list[str]) -> None:

@@ -13,7 +13,7 @@ Sender IP is pulled from the `Received:` chain — the public IP that
 hit the receiving MTA. If we can't determine it (ARC-rewritten chain,
 weirdly forwarded mail), all RBL findings skip.
 
-Severity tiering — only the three industry-recognized lists trigger
+Severity tiering — only the four industry-recognized lists trigger
 HIGH. UCEPROTECT L2/L3 list whole /24s and ASNs (one bad neighbour
 taints everyone) → LOW. Other smaller lists → MEDIUM. This calibrates
 the score so a single noisy-RBL hit on a shared ESP IP doesn't swing
@@ -23,8 +23,6 @@ The Finding's wording explicitly tells the reader the listing is on
 their email service provider's outbound IP (Brevo, Mailchimp, Klaviyo,
 etc.) — not their domain — and the action is to forward the listing
 to ESP support. The marketer can't unlist the IP themselves.
-
-v1 cut: 9 lists. Full ~70-list parity is BACKLOG.
 """
 
 from __future__ import annotations

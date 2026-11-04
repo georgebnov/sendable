@@ -11,10 +11,18 @@ blocklists, which is 39 outbound lookups per audit.
 
 from __future__ import annotations
 
+import pathlib
+import re
+
 from engine.domain.dns import blacklist, sender_dbl, sending_ip_dns, url_reputation
 from engine.parse import parse_eml
 from engine.report import Finding
 from tests.conftest import FakeDns
+
+ROOT = pathlib.Path(__file__).parent.parent
+_DOCS_WITH_THE_COUNT = ("README.md", "SECURITY.md", "SKILL.md", "references/CHECKS.md")
+_IP_LIST_COUNT = re.compile(r"\b(\d+) IP (?:RBL lists|blocklists)\b")
+_ROW = re.compile(r"\| `([^`]+)` \| `([^`]+)` \| (HIGH|MEDIUM|LOW) \|")
 
 
 def _failing(findings: list[Finding]) -> list[Finding]:
@@ -172,3 +180,40 @@ async def test_every_lookup_timing_out_does_not_raise(dns: FakeDns) -> None:
         dns.fail(f"34.216.184.93.{host}", "A", "timeout")
     assert await blacklist.run(headers)
     assert await sender_dbl.run("example.com")
+
+
+# ── the docs state the list the code really queries ───────────────────
+
+
+def _doc_lines(name: str) -> list[str]:
+    return (ROOT / name).read_text().splitlines()
+
+
+def test_each_doc_states_the_real_ip_blocklist_count() -> None:
+    # CHECKS.md said 24 and the docstring said 9 while the code queried 31. A
+    # number in a doc drifts unless something reads it.
+    stated = [
+        (f"{name}:{number}", int(match.group(1)))
+        for name in _DOCS_WITH_THE_COUNT
+        for number, line in enumerate(_doc_lines(name), start=1)
+        for match in _IP_LIST_COUNT.finditer(line)
+    ]
+    assert {place.split(":")[0] for place, _ in stated} == set(_DOCS_WITH_THE_COUNT), (
+        f"the scan found no count in a doc, so it reads nothing there: {stated}"
+    )
+    wrong = [f"{place} says {count}" for place, count in stated if count != len(blacklist._RBLS)]
+    assert not wrong, (
+        f"_RBLS in engine/domain/dns/blacklist.py has {len(blacklist._RBLS)} entries, but "
+        + ", ".join(wrong)
+        + ". Change the doc to the real count."
+    )
+
+
+def test_checks_md_lists_each_ip_blocklist_with_its_tier() -> None:
+    rows = [_ROW.fullmatch(line) for line in _doc_lines("references/CHECKS.md")]
+    listed = [row.groups() for row in rows if row]
+    expected = [(label, host, sev.name) for label, host, sev, _ in blacklist._RBLS]
+    assert listed == expected, (
+        "the list table in references/CHECKS.md differs from _RBLS in "
+        "engine/domain/dns/blacklist.py. Write one row for each entry, in the same order."
+    )

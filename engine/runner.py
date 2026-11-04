@@ -7,7 +7,7 @@ look — the recipient already classified the send as spam.
 
 `domain_health=True` (default) runs the mxtoolbox-style sender-domain
 audit phase: SPF/DMARC/DKIM record syntax, MTA-STS/TLSRPT/BIMI presence,
-top-10 RBL fan-out, and a live SMTP probe of the sender's MX. Each check
+the IP RBL fan-out, and a live SMTP probe of the sender's MX. Each check
 is best-effort (timeouts caught, surfaced as INFO findings) so the audit
 never fails on transient network issues. Tests pass `domain_health=False`
 to keep the smoke suite hermetic.

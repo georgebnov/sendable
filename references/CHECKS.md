@@ -299,12 +299,48 @@ Sections: Domain Health → Email Auth → Headers → Bulk Compliance → Body 
 - BAD: No public sender IP (ARC-rewritten / forwarded).
 - Severity: INFO
 
-### blacklist.{label} (24 IP RBL lists)
+### blacklist.{label} (31 IP RBL lists)
 - Validates: Sender IP not listed on RBL (Spamhaus ZEN, Spamcop, Barracuda, CBL, UCEPROTECT L1/L2/L3, Mailspike, PSBL, etc.).
 - GOOD: NXDOMAIN (not listed).
 - MEDIUM: n/a
 - BAD: Non-sentinel A record (IP listed).
 - Severity: HIGH / MEDIUM / LOW (per list tier)
+
+The lists, with the severity of a listing on each:
+
+| Label | Host | Severity |
+| --- | --- | --- |
+| `spamhaus_zen` | `zen.spamhaus.org` | HIGH |
+| `spamcop` | `bl.spamcop.net` | HIGH |
+| `barracuda` | `b.barracudacentral.org` | HIGH |
+| `abuseat_cbl` | `cbl.abuseat.org` | HIGH |
+| `uceprotect_l1` | `dnsbl-1.uceprotect.net` | MEDIUM |
+| `mailspike_bl` | `bl.mailspike.net` | MEDIUM |
+| `mailspike_z` | `z.mailspike.net` | MEDIUM |
+| `psbl` | `psbl.surriel.com` | MEDIUM |
+| `truncate_gbudb` | `truncate.gbudb.net` | MEDIUM |
+| `ivmsip` | `dnsbl.ivmsip.org` | MEDIUM |
+| `backscatterer` | `ips.backscatterer.org` | MEDIUM |
+| `dronebl` | `dnsbl.dronebl.org` | MEDIUM |
+| `blocklistde` | `bl.blocklist.de` | MEDIUM |
+| `0spam` | `bl.0spam.org` | MEDIUM |
+| `kempt_bl` | `spamrbl.imp.ch` | MEDIUM |
+| `sem_black` | `bl.spameatingmonkey.net` | MEDIUM |
+| `nordspam_bl` | `bl.nordspam.com` | MEDIUM |
+| `rats_dyna` | `dyna.spamrats.com` | MEDIUM |
+| `rats_noptr` | `noptr.spamrats.com` | MEDIUM |
+| `rats_spam` | `spam.spamrats.com` | MEDIUM |
+| `anonmails_dnsbl` | `spam.dnsbl.anonmails.de` | MEDIUM |
+| `hostkarma_black` | `hostkarma.junkemailfilter.com` | MEDIUM |
+| `uceprotect_l2` | `dnsbl-2.uceprotect.net` | LOW |
+| `uceprotect_l3` | `dnsbl-3.uceprotect.net` | LOW |
+| `woodys` | `blacklist.woody.ch` | LOW |
+| `dan_torexit` | `torexit.dan.me.uk` | LOW |
+| `schulte` | `rbl.schulte.org` | LOW |
+| `triumf` | `rbl2.triumf.ca` | LOW |
+| `interserver` | `rbl.interserver.net` | LOW |
+| `calivent` | `dnsbl.calivent.com.pe` | LOW |
+| `netherrelays` | `relays.nether.net` | LOW |
 
 ### sender_dbl.{label} (8 domain DBLs)
 - Validates: From-domain apex not on Spamhaus DBL, SURBL, URIBL, ivmURI, Nordspam DBL, SEM FRESH/URI/URIRED.
@@ -835,7 +871,7 @@ Sections: Domain Health → Email Auth → Headers → Bulk Compliance → Body 
 
 This file is not exhaustive, and it does not claim to be. It holds 101 entries.
 The audit emits more ids than that, because several checks fan out: one entry
-covers 24 IP blocklists, another covers 8 domain blocklists, and a third runs 8
+covers 31 IP blocklists, another covers 8 domain blocklists, and a third runs 8
 blocklists against every link in the message. A check with no entry here still
 runs and still reports. Read its thresholds from its own module until it has one.
 
