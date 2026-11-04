@@ -301,8 +301,18 @@ Say these plainly rather than implying a guarantee.
 
   To check the rest, send it to `+check` and grade the copy that arrives.
 - **Blocklist checks need a useful vantage point.** The blocklist operators
-  rate-limit or refuse queries from residential addresses, so results from a home
-  connection can be wrong. `--offline` skips them.
+  rate-limit or refuse queries from residential addresses, and some networks
+  filter the answers. So each audit first asks every list about its own test
+  entry, which must read as listed. A list that fails gives no clean result. It
+  goes into `blacklist.unverified`, `sender_dbl.unverified`, or
+  `url_reputation.unverified`, with the names in `details.lists` and each answer
+  in `details.unchecked`. Those lists were not checked: do not tell the user they
+  are clean, and offer a run from another network. A list that stays there from
+  several networks may no longer offer a working public check. Some lists fail
+  from every network tried so far, so expect these findings on most audits. They
+  carry no penalty, so a good score says nothing about those lists. A passed test
+  also does not prove each lookup after it, because a cached test answer can pass
+  while a new lookup is refused. `--offline` skips these checks.
 - **An offline audit does not grade the domain.** With `--offline`, the
   `domain_records` and `infrastructure` sub-scores were **skipped, not passed**,
   and each one shows 100 because nothing ran. The overall score counts them as

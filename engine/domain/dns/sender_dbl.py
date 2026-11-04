@@ -15,6 +15,9 @@ Why a separate module instead of folding into `url_reputation.py`:
  - keeping the modules orthogonal lets the domain-health phase report
    "sender clean / body links clean" as two independent rows.
 
+A list that gave no usable answer is not clean: it goes into
+`sender_dbl.unverified`, and the clean summary stays away.
+
 Doc tier: §6 (Reputation of sender domain).
 """
 
@@ -24,27 +27,19 @@ import asyncio
 
 from ...report import Finding
 from ...severity import Severity
-from ..dns_client import query
-from .url_reputation import _DBL_SENTINELS, _DBLS
+from ..dns_client import DnsAnswer, query
+from .list_reading import Reading, not_checked, read_answer, unverified_finding
+from .url_reputation import _DBLS, working_lists
 
 
-async def _check_one(
+def _listed_finding(
     domain: str,
     label: str,
     dbl_host: str,
     blurb: str,
-) -> Finding | None:
-    qname = f"{domain}.{dbl_host}"
-    ans = await query(qname, "A")
-    if ans.error == "nxdomain":
-        return None
-    if ans.ok and not ans.records:
-        return None
-    if not ans.ok:
-        return None
-    real = [r for r in ans.records if r not in _DBL_SENTINELS]
-    if not real:
-        return None
+    ans: DnsAnswer,
+    test_passed: bool,
+) -> Finding:
     # Sender-apex listings are catastrophic — every receiver will junk or
     # bounce. Force CRITICAL regardless of how url_reputation rated this
     # DBL for body-link context.
@@ -63,6 +58,7 @@ async def _check_one(
             "domain": domain,
             "dbl": dbl_host,
             "response": list(ans.records),
+            "test_passed": test_passed,
             "blurb": blurb,
         },
         source="domain_config",
@@ -71,22 +67,46 @@ async def _check_one(
 
 
 async def run(domain: str) -> list[Finding]:
-    tasks = [_check_one(domain, label, host, blurb) for (label, host, _sev, blurb) in _DBLS]
-    results = await asyncio.gather(*tasks)
-    hits = [f for f in results if f is not None]
+    working, answers = await asyncio.gather(
+        working_lists(),
+        asyncio.gather(*[query(f"{domain}.{host}", "A") for _, host, _, _ in _DBLS]),
+    )
+
+    hits: list[Finding] = []
+    unchecked: list[dict[str, str]] = []
+    for (label, host, _sev, blurb), ans in zip(_DBLS, answers, strict=True):
+        test_passed = host in working
+        reading = read_answer(ans, test_passed=test_passed)
+        if reading is Reading.LISTED:
+            hits.append(_listed_finding(domain, label, host, blurb, ans, test_passed))
+        elif reading is Reading.UNKNOWN:
+            unchecked.append(not_checked(host, domain, ans))
 
     findings: list[Finding] = [
         Finding(
             check="sender_dbl.scanned",
             severity=Severity.INFO,
             passed=True,
-            message=f"Scanned sender apex '{domain}' against {len(_DBLS)} URL blacklist(s).",
+            message=(
+                f"Scanned sender apex '{domain}' against {len(_DBLS) - len(unchecked)} of "
+                f"{len(_DBLS)} URL blacklist(s)."
+            ),
             details={"domain": domain, "dbls": [h for _, h, _, _ in _DBLS]},
             source="domain_config",
         )
     ]
     findings.extend(hits)
-    if not hits:
+    if unchecked:
+        findings.append(
+            unverified_finding(
+                "sender_dbl.unverified",
+                unchecked,
+                len(_DBLS),
+                "your sending domain",
+                source="domain_config",
+            )
+        )
+    elif not hits:
         findings.append(
             Finding(
                 check="sender_dbl.no_listings",

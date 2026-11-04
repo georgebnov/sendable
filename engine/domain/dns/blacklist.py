@@ -1,13 +1,13 @@
 """IP RBL fan-out keyed on the sender's outbound public IP.
 
-Standard RBL query: `<reversed-octets>.<rbl-host>` resolved as A. Any
-non-sentinel answer = listed. NXDOMAIN = not listed.
+Standard RBL query: `<reversed-octets>.<rbl-host>` resolved as A. Each list
+also gets its test address in the same audit, and `list_reading.py` reads the
+pair: an answer in the listing range = listed, NXDOMAIN after a passed test =
+not listed, and anything else = not checked. All the lists that were not checked
+share 1 finding, `blacklist.unverified`.
 
-The sentinel `127.255.255.255` is treated as no-data: several RBLs use
-it for unauthenticated / lookup-failure cases. Notably
-`bl.score.senderscore.com` requires API auth — it's dropped from the
-list because public queries always return that sentinel and produced
-false-positive HIGH findings.
+`bl.score.senderscore.com` requires API auth. It's dropped from the list because
+public queries always return a refusal and produced false-positive HIGH findings.
 
 Sender IP is pulled from the `Received:` chain — the public IP that
 hit the receiving MTA. If we can't determine it (ARC-rewritten chain,
@@ -33,7 +33,14 @@ import re
 
 from ...report import Finding
 from ...severity import Severity
-from ..dns_client import query
+from ..dns_client import DnsAnswer, query
+from .list_reading import (
+    Reading,
+    has_listing_code,
+    not_checked,
+    read_answer,
+    unverified_finding,
+)
 
 # (label, rbl_host, severity_when_listed, human_blurb). Curated from the
 # heximcz/mxtoolbox-blacklists list, pruned to lists that are still alive
@@ -189,36 +196,10 @@ _RBLS = [
     ("netherrelays", "relays.nether.net", Severity.LOW, "Nether Relays: open-relay tracking."),
 ]
 
-# Administrative-error sentinels — NOT real listings. Doc §1 (Spamhaus/
-# RFC 5782 prep): 127.255.255.x means the RBL refused our query for an
-# administrative reason, not that the IP is bad. Reading any of these
-# as "listed" is the #1 false-positive bug in homegrown checkers running
-# against public resolvers (8.8.8.8, 1.1.1.1).
-#   .252 — typo'd / nonexistent zone
-#   .254 — query came from a public/open resolver (Spamhaus, Barracuda)
-#   .255 — rate-limited / blocked
-# `127.0.0.1` is URIBL/SURBL "Query Refused" sentinel. It is also Hostkarma's
-# whitelist code, and that answer reads here as a refused lookup. Filtered for
-# safety.
-_RBL_SENTINELS = frozenset(
-    {
-        "127.255.255.252",
-        "127.255.255.254",
-        "127.255.255.255",
-        "127.0.0.1",
-    }
-)
-
-# Per RFC 5782, NXDOMAIN definitively = clean. Anything else (timeout,
-# SERVFAIL, no-nameservers) is *unknown* — surface as inconclusive
-# rather than wrongly clean.
-_INCONCLUSIVE_DNS_ERRORS = frozenset(
-    {
-        "timeout",
-        "no_nameservers",
-        "no_answer",
-    }
-)
+# The test answer of each list is a listing code, with 1 exception: DroneBL
+# answers its test address with 127.0.0.1, which reads as a refusal everywhere
+# else. It counts for this test only, and never as a listing of a sender.
+_LOOPBACK_TEST_ANSWER_LIST = "dnsbl.dronebl.org"
 
 _IPV4_RX = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _RECEIVED_FROM_RX = re.compile(
@@ -266,6 +247,12 @@ def extract_sender_ip(headers: dict[str, list[str]]) -> str | None:
     return None
 
 
+def _test_passed(rbl_host: str, test: DnsAnswer) -> bool:
+    if has_listing_code(test):
+        return True
+    return rbl_host == _LOOPBACK_TEST_ANSWER_LIST and "127.0.0.1" in test.records
+
+
 async def _check_one(
     label: str,
     rbl_host: str,
@@ -273,14 +260,16 @@ async def _check_one(
     blurb: str,
     reversed_ip: str,
     sender_ip: str,
-) -> Finding:
-    qname = f"{reversed_ip}.{rbl_host}"
-    ans = await query(qname, "A")
-    real_records = [r for r in ans.records if r not in _RBL_SENTINELS] if ans.ok else []
-    sentinel_only = bool(ans.records) and not real_records
+) -> Finding | dict[str, str]:
+    """The finding for 1 list, or its `not_checked` row when it gave no usable answer."""
+    test, ans = await asyncio.gather(
+        query(f"2.0.0.127.{rbl_host}", "A"),
+        query(f"{reversed_ip}.{rbl_host}", "A"),
+    )
+    test_passed = _test_passed(rbl_host, test)
+    reading = read_answer(ans, test_passed=test_passed)
 
-    # Real listing — non-sentinel A record returned.
-    if real_records:
+    if reading is Reading.LISTED:
         return Finding(
             check=f"blacklist.{label}",
             severity=severity,
@@ -298,6 +287,7 @@ async def _check_one(
                 "rbl": rbl_host,
                 "sender_ip": sender_ip,
                 "response": list(ans.records),
+                "test_passed": test_passed,
                 "blurb": blurb,
                 "owned_by": "email service provider (ESP outbound IP)",
                 "marketer_action": "Forward this finding to your ESP support. They own the IP, not "
@@ -305,8 +295,7 @@ async def _check_one(
             },
         )
 
-    # Definitive clean — RFC 5782 says NXDOMAIN means not listed.
-    if ans.error == "nxdomain":
+    if reading is Reading.CLEAN:
         return Finding(
             check=f"blacklist.{label}",
             severity=Severity.INFO,
@@ -314,37 +303,7 @@ async def _check_one(
             message=f"Not listed on {label}.",
         )
 
-    # Sentinel-only response: RBL refused our query (open resolver,
-    # rate-limit, typo'd zone). Inconclusive — we don't know the IP's
-    # status. Surface so user can re-run from a proper resolver.
-    if sentinel_only:
-        return Finding(
-            check=f"blacklist.{label}",
-            severity=Severity.INFO,
-            passed=False,
-            message=(
-                f"{label}: lookup refused (sentinel response {ans.records[0]}). "
-                "RBL operator returned this because the query came from a "
-                "public resolver or hit a rate limit. Re-run from a private "
-                "recursive resolver (unbound on 127.0.0.1) for a real result."
-            ),
-            details={"rbl": rbl_host, "sentinel": list(ans.records)},
-        )
-
-    # Timeout / SERVFAIL / no_nameservers / no_answer — unknown, NOT clean.
-    # Per the doc, this is the second most-common false-positive trap.
-    return Finding(
-        check=f"blacklist.{label}",
-        severity=Severity.INFO,
-        passed=False,
-        message=(
-            f"{label}: lookup inconclusive ({ans.error}). The RBL did not "
-            "respond definitively: could be a transient outage on the "
-            "RBL operator's side, a network issue, or DNS misconfiguration. "
-            "Re-run shortly."
-        ),
-        details={"rbl": rbl_host, "dns_error": ans.error},
-    )
+    return not_checked(rbl_host, sender_ip, ans)
 
 
 async def run(headers: dict[str, list[str]]) -> list[Finding]:
@@ -355,25 +314,37 @@ async def run(headers: dict[str, list[str]]) -> list[Finding]:
                 check="blacklist.sender_ip_extraction",
                 severity=Severity.INFO,
                 passed=False,
-                message="No sender IP recoverable from Received chain; RBL checks skipped.",
+                message=(
+                    "This message shows no public IPv4 sending address, so the blocklist "
+                    "checks did not run. A draft has none: audit a copy of the message as "
+                    "it arrived. Mail sent over IPv6 cannot be checked here, because these "
+                    "lists are asked about IPv4 addresses only."
+                ),
             )
         ]
 
     reversed_ip = ".".join(reversed(sender_ip.split(".")))
-    findings = await asyncio.gather(
+    results = await asyncio.gather(
         *[
             _check_one(label, host, sev, blurb, reversed_ip, sender_ip)
             for label, host, sev, blurb in _RBLS
         ]
     )
-    findings.insert(
-        0,
+    findings = [
         Finding(
             check="blacklist.sender_ip_extraction",
             severity=Severity.INFO,
             passed=True,
-            message=f"Sender IP for RBL fan-out: {sender_ip}.",
+            message=f"Sending address for the blocklist checks: {sender_ip}.",
             details={"ip": sender_ip},
         ),
-    )
-    return list(findings)
+        *[result for result in results if isinstance(result, Finding)],
+    ]
+    unchecked = [result for result in results if not isinstance(result, Finding)]
+    if unchecked:
+        findings.append(
+            unverified_finding(
+                "blacklist.unverified", unchecked, len(_RBLS), "your sending address"
+            )
+        )
+    return findings
