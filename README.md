@@ -212,8 +212,12 @@ All free. Do the first three and you have covered most of what a sender needs.
   rather than passed, which the report states. To check those, send it and grade
   the copy that arrives.
 - **Blocklist checks need a useful vantage point.** The operators rate-limit or
-  refuse queries from residential addresses, so results from a home connection can
-  be wrong. `--offline` skips them.
+  refuse queries from residential addresses, and some networks filter the answers.
+  Each audit first asks every list about its own test entry. A list that fails
+  counts as not checked, never as clean, and the report names it and carries no
+  penalty for it. Some lists fail that test from every network we tried, so a few
+  always show as not checked. A passed test does not prove each lookup after it.
+  `--offline` skips these checks.
 - **A good score is not a promise of delivery.** It means what you control is in
   order. Engagement, list quality, and complaint rate decide placement too, and
   none of them are visible in one message.
