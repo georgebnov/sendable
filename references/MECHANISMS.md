@@ -409,9 +409,12 @@ List-Unsubscribe\s*=\s*One-Click
 
 **Decision:**
 ```
-List-Unsubscribe-Post header matches regex?
-├── yes → INFO / pass / "List-Unsubscribe-Post: List-Unsubscribe=One-Click present (RFC 8058)."
-└── no  → bulk? CRITICAL / fail, else INFO / fail
+List-Unsubscribe header present AND List-Unsubscribe-Post header matches regex?
+├── yes → INFO / pass
+└── no  → bulk? CRITICAL / fail, else INFO / pass (not applicable)
+          The bulk message depends on the List-Unsubscribe header:
+          present → the link is set up, but the one-click form is missing.
+          absent  → there is no one-click unsubscribe and no unsubscribe button.
 ```
 
 ### 7.4 `content.unsubscribe_link_body`
