@@ -118,6 +118,31 @@ CHECKS = [
 SPAM_SCORE_CAP = 50
 
 
+def _offline_advisory() -> Finding:
+    """Say which sub-scores an offline run did not verify.
+
+    A category with no findings scores 100, so a category that never ran looks the
+    same as one that passed. The numbers stay, as they do in draft mode, and this
+    finding names the ones that are not a verified result.
+    """
+    return Finding(
+        check="sender.offline_mode",
+        # INFO carries no score penalty. The advisory explains the report, it is
+        # not a defect in the email.
+        severity=Severity.INFO,
+        passed=True,
+        message=(
+            "Graded offline. The audit skipped every check that needs the network. "
+            "Those are your published domain records, the blocklists, and your mail "
+            "server. The domain records and infrastructure sub-scores show 100 "
+            "because those checks did not run, not because they passed. The overall "
+            "score counts them as clean too, so a full run can lower it. To check "
+            "them, run the audit again with network access."
+        ),
+        details={"unverified_sub_scores": ["domain_records", "infrastructure"]},
+    )
+
+
 async def audit(
     email: ParsedEmail,
     *,
@@ -212,6 +237,9 @@ async def audit(
         findings = calibrate_for_draft(findings)
     elif looks_like_draft(cleaned_email):
         findings.append(draft_hint())
+
+    if not domain_health:
+        findings.append(_offline_advisory())
 
     result = score_findings(findings, in_spam=in_spam)
     return Report(

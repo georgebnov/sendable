@@ -157,7 +157,9 @@ async def run(email: ParsedEmail) -> list[Finding]:
             )
         )
 
-    if lu_post and _ONE_CLICK_RX.search(lu_post[0]):
+    # The one-click marker tells a mail app to post to the List-Unsubscribe address,
+    # so it does nothing on its own. It takes both headers to leave in one click.
+    if lu and lu_post and _ONE_CLICK_RX.search(lu_post[0]):
         findings.append(
             Finding(
                 check="content.list_unsubscribe_post",
@@ -183,10 +185,16 @@ async def run(email: ParsedEmail) -> list[Finding]:
                 severity=Severity.CRITICAL,
                 passed=False,
                 message=(
-                    "Your unsubscribe link works, but a reader cannot leave in one "
+                    "Your unsubscribe link is set up, but a reader cannot leave in one "
                     "click. Gmail and Yahoo require the one-click form on bulk mail. "
                     "Your sending tool labels this List-Unsubscribe-Post, or simply "
                     "one-click unsubscribe."
+                    if lu
+                    else "This message has no one-click unsubscribe, and nothing a mail "
+                    "app can show as an unsubscribe button. Gmail and Yahoo require "
+                    "both on bulk mail. Turn on one-click unsubscribe in your sending "
+                    "tool. It sometimes appears as List-Unsubscribe and "
+                    "List-Unsubscribe-Post."
                 ),
                 details={"is_bulk": True, "raw": (lu_post[0] if lu_post else None)},
             )

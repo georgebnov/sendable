@@ -93,6 +93,18 @@ service, no account, no database.
 - An answer that is not a real blocklist code, such as the address of a parked
   domain, no longer reads as a listing. For the sending domain that false listing
   forced a NO_GO.
+- The one-click unsubscribe finding no longer says your unsubscribe link works on
+  mail that has none. It now says what the message has: an unsubscribe link with
+  no one-click form, or no one-click unsubscribe at all. The one-click marker
+  with no unsubscribe link no longer passes, because it does nothing alone.
+- The From name check now reads the whole closing of the message. A company that
+  signed with its name above its street address, or that added a P.S. after its
+  name, was told the From name was not in the sign-off. Initials still count only
+  in a personal closing, because ordinary footer words can match them.
+- An offline audit now says that it did not grade your domain. The domain records
+  and infrastructure sub-scores show 100 when those checks did not run, so the
+  report now names them as not verified, on the command line and in a new
+  `sender.offline_mode` finding. The scores did not change.
 - The open relay finding now says what the problem is and what to do. It used
   to name a mail protocol command and stop at "Major reputation hit". It now
   tells you that your mail server appears to accept mail for any domain, from
