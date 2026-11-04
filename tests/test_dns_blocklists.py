@@ -10,7 +10,7 @@ audit. Every list keeps a test name that must always read as listed. Spamhaus
 answers NXDOMAIN for that name through some public resolvers, so without the test a
 listed sender reads as clean. A failed test leaves the list not checked.
 
-These checks are why `--offline` exists: they query 31 IP blocklists and 8 URL
+These checks are why `--offline` exists: they query 22 IP blocklists and 6 URL
 blocklists, and the test name of each one.
 """
 
@@ -30,6 +30,7 @@ from tests.conftest import FakeDns
 ROOT = pathlib.Path(__file__).parent.parent
 _DOCS_WITH_THE_COUNT = ("README.md", "SECURITY.md", "SKILL.md", "references/CHECKS.md")
 _IP_LIST_COUNT = re.compile(r"\b(\d+)\s+IP\s+(?:RBL\s+lists|blocklists)\b")
+_URL_LIST_COUNT = re.compile(r"\b(\d+)\s+(?:URL\s+blocklists|domain\s+(?:DBLs|blocklists))\b")
 _ROW = re.compile(r"\| `([^`]+)` \| `([^`]+)` \| (HIGH|MEDIUM|LOW) \|")
 
 
@@ -243,7 +244,16 @@ async def test_no_usable_sender_answer_is_not_clean(dns: FakeDns, error: str) ->
         ("bl.mailspike.net", ("127.0.0.2", "127.0.0.10", "127.0.0.11", "127.0.0.13")),
         (
             "hostkarma.junkemailfilter.com",
-            ("127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5", "127.0.1.1"),
+            (
+                "127.0.0.1",
+                "127.0.0.2",
+                "127.0.0.3",
+                "127.0.0.4",
+                "127.0.0.5",
+                "127.0.1.1",
+                "127.0.1.2",
+                "127.0.1.3",
+            ),
         ),
     ],
 )
@@ -273,6 +283,89 @@ async def test_loopback_about_a_sender_is_not_a_listing_on_dronebl(dns: FakeDns)
     assert _one(findings, "blacklist.unverified").details["lists"] == ["dnsbl.dronebl.org"]
 
 
+# ── a list whose codes say more than "listed" ──────────────────────────────
+
+_HOSTKARMA = "hostkarma.junkemailfilter.com"
+
+
+@pytest.mark.parametrize(
+    "answers",
+    [
+        # What real senders got on 2026-11-04. Each one read as a listing.
+        ("127.0.0.5",),  # Gmail, 209.85.220.41: must not be blacklisted
+        ("127.0.0.3", "127.0.1.1"),  # Amazon SES, 54.240.27.11: mixed mail
+        ("127.0.0.1", "127.0.1.1"),  # Mailchimp, 205.201.128.1: trusted
+        # The other documented codes.
+        ("127.0.0.1",),  # white: this one read as not checked
+        ("127.0.0.3",),  # yellow
+        ("127.0.0.4",),  # brown: "not yet enough to blacklist"
+        ("127.0.1.2",),  # the sender does not use QUIT
+        ("127.0.1.3", "127.0.2.1"),  # mixed QUIT, a new domain
+    ],
+)
+async def test_a_hostkarma_code_that_is_not_black_is_clean(
+    dns: FakeDns, answers: tuple[str, ...]
+) -> None:
+    _pass_ip_tests(dns)
+    dns.set(f"{_REVERSED}.{_HOSTKARMA}", "A", *answers)
+    findings = await blacklist.run(_HEADERS)
+    assert _one(findings, "blacklist.hostkarma_black").passed
+    assert not [f for f in findings if f.check == "blacklist.unverified"]
+
+
+@pytest.mark.parametrize("answers", [("127.0.0.2",), ("127.0.0.2", "127.0.1.2")])
+async def test_the_hostkarma_black_code_is_a_listing(
+    dns: FakeDns, answers: tuple[str, ...]
+) -> None:
+    _pass_ip_tests(dns)
+    dns.set(f"{_REVERSED}.{_HOSTKARMA}", "A", *answers)
+    finding = _one(await blacklist.run(_HEADERS), "blacklist.hostkarma_black")
+    assert not finding.passed
+    assert finding.severity == "MEDIUM"
+
+
+async def test_the_hostkarma_test_needs_the_black_code(dns: FakeDns) -> None:
+    # Yellow and white are clean only after a test that proved the black code arrives.
+    _pass_ip_tests(dns)
+    dns.set(_ip_test_name(_HOSTKARMA), "A", "127.0.0.1", "127.0.0.3")
+    dns.set(f"{_REVERSED}.{_HOSTKARMA}", "A", "127.0.0.3")
+    findings = await blacklist.run(_HEADERS)
+    assert not [f for f in findings if f.check == "blacklist.hostkarma_black"]
+    assert _one(findings, "blacklist.unverified").details["lists"] == [_HOSTKARMA]
+
+
+@pytest.mark.parametrize(
+    "answers",
+    [
+        ("127.255.255.254",),  # a refusal is not a code of this list
+        ("198.51.100.7",),
+        ("127.0.0.3", "198.51.100.7"),  # 1 foreign record spoils the answer
+    ],
+)
+async def test_a_hostkarma_answer_with_a_foreign_record_is_not_checked(
+    dns: FakeDns, answers: tuple[str, ...]
+) -> None:
+    _pass_ip_tests(dns)
+    dns.set(f"{_REVERSED}.{_HOSTKARMA}", "A", *answers)
+    findings = await blacklist.run(_HEADERS)
+    assert not [f for f in findings if f.check == "blacklist.hostkarma_black"]
+    assert _one(findings, "blacklist.unverified").details["lists"] == [_HOSTKARMA]
+
+
+async def test_no_records_from_hostkarma_is_not_clean(dns: FakeDns) -> None:
+    _pass_ip_tests(dns)
+    dns.fail(f"{_REVERSED}.{_HOSTKARMA}", "A", "no_answer")
+    findings = await blacklist.run(_HEADERS)
+    assert _one(findings, "blacklist.unverified").details["lists"] == [_HOSTKARMA]
+
+
+async def test_the_hostkarma_codes_apply_to_hostkarma_alone(dns: FakeDns) -> None:
+    # Another list has no white or yellow code, so 127.0.1.1 stays a listing there.
+    _pass_ip_tests(dns)
+    dns.set(f"{_REVERSED}.bl.spamcop.net", "A", "127.0.1.1")
+    assert not _one(await blacklist.run(_HEADERS), "blacklist.spamcop").passed
+
+
 @pytest.mark.parametrize(
     "answer",
     [
@@ -292,14 +385,14 @@ async def test_an_answer_outside_the_listing_range_is_not_a_listing(
 
 
 async def test_a_failed_test_address_gives_one_plain_finding(dns: FakeDns) -> None:
-    # Nothing registered: all 31 test addresses fail, as on a filtering network.
+    # Nothing registered: all 22 test addresses fail, as on a filtering network.
     findings = await blacklist.run(_HEADERS)
-    assert len(_failing(findings)) == 1, "31 lists must not become 31 rows"
+    assert len(_failing(findings)) == 1, "22 lists must not become 22 rows"
     finding = _one(findings, "blacklist.unverified")
     assert finding.severity == "INFO"
     assert len(finding.details["lists"]) == len(blacklist._RBLS)
     message = finding.message
-    assert "31 of 31" in message
+    assert "22 of 22" in message
     assert "not as clean" in message
     # Rule 9: it says what to do next. Rule 12: in words a marketer uses.
     assert "another network" in message
@@ -444,7 +537,7 @@ async def test_the_scanned_row_counts_only_the_lists_that_answered(dns: FakeDns)
     dns.fail("one.test.dbl.spamhaus.org", "A", "timeout")
     dns.fail("two.test.dbl.spamhaus.org", "A", "timeout")
     scanned = _one(await url_reputation.run(email, "example.com"), "url_reputation.scanned")
-    assert "7 of 8" in scanned.message
+    assert "5 of 6" in scanned.message
 
 
 # ── the sender domain on a domain blocklist ────────────────────────────────
@@ -498,7 +591,7 @@ async def test_a_parked_answer_does_not_hard_fail_the_sender_domain(dns: FakeDns
 async def test_the_sender_scanned_row_counts_only_the_lists_that_answered(dns: FakeDns) -> None:
     # Nothing registered: no list passed its test, so no list checked the domain.
     scanned = _one(await sender_dbl.run("example.com"), "sender_dbl.scanned")
-    assert "0 of 8" in scanned.message
+    assert "0 of 6" in scanned.message
 
 
 # ── reverse DNS on the sending IP ──────────────────────────────────────────
@@ -562,6 +655,23 @@ def test_each_doc_states_the_real_ip_blocklist_count() -> None:
         f"_RBLS in engine/domain/dns/blacklist.py has {len(blacklist._RBLS)} entries, but "
         + ", ".join(wrong)
         + ". Change the doc to the real count."
+    )
+
+
+def test_each_doc_states_the_real_url_blocklist_count() -> None:
+    # The IP count had this test and the URL count did not. Both drift the same way.
+    stated = [
+        (name, int(match.group(1)))
+        for name in _DOCS_WITH_THE_COUNT
+        for match in _URL_LIST_COUNT.finditer((ROOT / name).read_text())
+    ]
+    assert {name for name, _ in stated} == set(_DOCS_WITH_THE_COUNT), (
+        f"the scan found no count in a doc, so it reads nothing there: {stated}"
+    )
+    wrong = [f"{name} says {count}" for name, count in stated if count != len(url_reputation._DBLS)]
+    assert not wrong, (
+        f"_DBLS in engine/domain/dns/url_reputation.py has {len(url_reputation._DBLS)} entries, "
+        "but " + ", ".join(wrong) + ". Change the doc to the real count."
     )
 
 

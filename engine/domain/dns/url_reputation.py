@@ -48,9 +48,10 @@ from .list_reading import (
 )
 
 # (label, dbl-host, severity_when_listed, blurb). mxtoolbox's "Domain
-# Blacklist" tier covers Spamhaus DBL + SURBL + ivmURI + Nordspam DBL +
-# SEM (FRESH/URI/URIRED) + URIBL multi.  SORBS RHSBL family removed
-# (decommissioned June 2024).
+# Blacklist" tier covers Spamhaus DBL + SURBL + Nordspam DBL + SEM
+# (URI/URIRED) + URIBL multi.  SORBS RHSBL family removed (decommissioned
+# June 2024). uri.ivmuri.org and fresh.spameatingmonkey.net removed: on
+# 2026-11-04 they gave no usable public answer to their test name.
 _DBLS = [
     # ─── Tier 1: industry-standard ────────────────────────────────────
     (
@@ -76,22 +77,10 @@ _DBLS = [
     ),
     # ─── Tier 2: medium ───────────────────────────────────────────────
     (
-        "ivm_uri",
-        "uri.ivmuri.org",
-        Severity.MEDIUM,
-        "Invaluement IPv4 URI: paid subscription list of abused URI domains.",
-    ),
-    (
         "nordspam_dbl",
         "dbl.nordspam.com",
         Severity.MEDIUM,
         "Nordspam DBL: Nordic anti-spam URL reputation.",
-    ),
-    (
-        "sem_fresh",
-        "fresh.spameatingmonkey.net",
-        Severity.MEDIUM,
-        "Spam Eating Monkey FRESH: recently-registered domains used in spam.",
     ),
     (
         "sem_uri",
@@ -149,7 +138,9 @@ async def working_lists() -> set[str]:
     answers = await asyncio.gather(
         *[query(_TEST_NAMES.get(host, f"test.{host}"), "A") for host in hosts]
     )
-    return {host for host, answer in zip(hosts, answers, strict=True) if has_listing_code(answer)}
+    return {
+        host for host, answer in zip(hosts, answers, strict=True) if has_listing_code(answer, host)
+    }
 
 
 def _body_domains(email: ParsedEmail, sender_domain: str | None) -> list[str]:
@@ -235,7 +226,7 @@ async def run(parsed: ParsedEmail, sender_domain: str | None) -> list[Finding]:
     unchecked: list[dict[str, str]] = []
     for (domain, (label, host, sev, blurb)), ans in zip(pairs, answers, strict=True):
         test_passed = host in working
-        reading = read_answer(ans, test_passed=test_passed)
+        reading = read_answer(ans, host, test_passed=test_passed)
         if reading is Reading.LISTED:
             hits.append(_listed_finding(domain, label, host, sev, blurb, ans, test_passed))
         elif reading is Reading.UNKNOWN:

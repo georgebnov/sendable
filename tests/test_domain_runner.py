@@ -161,7 +161,7 @@ def test_demotion_leaves_a_passing_finding_exactly_as_it_was() -> None:
 
 async def test_a_detected_esp_skips_the_ip_blocklist_scan(dns: FakeDns) -> None:
     # The Feedback-ID header is one of the high-confidence ESP signals. With it
-    # the runner must report why it skipped, not scan 31 blocklists against an
+    # the runner must report why it skipped, not scan 22 blocklists against an
     # address the sender does not own.
     email = _email(
         "Jane <jane@example.com>",

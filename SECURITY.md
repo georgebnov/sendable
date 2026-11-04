@@ -20,7 +20,7 @@ account behind it.
 Two things leave your machine, both only when you ask for them:
 
 **DNS and SMTP lookups.** An audit reads the sending domain's SPF, DKIM, DMARC,
-MTA-STS, TLSRPT, and BIMI records, queries 31 IP blocklists about the sending IP and 8 URL blocklists about the links, and
+MTA-STS, TLSRPT, and BIMI records, queries 22 IP blocklists about the sending IP and 6 URL blocklists about the links, and
 opens an SMTP connection to the domain's mail server. Those queries reveal the
 domain you are auditing to your resolver and to the blocklist operators.
 `--offline` skips all of it.

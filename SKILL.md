@@ -16,7 +16,7 @@ align, is the copy going to get filtered, does it carry a working unsubscribe.
 
 124 checks in five groups: 49 on the copy and structure of the message, 11 on
 authentication and alignment, 35 on the domain records (SPF, DKIM, DMARC,
-MTA-STS, TLSRPT, and BIMI), 15 on the sending infrastructure (31 IP blocklists, 8
+MTA-STS, TLSRPT, and BIMI), 15 on the sending infrastructure (22 IP blocklists, 6
 URL blocklists, and a live SMTP probe), and 14 on headers and hygiene.
 
 **Read your DMARC reports.** `scripts/dmarc.py` reads the aggregate reports that

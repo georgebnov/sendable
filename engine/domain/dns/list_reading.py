@@ -28,9 +28,14 @@ _LISTING_RANGE = IPv4Network("127.0.0.0/8")
 # The operators use this range to refuse a query: .252 is a wrong zone, .254 is a
 # public resolver, .255 is a rate limit.
 _REFUSAL_RANGE = IPv4Network("127.255.255.0/24")
-# The "query refused" answer of URIBL and SURBL. It is also the whitelist code of
-# Hostkarma, which reads here as a refused lookup.
+# The "query refused" answer of URIBL and SURBL.
 _REFUSAL = IPv4Address("127.0.0.1")
+# A list here answers about senders it does not list. Only these codes mean listed.
+# Every other code in the listing range is a usable "not listed", 127.0.0.1 too.
+# Hostkarma, http://wiki.junkemailfilter.com/index.php/Spam_DNS_Lists: 127.0.0.1
+# white, .2 black, .3 yellow, .4 brown ("not yet enough to blacklist"), .5 NOBL,
+# 127.0.1.x the use of QUIT, and 127.0.2.x the age of the sender.
+_LISTING_CODES = {"hostkarma.junkemailfilter.com": frozenset({"127.0.0.2"})}
 
 
 class Reading(Enum):
@@ -41,24 +46,40 @@ class Reading(Enum):
     UNKNOWN = "unknown"
 
 
-def is_listing_code(record: str) -> bool:
+def _in_listing_range(record: str) -> bool:
     try:
         address = IPv4Address(record)
     except ValueError:
         return False
-    return address in _LISTING_RANGE and address not in _REFUSAL_RANGE and address != _REFUSAL
+    return address in _LISTING_RANGE and address not in _REFUSAL_RANGE
 
 
-def has_listing_code(answer: DnsAnswer) -> bool:
-    return any(is_listing_code(record) for record in answer.records)
+def _is_listing_code(record: str, host: str) -> bool:
+    if host in _LISTING_CODES:
+        return record in _LISTING_CODES[host]
+    return _in_listing_range(record) and IPv4Address(record) != _REFUSAL
 
 
-def read_answer(answer: DnsAnswer, *, test_passed: bool) -> Reading:
-    """Read 1 answer. A listing stands without a passed test, because some lists
-    skip the test name and a listed answer is evidence on its own. Clean does not."""
-    if has_listing_code(answer):
+def has_listing_code(answer: DnsAnswer, host: str) -> bool:
+    return any(_is_listing_code(record, host) for record in answer.records)
+
+
+def _says_not_listed(answer: DnsAnswer, host: str) -> bool:
+    if answer.error == "nxdomain":
+        return True
+    return (
+        host in _LISTING_CODES
+        and bool(answer.records)
+        and all(map(_in_listing_range, answer.records))
+    )
+
+
+def read_answer(answer: DnsAnswer, host: str, *, test_passed: bool) -> Reading:
+    """Read 1 answer from 1 list. A listing stands without a passed test, because some
+    lists skip the test name and a listed answer is evidence on its own. Clean does not."""
+    if has_listing_code(answer, host):
         return Reading.LISTED
-    if answer.error == "nxdomain" and test_passed:
+    if test_passed and _says_not_listed(answer, host):
         return Reading.CLEAN
     return Reading.UNKNOWN
 
