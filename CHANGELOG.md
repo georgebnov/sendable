@@ -89,7 +89,8 @@ service, no account, no database.
   a spoof, a spoof never holds the policy back, and the advice said "Nothing is
   failing" and offered a quarantine record that would filter your real mail. A
   source like this at 20 percent of your volume or more, not counting spoofed
-  mail, now stops the ladder with a new next step, `CONFIRM_SENDER`, which asks you who it is and offers no
+  mail, now stops the ladder with a new next step, `CONFIRM_SENDER`, which asks
+  you who it is and offers no
   record. If it is yours, turn on DKIM signing with your own domain in that tool.
   If it is not, pass the new `--not-mine <domain>` flag. A smaller source does
   not block, and the advice names it so you can check it first. This changes the
@@ -98,6 +99,18 @@ service, no account, no database.
 - "Nothing is failing" now appears only when every sender in the reports aligns.
   It used to appear with spoofed mail or a recipient's relay in the same reports.
 
+- The one-click unsubscribe finding no longer says your unsubscribe link works on
+  mail that has none. It now says what the message has: an unsubscribe link with
+  no one-click form, or no one-click unsubscribe at all. The one-click marker
+  with no unsubscribe link no longer passes, because it does nothing alone.
+- The From name check now reads the whole closing of the message. A company that
+  signed with its name above its street address, or that added a P.S. after its
+  name, was told the From name was not in the sign-off. Initials still count only
+  in a personal closing, because ordinary footer words can match them.
+- An offline audit now says that it did not grade your domain. The domain records
+  and infrastructure sub-scores show 100 when those checks did not run, so the
+  report now names them as not verified, on the command line and in a new
+  `sender.offline_mode` finding. The scores did not change.
 - The open relay finding now says what the problem is and what to do. It used
   to name a mail protocol command and stop at "Major reputation hit". It now
   tells you that your mail server appears to accept mail for any domain, from

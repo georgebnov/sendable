@@ -556,8 +556,9 @@ The lists, with the severity of a listing on each:
 - Severity: CRITICAL / INFO
 
 ### content.list_unsubscribe_post
-- Validates: `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058).
-- GOOD: Present with token.
+- Validates: `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058), with
+  a `List-Unsubscribe` header for it to act on.
+- GOOD: Both headers present, with the token.
 - MEDIUM: n/a
 - BAD: Missing on bulk.
 - Severity: CRITICAL / INFO
@@ -910,6 +911,7 @@ uses, and it is what a report shows.
 - `copywriting.voice_consistency`
 - `dkim_record.third_party_signatures`
 - `sender.looks_like_draft`
+- `sender.offline_mode`
 - `sender_dbl.no_listings`
 - `sender_dbl.scanned`
 - `url_reputation.no_listings`
