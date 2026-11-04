@@ -134,6 +134,21 @@ async def test_a_closing_that_names_someone_else_still_fails() -> None:
     assert not finding.passed
 
 
+async def test_a_word_in_the_footer_is_not_the_senders_initials() -> None:
+    # "no" is the initials of Nora Olsen, and a word that most footers contain.
+    closing = (
+        b"Acme Ltd\r\n12 Harbour Road, Halifax\r\nIf you no longer want this, unsubscribe.\r\n"
+    )
+    finding = await _name_finding(_signed(b"Nora Olsen", _BODY + closing))
+    assert not finding.passed
+
+
+async def test_initials_still_sign_above_a_footer() -> None:
+    closing = b"Thanks,\r\n\r\nJD\r\n\r\nAcme Ltd\r\n12 Harbour Road, Halifax\r\n"
+    finding = await _name_finding(_signed(b"Jane Doe", _BODY + closing))
+    assert finding.details["match_kind"] == "initials"
+
+
 async def test_a_name_early_in_a_long_body_is_not_in_the_closing() -> None:
     plain = b"Jane Okafor wrote to us. " + b"Every jacket is half price. " * 20 + b"\r\n"
     finding = await _name_finding(_signed(b"Jane Okafor", plain))

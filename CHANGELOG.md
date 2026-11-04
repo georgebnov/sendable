@@ -89,7 +89,8 @@ service, no account, no database.
   with no unsubscribe link no longer passes, because it does nothing alone.
 - The From name check now reads the whole closing of the message. A company that
   signed with its name above its street address, or that added a P.S. after its
-  name, was told the From name was not in the sign-off.
+  name, was told the From name was not in the sign-off. Initials still count only
+  in a personal closing, because ordinary footer words can match them.
 - An offline audit now says that it did not grade your domain. The domain records
   and infrastructure sub-scores show 100 when those checks did not run, so the
   report now names them as not verified, on the command line and in a new

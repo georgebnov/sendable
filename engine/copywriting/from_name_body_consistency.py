@@ -23,6 +23,7 @@ Match precedence:
      catches "Best, Jane" matching "Jane Doe".
   - Initials (first letters of each display-name word, ≥2 letters) as
      a word-boundary token — catches "— JD" signing for "Jane Doe".
+     The footer does not count for this one.
 
 Skips (INFO PASS):
   - No display name at all (raw address only).
@@ -163,9 +164,11 @@ async def run(email: ParsedEmail) -> list[Finding]:
             )
         ]
 
-    # Initials fallback.
+    # Initials fallback. Two letters are often an ordinary word, "no" for Nora Olsen,
+    # and a footer is full of those. Only a person's closing signs with initials.
     init = _initials(tokens)
-    if init and re.search(rf"\b{re.escape(init)}\b", region_norm):
+    signed_norm = _normalize("\n\n".join(t for name, t in parts.items() if name != "footer"))
+    if init and re.search(rf"\b{re.escape(init)}\b", signed_norm):
         return [
             Finding(
                 check="copywriting.from_name_body_consistency",
