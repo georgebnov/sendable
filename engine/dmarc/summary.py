@@ -42,7 +42,6 @@ from dataclasses import dataclass
 
 from engine.copywriting.link_quality import _registrable
 from engine.dmarc.classifier import classify_record
-from engine.dmarc.esp_fingerprint import authenticated_domain
 from engine.dmarc.esp_fingerprint import classify as classify_ip
 from engine.dmarc.parser import DmarcRecord as ParsedRecord
 from engine.dmarc.parser import DmarcReport
@@ -147,7 +146,7 @@ def _forwarder_domain(record: ParsedRecord) -> str | None:
     return None
 
 
-def _sender_name(record: ParsedRecord, verdict: str | None) -> str:
+def _sender_name(record: ParsedRecord, verdict: str | None, proved: str | None) -> str:
     """The most informative label available for this source.
 
     Order: a forwarder or relay the classifier already named, then the ESP
@@ -157,11 +156,11 @@ def _sender_name(record: ParsedRecord, verdict: str | None) -> str:
     """
     if verdict == "forwarding_artifact":
         return f"Relay via {_forwarder_domain(record) or 'forwarder'}"
-    if verdict == UNCONFIRMED_SENDER:
+    if proved:
         # Named by the domain it proved, so a provider on many addresses is one
         # row and its volume is judged as one, and so a clean row from a shared
         # address never merges with it and hides it.
-        return f"Sender using {authenticated_domain(record)}"
+        return f"Sender using {proved}"
 
     fingerprint = classify_ip(record.source_ip)
     if verdict == "gateway_relay" and fingerprint.name != "unknown":
@@ -264,21 +263,23 @@ def sender_domain(value: str) -> str:
     Case, a trailing dot, and a subdomain copied out of a report must not stop a
     match, because a match that fails leaves the user blocked with no reason why.
     """
-    name = value.strip().lower().rstrip(".")
-    return _registrable(name) or name
+    return _registrable(value.strip())
 
 
-def _settle_unconfirmed(bucket: _Bucket, total_volume: int, not_mine: Collection[str]) -> None:
+def _settle_unconfirmed(bucket: _Bucket, own_volume: int, not_mine: Collection[str]) -> None:
     """Decide what a source that proved its own identity means for this batch.
 
     The user's answer comes first, and it is passed in each run because nothing
     is stored. Otherwise the share decides. Most small rows are forwards, so a
     source below it stays on the record and does not hold the policy back.
+
+    `own_volume` leaves out mail that cannot be the user's. Counted against the
+    whole batch, a spoofer could turn this question off by sending more.
     """
     if bucket.authenticated_as in not_mine:
         filtered = bucket.disposition in ("quarantine", "reject")
         bucket.classification = "spoofing_blocked" if filtered else "spoofing_delivered"
-    elif bucket.volume / max(total_volume, 1) < MATERIAL_SENDER_SHARE:
+    elif bucket.volume / max(own_volume, 1) < MATERIAL_SENDER_SHARE:
         bucket.classification = UNCONFIRMED_LOW_VOLUME
     bucket.legitimacy = legitimacy_from_classification(bucket.classification)
 
@@ -309,9 +310,10 @@ def summarise_reports(
         aspf_strict = bool(report.policy and (report.policy.aspf or "r").lower() == "s")
 
         for record in report.records:
-            verdict = classify_record(record, report.policy).classification
+            result = classify_record(record, report.policy)
+            verdict = result.classification
             bucket = _Bucket(
-                name=_sender_name(record, verdict),
+                name=_sender_name(record, verdict, result.authenticated_as),
                 volume=record.count,
                 dkim_aligned=_aligned(record.auth_dkim, domain, strict=adkim_strict),
                 spf_aligned=_aligned(record.auth_spf, domain, strict=aspf_strict),
@@ -321,9 +323,7 @@ def summarise_reports(
                 disposition=record.disposition or "none",
                 esp_include=include_for_provider(classify_ip(record.source_ip).name),
                 classification=verdict,
-                authenticated_as=(
-                    authenticated_domain(record) if verdict == UNCONFIRMED_SENDER else None
-                ),
+                authenticated_as=result.authenticated_as,
             )
             total_volume += record.count
 
@@ -334,9 +334,14 @@ def summarise_reports(
             else:
                 existing.absorb(bucket)
 
+    own_volume = sum(
+        b.volume
+        for b in by_key.values()
+        if b.legitimacy != "suspicious" and b.authenticated_as not in not_mine
+    )
     for bucket in by_key.values():
         if bucket.classification == UNCONFIRMED_SENDER:
-            _settle_unconfirmed(bucket, total_volume, not_mine)
+            _settle_unconfirmed(bucket, own_volume, not_mine)
 
     senders = [b.to_sender() for b in by_key.values()]
 

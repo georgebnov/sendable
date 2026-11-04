@@ -310,7 +310,7 @@ def _confirm_senders(senders: list[Sender]) -> Action:
     """Ask who the source is, because the reports cannot say."""
     domains = [s.authenticated_as or s.name for s in senders]
     names = ", ".join(domains)
-    flags = " ".join(f"--not-mine {d}" for d in domains)
+    flags = ", ".join(f"--not-mine {d}" for d in domains)
     volume = sum(s.volume for s in senders)
     filtered = any(s.disposition in ("quarantine", "reject") for s in senders)
     losing = (
@@ -322,15 +322,25 @@ def _confirm_senders(senders: list[Sender]) -> Action:
         "CONFIRM_SENDER",
         Tier.ACTION if filtered else Tier.REVIEW,
         Severity.HIGH if filtered else Severity.MEDIUM,
-        f"Confirm who sends through {names} before you advance",
-        f"{volume} message(s) sent as you through {names}. It proved its own identity "
-        "but not yours, so this mail fails DMARC for your domain. That can be a tool you "
-        "use, a forwarder, or someone using your name, and these reports cannot tell them "
-        "apart. A stronger policy would filter this mail, so the next step waits for your "
-        f"answer.{losing}",
-        f"Ask your team who uses {names}. If it is yours, turn on DKIM signing with your "
-        f"own domain in that tool, and new reports will show it passing. If it is not "
-        f"yours, run this again with {flags}.",
+        f"Confirm who sends through {names}",
+        f"{volume} message(s) sent as you through {names}. This mail proved the sender's "
+        "own identity but not yours, so it fails DMARC for your domain. That can be a tool "
+        "you use, a forwarder, or someone using your name, and these reports cannot tell "
+        "them apart. A policy that filters this mail can lose it, so the advice on your "
+        f"policy waits for your answer.{losing}",
+        f"Ask your team who uses {names}. For a tool that is yours, turn on DKIM signing "
+        "with your own domain in that tool, then read only the reports from after that "
+        "change, because older ones still show it failing. For a domain that is not "
+        f"yours, run this again with its flag: {flags}.",
+    )
+
+
+def _small_sources(senders: list[Sender]) -> str:
+    """The sources too small to hold the policy back, as a list to read out."""
+    return ", ".join(
+        f"{s.authenticated_as} ({s.volume} message(s))"
+        for s in senders
+        if s.classification == UNCONFIRMED_LOW_VOLUME
     )
 
 
@@ -610,7 +620,11 @@ def dmarc_decision(rec: DmarcRecord, summary: ReportSummary, rua: str) -> Action
         domain_wide = bool(controllable) and (
             len(controllable) > 1 or share >= DOMAIN_WIDE_BLEED_SHARE
         )
-        spoof_blocked = sum(s.volume for s in senders if s.legitimacy == "suspicious")
+        spoof_blocked = sum(
+            s.volume
+            for s in senders
+            if s.legitimacy == "suspicious" and s.classification != UNCONFIRMED_LOW_VOLUME
+        )
         spoof_note = (
             f" Meanwhile your policy is correctly blocking {spoof_blocked} "
             "impersonation attempt(s), so do not weaken it."
@@ -621,6 +635,9 @@ def dmarc_decision(rec: DmarcRecord, summary: ReportSummary, rua: str) -> Action
         if not domain_wide:
             # Single low-volume source — policy stays put (new_record=None).
             if not controllable:
+                # "Nothing to fix on your side" is false while a source is unplaced.
+                if unconfirmed:
+                    return _confirm_senders(unconfirmed)
                 # (c) recipient-side forward/gateway — no sender-side fix exists.
                 return Action(
                     "FORWARD_BLEED_OK",
@@ -713,16 +730,26 @@ def dmarc_decision(rec: DmarcRecord, summary: ReportSummary, rua: str) -> Action
     if unconfirmed:
         return _confirm_senders(unconfirmed)
 
+    small = _small_sources(senders)
+
     # 3. Already fully enforced.
     if idx >= len(LADDER) - 1:
+        reject_check = (
+            " Check these, because each proved its own identity but not yours, and your "
+            f"policy rejects it if it is a tool you use: {small}."
+            if small
+            else ""
+        )
         return Action(
             "AT_GOAL",
             Tier.GOOD,
             Severity.INFO,
             "Fully protected (p=reject, 100%)",
             "Every legitimate sender is aligned and you're at full enforcement. "
-            "Spoofed mail is rejected outright.",
-            "Keep monitoring for new senders; nothing else to do.",
+            f"Spoofed mail is rejected outright.{reject_check}",
+            "Check the sources named above, then keep monitoring for new senders."
+            if small
+            else "Keep monitoring for new senders; nothing else to do.",
         )
 
     # 4. Nothing is failing, so name the next rung.
@@ -754,12 +781,9 @@ def dmarc_decision(rec: DmarcRecord, summary: ReportSummary, rua: str) -> Action
             f"Some of the {summary.total_volume} message(s) in these reports failed, "
             "but none of them holds your policy back."
         )
-    small = [s for s in senders if s.classification == UNCONFIRMED_LOW_VOLUME]
     check_first = (
         " Check these before you advance, because each proved its own identity but not "
-        "yours, and a stronger policy would filter it if it is a tool you use: "
-        + ", ".join(f"{s.authenticated_as} ({s.volume} message(s))" for s in small)
-        + "."
+        f"yours, and a stronger policy would filter it if it is a tool you use: {small}."
         if small
         else ""
     )

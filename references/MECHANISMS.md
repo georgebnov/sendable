@@ -693,14 +693,16 @@ row: DMARC failed, source not curated
   └── DKIM or SPF passed on another domain (DKIM is read first)
         → unconfirmed_sender, grouped by that registrable domain, any disposition
               ├── --not-mine names it       → spoofing_*. Does not block.
-              ├── under 20% of batch volume → unconfirmed_low_volume. Does not block.
-              │                               The ADVANCE detail names it.
+              ├── under 20% of own volume   → unconfirmed_low_volume. Does not block.
+              │                               ADVANCE and AT_GOAL name it.
               └── 20% or more               → legitimacy "unconfirmed". CONFIRM_SENDER.
 ```
 
 **The share.** `MATERIAL_SENDER_SHARE` reuses `DOMAIN_WIDE_BLEED_SHARE`, 0.2 of the
-batch. Most small rows of this shape are forwards, and a report holds many, so
-blocking on each one would hold every domain off the ladder.
+batch's own volume: every message except spoofs and `--not-mine` sources. Most small
+rows of this shape are forwards, and a report holds many, so blocking on each one
+would hold every domain off the ladder. Spoofs stay out of the count, because a
+spoofer could otherwise switch the question off by sending more.
 
 **Why the summary decides.** The classifier sees one row, and only the batch knows
 the volume. The sender is keyed by the domain it proved, so a provider on 50
@@ -713,8 +715,10 @@ domain, so this source stays out of the `ROLLBACK` and `FIX_SENDER` branches eve
 while receivers filter it. Its tier goes from `review` to `action` in that case.
 `spf_findings` skips it, because those findings call it your provider.
 
-**The exit.** If the source is the user's, aligned DKIM clears it in new reports. If
-it is not, `--not-mine` clears it. Nothing else does, and a matching live SPF
+**The exit.** If the source is the user's, aligned DKIM clears it, once the batch
+holds only reports from after that change. An aligned row does not merge with the
+old rows, so an older report in the batch keeps the source open. If it is not the
+user's, `--not-mine` clears it. Nothing else does, and a matching live SPF
 include does not, because an include authorises shared servers and never makes
 another domain align. Without this exit a spoofer could hold a domain off
 enforcement for as long as it kept sending.

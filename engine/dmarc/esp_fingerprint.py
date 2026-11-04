@@ -259,19 +259,19 @@ def _distinct_domain(results, header_reg: str | None) -> str | None:
     return None
 
 
-def authenticated_domain(record: DmarcRecord) -> str | None:
+def authenticated_domain(record: DmarcRecord, own_domain: str) -> str | None:
     """The registrable domain this row really proved it controls, other than
-    the From domain, or None when it proved no other identity.
+    `own_domain`, or None when it proved no other identity.
 
     Passing results only, which is the difference from `resolve_identity`: that
     picks a name to show, so a failed signature is better than nothing there.
     Here the answer is evidence, and anybody can attach a failed signature.
     DKIM leads because a forwarder keeps it and a key is harder to come by.
     """
-    header_reg = _registrable(record.header_from) if record.header_from else None
+    own_reg = _registrable(own_domain)
     for results in (record.auth_dkim, record.auth_spf):
         passing = [r for r in results if r.result == "pass"]
-        domain = _distinct_domain(passing, header_reg)
+        domain = _distinct_domain(passing, own_reg)
         if domain:
             return domain
     return None

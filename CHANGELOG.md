@@ -88,8 +88,8 @@ service, no account, no database.
   without your domain, passes DKIM and SPF on its own domain. That was labelled
   a spoof, a spoof never holds the policy back, and the advice said "Nothing is
   failing" and offered a quarantine record that would filter your real mail. A
-  source like this at 20 percent of your volume or more now stops the ladder
-  with a new next step, `CONFIRM_SENDER`, which asks you who it is and offers no
+  source like this at 20 percent of your volume or more, not counting spoofed
+  mail, now stops the ladder with a new next step, `CONFIRM_SENDER`, which asks you who it is and offers no
   record. If it is yours, turn on DKIM signing with your own domain in that tool.
   If it is not, pass the new `--not-mine <domain>` flag. A smaller source does
   not block, and the advice names it so you can check it first. This changes the

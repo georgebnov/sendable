@@ -16,6 +16,7 @@ import json
 import pathlib
 import runpy
 import sys
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -270,6 +271,23 @@ def test_a_small_source_is_named_in_the_advice() -> None:
     assert "example.net (19 message(s))" in step.detail
 
 
+def test_a_spoof_flood_cannot_shrink_a_real_tool_below_the_share() -> None:
+    """Spoofed mail is not the user's volume. Counted, it would let an attacker
+    turn the question off by sending more, which is the bug this file is about."""
+    step = _decide(_tool_row(4200), _spoof_row(30000), _clean_row(2000)).primary
+    assert step.code == "CONFIRM_SENDER"
+    assert step.new_record is None
+
+
+def test_a_dismissed_source_does_not_shrink_the_next_one() -> None:
+    """The user said that mail is not theirs, so it is not in the share either."""
+    dismissed = _row("192.0.2.9", 9000, dkim=("not-mine.example.org", "pass"))
+    rows = (dismissed, _tool_row(1000), _clean_row(3000))
+    step = _decide(*rows, not_mine=frozenset({"example.org"})).primary
+    assert step.code == "CONFIRM_SENDER"
+    assert "example.net" in step.title
+
+
 def test_a_clean_row_from_the_same_address_does_not_hide_the_source() -> None:
     """Merging on the address would take the best case on alignment, and one clean
     message would then clear every message that failed."""
@@ -315,6 +333,75 @@ def test_no_finding_says_the_unconfirmed_source_is_your_provider() -> None:
     for row in (_tool_row(60), _row("192.0.2.44", 60, dkim=(TOOL, "pass"))):
         codes = {f.code for f in _decide(row, _clean_row(40)).spf_findings}
         assert not codes & {"SPF_SENDER_UNALIGNED_NODKIM", "SPF_SENDER_NOT_AUTHORIZED"}
+
+
+def test_a_filtered_relay_does_not_hide_the_question() -> None:
+    """A recipient's gateway is filtered on most enforcing domains, so "nothing to
+    fix on your side" would hold off the question for as long as that lasts."""
+    relay = _failing("gateway_relay", "legit", "quarantine")
+    tool = _failing("unconfirmed_sender", "unconfirmed", "none", authenticated_as="example.net")
+    summary = ReportSummary(senders=[relay, tool, _CLEAN], total_volume=150)
+    result = evaluate(PublishedDmarc(True, "quarantine", pct=25), SPF, summary, RUA)
+    assert result.ladder_decision is not None
+    assert result.ladder_decision.code == "CONFIRM_SENDER"
+
+
+def test_a_small_source_is_named_at_full_enforcement() -> None:
+    """Here the policy is rejecting it, so "nothing else to do" hides real mail."""
+    step = _decide(_tool_row(19, disposition="reject"), _clean_row(81), p="reject").primary
+    assert step.code == "AT_GOAL"
+    assert "example.net (19 message(s))" in step.detail
+    assert "nothing else to do" not in step.suggested_action
+
+
+def test_a_small_source_is_not_called_an_impersonation_attempt() -> None:
+    known = replace(_failing("sender_auth_gap", "unconfirmed", "reject"), volume=5)
+    small = _failing("unconfirmed_low_volume", "suspicious", "none", authenticated_as="example.net")
+    summary = ReportSummary(senders=[known, small, _CLEAN], total_volume=105)
+    decision = evaluate(PublishedDmarc(True, "reject", pct=100), SPF, summary, RUA).ladder_decision
+    assert decision is not None
+    assert decision.code == "FIX_SENDER"
+    assert "impersonation" not in decision.detail
+
+
+def test_the_question_reads_true_at_full_enforcement() -> None:
+    """There is no next rung, so the advice cannot speak of one."""
+    step = _decide(_tool_row(60, disposition="reject"), _clean_row(40), p="reject").primary
+    assert step.code == "CONFIRM_SENDER"
+    text = f"{step.title} {step.detail}"
+    assert "advance" not in text
+    assert "next step" not in text
+    assert "stronger" not in text
+
+
+def test_the_advice_says_older_reports_keep_the_question_open() -> None:
+    """Rows from before the fix stay in their own sender, so a user who passes
+    every report they have would stay blocked after doing what the advice said."""
+    fixed = _row(
+        "192.0.2.44",
+        4000,
+        dkim=(DOMAIN, "pass"),
+        spf=(f"bounces.{TOOL}", "pass"),
+        policy="pass",
+    )
+    step = _decide(_tool_row(4000), fixed, _clean_row(1000)).primary
+    assert step.code == "CONFIRM_SENDER"
+    assert "older" in step.suggested_action
+
+
+def test_two_sources_are_answered_one_at_a_time() -> None:
+    """One flag line for both would mark a real tool a spoof along with the other."""
+    other = _row("192.0.2.45", 40, dkim=("other.example.org", "pass"))
+    action = _decide(_tool_row(40), other, _clean_row(20)).primary.suggested_action
+    assert "--not-mine example.net" in action
+    assert "--not-mine example.org" in action
+    assert "--not-mine example.net --not-mine" not in action
+
+
+def test_a_row_with_no_from_domain_never_names_your_own_domain() -> None:
+    """The report still says whose domain it is about."""
+    row = replace(_row("192.0.2.44", 10, dkim=(DOMAIN, "pass")), header_from=None)
+    assert classify_record(row, _report().policy).classification == "spoofing_delivered"
 
 
 # --- the way out ----------------------------------------------------------------

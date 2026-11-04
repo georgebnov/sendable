@@ -78,6 +78,7 @@ class ClassificationResult:
     suggested_action: str | None = None
     source_match: ESPMatch | None = None
     details: dict = field(default_factory=dict)
+    authenticated_as: str | None = None  # set on an unconfirmed_sender row
 
 
 def _has_reason(record: DmarcRecord, type_name: str) -> bool:
@@ -404,8 +405,7 @@ def classify_record(
     #
     # Every disposition. Holding only at p=none would flip the same source to
     # "spoof blocked, working as intended" on the first rung of the ladder.
-    other_domain = authenticated_domain(record)
-    if fail_both and not known and other_domain:
+    if fail_both and not known and (other_domain := authenticated_domain(record, domain)):
         return ClassificationResult(
             classification="unconfirmed_sender",
             severity=Severity.MEDIUM,
@@ -418,6 +418,7 @@ def classify_record(
             ),
             source_match=src,
             details=base,
+            authenticated_as=other_domain,
         )
 
     # ─── 8. Spoofing blocked ─────────────────────────────────────
