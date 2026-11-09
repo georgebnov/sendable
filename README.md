@@ -1,3 +1,5 @@
+<a href="https://peerlist.io/goshababakhanov/project/sendable"><img src="docs/peerlist-launchpad.png" alt="Live on Peerlist Launchpad" height="56"></a>
+
 # Sendable 📬: because nobody tells you why it went to spam, or whether the next one will
 
 [![ci](https://img.shields.io/github/actions/workflow/status/georgebnov/sendable/skill.yml?branch=main&style=flat-square&label=ci)](https://github.com/georgebnov/sendable/actions/workflows/skill.yml)
