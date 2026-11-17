@@ -20,9 +20,13 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels the old run of that pull request. A run on
+# main gets a group of its own, because a shared group lets a later merge cancel
+# the run of an earlier one, and that commit then never gets a result.
+# tests/test_ci_workflow.py holds this form.
 concurrency:
-  group: skill-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   gate:
