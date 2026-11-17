@@ -18,7 +18,8 @@ block, workflow-level and job-level alike:
 The repo declares no YAML parser and rule 13 keeps it that way, so this reads the one plain
 form below and fails on every other spelling. A line that mentions ``concurrency`` and is not
 that form (a quoted key, a flow mapping, a ``run:`` script that prints the word) fails too: a
-block this scan cannot read is a block nobody checked. The one spelling it cannot see is a key
+block this scan cannot read is a block nobody checked. A ``group`` or ``cancel-in-progress``
+line with a trailing comment fails for the same reason. The one spelling it cannot see is a key
 written with a YAML escape such as ``"concur\\u0072ency"``.
 
 A workflow that truly must run one at a time (a release, say) would need one fixed group with
@@ -35,15 +36,18 @@ import pytest
 WORKFLOWS = Path(__file__).resolve().parent.parent / ".github" / "workflows"
 PR_ONLY_CANCEL = "${{ github.event_name == 'pull_request' }}"
 OWN_GROUP = "${{ github.event_name == 'pull_request' && github.ref || github.run_id }}"
-FIX = (
-    "Fix: write the block in exactly this form.\n"
-    "concurrency:\n"
-    f"  group: ${{{{ github.workflow }}}}-{OWN_GROUP}\n"
-    f"  cancel-in-progress: {PR_ONLY_CANCEL}"
-)
+GOOD = f"""\
+concurrency:
+  group: ${{{{ github.workflow }}}}-{OWN_GROUP}
+  cancel-in-progress: {PR_ONLY_CANCEL}
+"""
+FIX = f"Fix: write the block in exactly this form.\n{GOOD}"
 
 _KEY = re.compile(r"^( *)concurrency:\s*(#.*)?$")
 _FIELD = re.compile(r"^ +(group|cancel-in-progress):\s+(\S.*?)\s*$")
+# YAML starts a comment at a "#" that follows white space. The text after it is not part of the
+# value, so a value that holds one is not read: the comment could hold the form and hide the value.
+_COMMENT = re.compile(r"\s#")
 
 
 def _indent(line: str) -> int:
@@ -73,7 +77,7 @@ def _violations(name: str, text: str) -> list[str]:
             if _indent(child) <= len(key.group(1)):
                 break
             field = _FIELD.match(child)
-            if field is None or field.group(1) in fields:
+            if field is None or field.group(1) in fields or _COMMENT.search(field.group(2)):
                 found.append(f"{where}: cannot read this line of the block: {child.strip()}")
                 continue
             fields[field.group(1)] = field.group(2).strip("\"'")
@@ -103,16 +107,8 @@ def test_no_workflow_can_cancel_a_run_on_main() -> None:
     assert not bad, "\n".join([*bad, FIX])
 
 
-GOOD = f"""\
-concurrency:
-  group: ${{{{ github.workflow }}}}-{OWN_GROUP}
-  cancel-in-progress: {PR_ONLY_CANCEL}
-"""
-
-
 def test_the_fix_it_names_passes() -> None:
     assert _violations("ok.yml", GOOD) == []
-    assert _violations("ok.yml", FIX.split("\n", 1)[1]) == []
 
 
 # Each of these lets a later run cancel a run on main, or hides a block from the scan. The
@@ -147,6 +143,10 @@ BAD = {
     "a flow mapping": (
         "jobs: {gate: {concurrency: {group: shared, cancel-in-progress: true}}}\n",
         "x.yml:1: cannot read this spelling",
+    ),
+    "a shared group with the expression in a trailing comment": (
+        f"concurrency:\n  group: shared # {OWN_GROUP}\n  cancel-in-progress: false\n",
+        "x.yml:1: cannot read this line of the block: group: shared #",
     ),
     "a second key that overrides the first": (
         f"concurrency:\n  group: {OWN_GROUP}\n  cancel-in-progress: false\n"
